@@ -58,7 +58,7 @@ import { FadeIn } from '../components/ui';
 import { Skeleton, TrackCardSkeleton } from '../components/ui/Skeleton';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
-// ─── Room Mode Label ───────────────────────────────────────
+// ─── Room Mode Label ─────────────────────────────────────────
 
 const modeLabel: Record<string, string> = {
   campfire: 'Campfire',
@@ -174,15 +174,25 @@ export function SessionRoomScreen() {
           onSessionEvent('session-updated', (update) => {
             if (mounted) setSession((prev) => prev ? { ...prev, ...update } : null);
           }),
-          // Backend sends full room state on join — use it to hydrate queue + participants
+          // Backend sends full room state on join — use it to hydrate queue + participants + suggestions
           onSessionEvent('room-state' as any, (state: any) => {
             if (!mounted) return;
             if (state.queue) setQueue(state.queue);
+            if (state.suggestedQueue) setSuggestedQueue(state.suggestedQueue);
             if (state.participants) setListeners(state.participants);
             if (state.currentTrack && state.queue?.length === 0) {
               // If there's a current track but queue is empty, put it at front
               setQueue([state.currentTrack]);
             }
+          }),
+          // Spotlight mode: server notifies when a non-host adds a pending track
+          onSessionEvent('track-pending' as any, (data: any) => {
+            if (!mounted || !data?.track) return;
+            setSuggestedQueue((prev) => {
+              // Prevent duplicates
+              if (prev.some((t) => t.id === data.track.id)) return prev;
+              return [...prev, { ...data.track, status: 'pending' as const }];
+            });
           }),
           onSessionEvent('track-changed' as any, (track: any) => {
             if (!mounted || !track) return;
@@ -383,7 +393,7 @@ export function SessionRoomScreen() {
     return () => clearTimeout(timer);
   }, [session?.id]);
 
-  // ─── Playback engine ──────────────────────────────────
+  // ─── Playback engine ────────────────────────────────────
 
   // Subscribe to progress updates
   useEffect(() => {
@@ -636,7 +646,7 @@ export function SessionRoomScreen() {
             <View style={styles.headerTitleRow}>
               <TouchableOpacity onPress={isHost ? handleChangeMode : undefined} activeOpacity={isHost ? 0.6 : 1}>
                 <Text variant="labelSmall" color={isHost ? colors.action.primary : colors.text.muted}>
-                  {modeName}{isHost ? ' ▾' : ''}
+                  {modeName}{isHost ? ' \u25be' : ''}
                 </Text>
               </TouchableOpacity>
               <Text variant="labelLarge" color={colors.text.primary} numberOfLines={1} style={{ flex: 1 }}>
@@ -887,7 +897,7 @@ export function SessionRoomScreen() {
           onClose={() => setListenerDrawerOpen(false)}
         />
 
-        {/* ─── Chat Panel ──────────────────────────── */}
+        {/* ─── Chat Panel ────────────────────────────── */}
         <ChatPanel
           sessionId={session.id}
           userId={user?.id || ''}

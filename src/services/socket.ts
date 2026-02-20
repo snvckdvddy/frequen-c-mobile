@@ -258,6 +258,7 @@ export interface SessionSocketEvents {
   'track-skipped': (data: Record<string, never>) => void;
   'reaction-local': (data: { trackId: string; userId: string; type: string }) => void;
   // Spotlight mode events
+  'track-pending': (data: { track: QueueTrack }) => void;
   'track-approved': (data: { trackId: string; track: QueueTrack }) => void;
   'track-rejected': (data: { trackId: string }) => void;
   // Mode change events
