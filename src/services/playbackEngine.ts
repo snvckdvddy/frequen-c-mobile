@@ -11,6 +11,8 @@
  */
 
 import { Audio, AVPlaybackStatus, AVPlaybackStatusSuccess } from 'expo-av';
+import { getActiveAdapter } from './adapters/musicServiceAdapter';
+import { currentServices } from './api';
 
 export interface PlaybackState {
   isPlaying: boolean;
@@ -118,6 +120,23 @@ export async function loadTrack(
   durationSec: number,
   previewUrl?: string
 ): Promise<void> {
+
+  // Dynamically fetch fresh stream URLs via the Service Adapter layer.
+  // Skip for iTunes tracks (already have direct preview URL) or when no adapter is connected.
+  if (!trackId.startsWith('itunes_')) {
+    try {
+      const adapter = getActiveAdapter(currentServices);
+      if (adapter.isConnected()) {
+        const freshUrl = await adapter.getStreamUrl(trackId);
+        if (freshUrl) {
+          previewUrl = freshUrl;
+        }
+      }
+    } catch (err) {
+      console.warn('PlaybackEngine adapter failed to fetch fresh stream:', err);
+    }
+  }
+
   await ensureAudioMode();
   await unloadCurrent();
 
