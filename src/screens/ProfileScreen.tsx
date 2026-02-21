@@ -1,27 +1,30 @@
 /**
- * Profile Screen
+ * Profile Screen — Rack Panel Identity
  *
- * Your identity within Frequen-C.
- * Shows listening stats, contribution history, connected services,
- * and recent room activity.
+ * Your signal identity within Frequen-C.
+ * Rack-mount layout: header strip → voltage meter → stat modules →
+ * service jacks → preferences → disconnect
  *
- * SoundCloud-inspired: monochrome stats, no emoji, quiet chrome.
+ * Zero emoji. Chrome borders. Monochrome stats.
  */
 
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, FlatList, Image } from 'react-native';
+import {
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  Alert, RefreshControl, Image, Linking,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, Button, SafeScreen } from '../components/ui';
+import { Text, Button, SafeScreen, VoltageMeter, EmptyState, ErrorState, RoomCardSkeleton } from '../components/ui';
+import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
-import { sessionApi } from '../services/api';
+import { sessionApi, authApi } from '../services/api';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
-import type { Session, RoomMode, Track } from '../types';
+import type { Session } from '../types';
 
-// ─── Helpers ───────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────
 
-/** Format minutes into human-readable string: "72h 0m" or "0m" */
 function formatListenTime(minutes: number | undefined): string {
   if (!minutes || minutes <= 0) return '0m';
   const h = Math.floor(minutes / 60);
@@ -30,122 +33,147 @@ function formatListenTime(minutes: number | undefined): string {
   return `${h}h ${m}m`;
 }
 
-/** Room mode label (text only) */
-const modeLabel: Record<string, string> = {
-  campfire: 'Campfire',
-  spotlight: 'Spotlight',
-  openFloor: 'Open Floor',
-};
+// ─── Rack Module (Stat Card) ─────────────────────────────────
 
-// ─── Stat Card ──────────────────────────────────────────────
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
+function RackModule({ label, value }: { label: string; value: string | number }) {
   return (
-    <View style={statStyles.card}>
+    <View style={rackStyles.module}>
       <Text variant="h2" color={colors.text.primary}>
         {value}
       </Text>
-      <Text variant="labelSmall" color={colors.text.muted} style={statStyles.label}>
-        {label.toUpperCase()}
+      <Text variant="labelSmall" color={colors.chrome.text} style={rackStyles.label}>
+        {label}
       </Text>
     </View>
   );
 }
 
-const statStyles = StyleSheet.create({
-  card: {
+const rackStyles = StyleSheet.create({
+  module: {
     flex: 1,
     backgroundColor: colors.bg.elevated,
-    borderRadius: spacing.radius.md,
-    padding: spacing.cardPadding,
+    borderRadius: 8,
+    padding: 14,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: colors.chrome.border,
     alignItems: 'center',
   },
   label: {
-    marginTop: spacing.xs,
+    marginTop: 4,
+    fontSize: 8,
+    letterSpacing: 1.5,
   },
 });
 
-// ─── Section Header ─────────────────────────────────────────
+// ─── Section Strip ──────────────────────────────────────────
 
-function SectionHeader({ title, right }: { title: string; right?: React.ReactNode }) {
+function SectionStrip({ label }: { label: string }) {
   return (
-    <View style={sectionStyles.headerRow}>
-      <Text variant="h3" color={colors.text.primary}>
-        {title}
+    <View style={stripStyles.container}>
+      <View style={stripStyles.line} />
+      <Text variant="labelSmall" color={colors.chrome.text} style={stripStyles.text}>
+        {label}
       </Text>
-      {right}
+      <View style={stripStyles.line} />
     </View>
   );
 }
 
-const sectionStyles = StyleSheet.create({
-  headerRow: {
+const stripStyles = StyleSheet.create({
+  container: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
     marginTop: spacing.xl,
+    marginBottom: spacing.md,
+    gap: 10,
+  },
+  line: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.chrome.border,
+  },
+  text: {
+    fontSize: 9,
+    letterSpacing: 2,
   },
 });
 
-// ─── Connected Service Row ───────────────────────────────────
+// ─── Service Jack Row ────────────────────────────────────────
 
-function ServiceRow({
-  name,
-  connected,
-  username,
-  iconName,
-  onConnect,
+function ServiceJack({
+  name, connected, username, serviceKey, onConnect,
 }: {
   name: string;
   connected: boolean;
   username?: string;
-  iconName: string;
+  serviceKey: string;
   onConnect: () => void;
 }) {
   return (
-    <View style={serviceStyles.row}>
-      <View style={serviceStyles.left}>
-        <Ionicons
-          name={iconName as any}
-          size={18}
-          color={connected ? colors.text.primary : colors.text.muted}
-        />
+    <View style={jackStyles.row}>
+      <View style={jackStyles.left}>
+        <View style={[jackStyles.jack, connected && jackStyles.jackActive]}>
+          <ServiceIcon service={serviceKey} size={20} connected={connected} />
+        </View>
         <View>
-          <Text variant="label" color={colors.text.primary}>{name}</Text>
-          <Text variant="labelSmall" color={connected ? colors.text.secondary : colors.text.muted}>
-            {connected ? (username ? `@${username}` : 'Connected') : 'Not connected'}
+          <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>
+            {name}
+          </Text>
+          <Text variant="labelSmall" color={connected ? colors.text.secondary : colors.text.muted} style={{ fontSize: 10 }}>
+            {connected ? (username ? `@${username}` : 'Patched') : 'Unpatched'}
           </Text>
         </View>
       </View>
       {!connected ? (
-        <TouchableOpacity onPress={onConnect}>
-          <Text variant="labelSmall" color={colors.action.primary}>CONNECT</Text>
+        <TouchableOpacity onPress={onConnect} style={jackStyles.connectBtn} accessibilityRole="button" accessibilityLabel={`Connect ${name}`}>
+          <Text variant="labelSmall" color={colors.action.primary} style={{ fontSize: 9, letterSpacing: 1 }}>
+            PATCH
+          </Text>
         </TouchableOpacity>
       ) : (
-        <View style={serviceStyles.connectedDot} />
+        <View style={jackStyles.activeDot} />
       )}
     </View>
   );
 }
 
-const serviceStyles = StyleSheet.create({
+const jackStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.md,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    borderBottomColor: colors.chrome.border,
   },
   left: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 10,
   },
-  connectedDot: {
+  jack: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.chrome.surface,
+    borderWidth: 1,
+    borderColor: colors.chrome.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  jackActive: {
+    borderColor: colors.action.primary,
+    backgroundColor: colors.highlight.iceFaint,
+  },
+  connectBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.chrome.border,
+    backgroundColor: colors.chrome.surface,
+  },
+  activeDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
@@ -153,56 +181,44 @@ const serviceStyles = StyleSheet.create({
   },
 });
 
-// ─── Recent Room Card ──────────────────────────────────────
+// ─── Recent Session Card ────────────────────────────────────
 
-function RecentRoomCard({ session, onPress }: { session: Session; onPress: () => void }) {
-  const mode = modeLabel[session.roomMode] || 'Campfire';
+function SessionHistoryCard({ session, onPress }: { session: Session; onPress: () => void }) {
   const listenerCount = session.listeners?.length || 0;
-
   return (
-    <TouchableOpacity style={roomCardStyles.card} onPress={onPress} activeOpacity={0.75}>
-      <View style={roomCardStyles.body}>
-        <View style={roomCardStyles.header}>
-          <Text variant="label" color={colors.text.primary} numberOfLines={1} style={{ flex: 1 }}>
-            {session.name}
-          </Text>
-          {session.isLive && (
-            <View style={roomCardStyles.liveDot} />
-          )}
-        </View>
-        <Text variant="labelSmall" color={colors.text.muted}>
-          {mode} · {listenerCount} listening · {session.genre || 'Mixed'}
+    <TouchableOpacity style={histStyles.card} onPress={onPress} activeOpacity={0.7}>
+      <View style={histStyles.header}>
+        <Text variant="label" color={colors.text.primary} numberOfLines={1} style={{ flex: 1, fontSize: 12 }}>
+          {session.name}
         </Text>
-        {session.currentTrack && (
-          <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1} style={{ marginTop: 2 }}>
-            {session.currentTrack.title} — {session.currentTrack.artist}
-          </Text>
-        )}
+        {session.isLive && <View style={histStyles.liveDot} />}
       </View>
+      <Text variant="labelSmall" color={colors.text.muted} style={{ fontSize: 10 }}>
+        {listenerCount} connected · {session.genre || 'Mixed'}
+      </Text>
     </TouchableOpacity>
   );
 }
 
-const roomCardStyles = StyleSheet.create({
+const histStyles = StyleSheet.create({
   card: {
     backgroundColor: colors.bg.elevated,
-    borderRadius: spacing.radius.md,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
+    borderColor: colors.chrome.border,
+    padding: 12,
+    marginBottom: 8,
   },
-  body: { padding: spacing.cardPadding, gap: 2 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.sm,
+    marginBottom: 2,
   },
   liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: colors.action.primary,
   },
 });
@@ -214,17 +230,26 @@ interface ProfileScreenProps {
 }
 
 export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, deleteAccount, connectSpotify, connectLastfm } = useAuth();
   const { favorites, removeFavorite } = useFavoritesContext();
   const [recentRooms, setRecentRooms] = useState<Session[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [noiseGate, setNoiseGate] = useState<'off' | 'low' | 'medium' | 'high'>(
+    user?.noiseGate || 'medium'
+  );
 
   const fetchRecentRooms = useCallback(async () => {
     try {
+      setError(null);
       const { sessions } = await sessionApi.myRooms();
       setRecentRooms(sessions);
-    } catch {
-      // silent — empty state is fine
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load recent rooms';
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -238,7 +263,6 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
     setRefreshing(false);
   }, [fetchRecentRooms]);
 
-  // Formatted stats
   const stats = useMemo(() => ({
     sessionsHosted: user?.sessionsHosted || 0,
     tracksAdded: user?.tracksAdded || 0,
@@ -246,27 +270,133 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
     voltageBalance: user?.voltageBalance || 0,
   }), [user]);
 
-  // Deterministic avatar color from username — desaturated
+  // Deterministic avatar hue from username
   const avatarHue = useMemo(() => {
     const name = user?.username || '?';
     return name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
   }, [user?.username]);
-  const avatarBg = `hsl(${avatarHue}, 20%, 20%)`;
+  const avatarBg = `hsl(${avatarHue}, 15%, 18%)`;
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     Alert.alert(
-      'Sign Out',
-      'Are you sure you want to leave?',
+      'Disconnect',
+      'Unplug from this signal chain?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: logout },
+        { text: 'Disconnect', style: 'destructive', onPress: logout },
       ]
     );
+  }, [logout]);
+
+  const handleDeleteAccount = useCallback(() => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently erase your account and all associated data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Forever',
+          style: 'destructive',
+          onPress: () => {
+            // Double confirm — this is irreversible
+            Alert.alert(
+              'Are you sure?',
+              'All sessions, favorites, and listening history will be permanently deleted.',
+              [
+                { text: 'Go Back', style: 'cancel' },
+                { text: 'Yes, Delete', style: 'destructive', onPress: deleteAccount },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }, [deleteAccount]);
+
+  const noiseGateLabels: Record<string, string> = {
+    off: 'OFF', low: 'LOW', medium: 'MEDIUM', high: 'HIGH',
   };
 
+  const handleNoiseGateChange = useCallback(() => {
+    const levels: Array<'off' | 'low' | 'medium' | 'high'> = ['off', 'low', 'medium', 'high'];
+    const labels = ['Off — No notifications', 'Low — Critical only', 'Medium — Default', 'High — Everything', 'Cancel'];
+
+    Alert.alert(
+      'Noise Gate',
+      'Set your notification threshold',
+      [
+        ...levels.map((level, i) => ({
+          text: labels[i],
+          onPress: () => {
+            setNoiseGate(level);
+            authApi.setNoiseGate(level).catch(console.error);
+          },
+        })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ]
+    );
+  }, []);
+
   const handleConnectService = (service: string) => {
-    Alert.alert('Coming Soon', `${service} integration is coming in a future update.`);
+    if (service === 'Spotify') {
+      if (!process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID) {
+        Alert.alert(
+          'Spotify Not Configured',
+          'Set EXPO_PUBLIC_SPOTIFY_CLIENT_ID in your .env file.\n\nCreate a free Spotify Developer App at developer.spotify.com to get your Client ID.'
+        );
+        return;
+      }
+      connectSpotify();
+      return;
+    }
+    if (service === 'Last.fm') {
+      if (!process.env.EXPO_PUBLIC_LASTFM_API_KEY) {
+        Alert.alert(
+          'Last.fm Not Configured',
+          'Set EXPO_PUBLIC_LASTFM_API_KEY in your .env file.\n\nGet a free API key at last.fm/api/account/create'
+        );
+        return;
+      }
+      connectLastfm();
+      return;
+    }
+    Alert.alert('Coming Soon', `${service} patch cable is coming in a future update.`);
   };
+
+  // Show loading state with skeletons
+  if (isLoading) {
+    return (
+      <SafeScreen>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.action.primary} />
+          }
+        >
+          <SectionStrip label="RECENT SIGNALS" />
+          <RoomCardSkeleton />
+          <RoomCardSkeleton />
+          <RoomCardSkeleton />
+        </ScrollView>
+      </SafeScreen>
+    );
+  }
+
+  // Show error state with retry
+  if (error) {
+    return (
+      <SafeScreen>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.action.primary} />
+          }
+        >
+          <ErrorState message={error} onRetry={fetchRecentRooms} />
+        </ScrollView>
+      </SafeScreen>
+    );
+  }
 
   return (
     <SafeScreen>
@@ -276,49 +406,46 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.action.primary} />
         }
       >
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
+        {/* ─── Identity Header ─────────────────────────── */}
+        <View style={styles.identityHeader}>
           <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
-            <Text variant="displayLarge" color={colors.text.primary}>
+            <Text variant="displayLarge" color={colors.text.primary} style={{ fontWeight: '200' }}>
               {(user?.username || '?').charAt(0).toUpperCase()}
             </Text>
           </View>
-          <Text variant="h1" color={colors.text.primary} style={styles.username}>
-            {user?.username || 'Anonymous'}
-          </Text>
-          <Text variant="body" color={colors.text.secondary}>
-            {user?.email || ''}
-          </Text>
-          {user?.connectedServices?.spotify?.connected && (
-            <Text variant="labelSmall" color={colors.text.muted} style={styles.spotifyLabel}>
-              Spotify: @{user.connectedServices.spotify.username || 'connected'}
+          <View style={styles.identityInfo}>
+            <Text variant="h2" color={colors.text.primary}>
+              {user?.username || 'Anonymous'}
             </Text>
-          )}
+            <Text variant="bodySmall" color={colors.text.muted} style={{ fontSize: 11 }}>
+              {user?.email || ''}
+            </Text>
+            {user?.connectedServices?.spotify?.connected && (
+              <Text variant="labelSmall" color={colors.chrome.text} style={{ marginTop: 2, fontSize: 9, letterSpacing: 1 }}>
+                SPOTIFY: @{user.connectedServices.spotify.username || 'connected'}
+              </Text>
+            )}
+          </View>
         </View>
 
-        {/* Stats Grid */}
-        <SectionHeader title="Stats" />
+        {/* ─── Voltage Meter ──────────────────────────── */}
+        <View style={styles.voltageSection}>
+          <VoltageMeter balance={stats.voltageBalance} max={200} variant="full" />
+        </View>
+
+        {/* ─── Rack Modules (Stats) ──────────────────── */}
+        <SectionStrip label="SIGNAL STATS" />
         <View style={styles.statsRow}>
-          <StatCard label="Rooms Hosted" value={stats.sessionsHosted} />
-          <StatCard label="Tracks Added" value={stats.tracksAdded} />
-        </View>
-        <View style={[styles.statsRow, { marginTop: spacing.md }]}>
-          <StatCard label="Listen Time" value={stats.totalListeningTime} />
-          <StatCard label="Voltage" value={stats.voltageBalance} />
+          <RackModule label="SESSIONS" value={stats.sessionsHosted} />
+          <RackModule label="TRACKS" value={stats.tracksAdded} />
+          <RackModule label="LISTEN TIME" value={stats.totalListeningTime} />
         </View>
 
-        {/* Saved Tracks (Favorites) */}
+        {/* ─── Saved Tracks ──────────────────────────── */}
         {favorites.length > 0 && (
           <>
-            <SectionHeader
-              title={`Saved Tracks (${favorites.length})`}
-              right={
-                <Text variant="labelSmall" color={colors.text.muted}>
-                  {favorites.length} saved
-                </Text>
-              }
-            />
-            {favorites.slice(0, 10).map(({ track }) => (
+            <SectionStrip label={`LIKED TRACKS (${favorites.length})`} />
+            {favorites.slice(0, 8).map(({ track }) => (
               <View key={track.id} style={styles.favoriteRow}>
                 {track.albumArt ? (
                   <Image source={{ uri: track.albumArt }} style={styles.favoriteArt} />
@@ -330,10 +457,10 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
                   </View>
                 )}
                 <View style={{ flex: 1, marginRight: spacing.sm }}>
-                  <Text variant="label" color={colors.text.primary} numberOfLines={1}>
+                  <Text variant="label" color={colors.text.primary} numberOfLines={1} style={{ fontSize: 12 }}>
                     {track.title}
                   </Text>
-                  <Text variant="labelSmall" color={colors.text.muted} numberOfLines={1}>
+                  <Text variant="labelSmall" color={colors.text.muted} numberOfLines={1} style={{ fontSize: 10 }}>
                     {track.artist}
                   </Text>
                 </View>
@@ -345,98 +472,134 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
                     ]);
                   }}
                 >
-                  <Text variant="labelSmall" color={colors.text.muted}>Remove</Text>
+                  <Ionicons name="close" size={14} color={colors.text.muted} />
                 </TouchableOpacity>
               </View>
             ))}
-            {favorites.length > 10 && (
-              <Text variant="labelSmall" color={colors.text.muted} style={{ marginTop: spacing.xs }}>
-                +{favorites.length - 10} more
+            {favorites.length > 8 && (
+              <Text variant="labelSmall" color={colors.text.muted} style={{ marginTop: 4, fontSize: 9 }}>
+                +{favorites.length - 8} more
               </Text>
             )}
           </>
         )}
 
-        {/* Recent Rooms */}
-        {recentRooms.length > 0 && (
+        {/* ─── Recent Sessions ───────────────────────── */}
+        <SectionStrip label="RECENT SIGNALS" />
+        {recentRooms.length > 0 ? (
           <>
-            <SectionHeader title="Recent Rooms" />
             {recentRooms.map((room) => (
-              <RecentRoomCard
+              <SessionHistoryCard
                 key={room.id}
                 session={room}
                 onPress={() => onOpenRoom?.(room.id)}
               />
             ))}
           </>
+        ) : (
+          <EmptyState
+            icon="radio-outline"
+            title="No recent rooms"
+            subtitle="Join or create a session to get started"
+          />
         )}
 
-        {/* Connected Services */}
-        <SectionHeader title="Connected Services" />
-        <View style={styles.servicesContainer}>
-          <ServiceRow
+        {/* ─── Service Jacks ─────────────────────────── */}
+        <SectionStrip label="PATCH CABLES" />
+        <View style={styles.servicesPanel}>
+          <ServiceJack
             name="Spotify"
             connected={!!user?.connectedServices?.spotify?.connected}
             username={user?.connectedServices?.spotify?.username}
-            iconName="musical-notes-outline"
+            serviceKey="spotify"
             onConnect={() => handleConnectService('Spotify')}
           />
-          <ServiceRow
+          <ServiceJack
             name="Apple Music"
             connected={!!user?.connectedServices?.appleMusic?.connected}
-            iconName="musical-note-outline"
+            serviceKey="apple-music"
             onConnect={() => handleConnectService('Apple Music')}
           />
-          <ServiceRow
+          <ServiceJack
             name="SoundCloud"
             connected={!!user?.connectedServices?.soundcloud?.connected}
             username={user?.connectedServices?.soundcloud?.username}
-            iconName="cloud-outline"
+            serviceKey="soundcloud"
             onConnect={() => handleConnectService('SoundCloud')}
           />
-          <ServiceRow
+          <ServiceJack
             name="YouTube Music"
             connected={!!user?.connectedServices?.youtube?.connected}
-            iconName="play-outline"
+            serviceKey="youtube-music"
             onConnect={() => handleConnectService('YouTube Music')}
           />
-          <ServiceRow
+          <ServiceJack
             name="Tidal"
             connected={!!user?.connectedServices?.tidal?.connected}
-            iconName="water-outline"
+            serviceKey="tidal"
             onConnect={() => handleConnectService('Tidal')}
+          />
+          <ServiceJack
+            name="Last.fm"
+            connected={!!user?.connectedServices?.lastfm?.connected}
+            username={user?.connectedServices?.lastfm?.username}
+            serviceKey="lastfm"
+            onConnect={() => handleConnectService('Last.fm')}
           />
         </View>
 
-        {/* Preferences */}
-        <SectionHeader title="Preferences" />
-        <View style={styles.prefsContainer}>
-          <TouchableOpacity style={styles.prefRow}>
-            <Text variant="label" color={colors.text.primary}>Notification Settings</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.text.muted} />
+        {/* ─── Preferences ────────────────────────────── */}
+        <SectionStrip label="CONFIGURATION" />
+        <View style={styles.prefsPanel}>
+          <TouchableOpacity style={styles.prefRow} onPress={handleNoiseGateChange}>
+            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Noise Gate</Text>
+            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>
+              {noiseGateLabels[noiseGate] || 'MEDIUM'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.prefRow}>
-            <Text variant="label" color={colors.text.primary}>Default Room Mode</Text>
-            <Text variant="labelSmall" color={colors.text.muted}>Campfire</Text>
+            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Default Waveform</Text>
+            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>SINE</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.prefRow}>
-            <Text variant="label" color={colors.text.primary}>Privacy</Text>
-            <Text variant="labelSmall" color={colors.text.muted}>Public profile</Text>
+          <TouchableOpacity
+            style={styles.prefRow}
+            onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() =>
+              Alert.alert('Error', 'Could not open Privacy Policy')
+            )}
+          >
+            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Privacy Policy</Text>
+            <Ionicons name="open-outline" size={12} color={colors.chrome.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.prefRow}
+            onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() =>
+              Alert.alert('Error', 'Could not open Terms of Service')
+            )}
+          >
+            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Terms of Service</Text>
+            <Ionicons name="open-outline" size={12} color={colors.chrome.text} />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.prefRow, { borderBottomWidth: 0 }]}>
-            <Text variant="label" color={colors.text.primary}>About Frequen-C</Text>
-            <Text variant="labelSmall" color={colors.text.muted}>v1.0.0-alpha</Text>
+            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>About</Text>
+            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>v1.0.0-alpha</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Sign Out */}
+        {/* ─── Disconnect ─────────────────────────────── */}
         <Button
-          title="Sign Out"
+          title="Disconnect"
           onPress={handleLogout}
           variant="ghost"
           size="md"
-          style={styles.logoutBtn}
+          style={styles.disconnectBtn}
         />
+
+        {/* ─── Delete Account ────────────────────────── */}
+        <TouchableOpacity onPress={handleDeleteAccount} style={styles.deleteAccountBtn}>
+          <Text variant="labelSmall" color="#FF4444" align="center" style={{ fontSize: 11, letterSpacing: 1 }}>
+            DELETE ACCOUNT
+          </Text>
+        </TouchableOpacity>
 
         {/* Build tag */}
         <Text variant="labelSmall" color={colors.text.muted} align="center" style={styles.buildTag}>
@@ -447,91 +610,105 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing['3xl'],
+    paddingTop: spacing['2xl'],
     paddingBottom: spacing['3xl'],
   },
 
-  // Profile header
-  profileHeader: {
+  // Identity header
+  identityHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    gap: 16,
+    marginBottom: spacing.lg,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 64,
+    height: 64,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border.default,
+    borderColor: colors.chrome.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
   },
-  username: {
-    marginBottom: spacing.xs,
+  identityInfo: {
+    flex: 1,
   },
-  spotifyLabel: {
-    marginTop: spacing.sm,
+
+  // Voltage
+  voltageSection: {
+    marginBottom: spacing.sm,
   },
 
   // Stats
   statsRow: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: 8,
   },
 
   // Favorites
   favoriteRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    paddingVertical: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    borderBottomColor: colors.chrome.border,
   },
   favoriteArt: {
-    width: 40,
-    height: 40,
-    borderRadius: spacing.radius.sm,
+    width: 36,
+    height: 36,
+    borderRadius: 4,
     backgroundColor: colors.bg.elevated,
-    marginRight: spacing.sm,
+    marginRight: 10,
   },
 
-  // Services
-  servicesContainer: {
+  // Services panel
+  servicesPanel: {
     backgroundColor: colors.bg.elevated,
-    borderRadius: spacing.radius.md,
-    paddingHorizontal: spacing.cardPadding,
+    borderRadius: 8,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: colors.chrome.border,
   },
 
   // Preferences
-  prefsContainer: {
+  prefsPanel: {
     backgroundColor: colors.bg.elevated,
-    borderRadius: spacing.radius.md,
-    paddingHorizontal: spacing.cardPadding,
+    borderRadius: 8,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: colors.chrome.border,
   },
   prefRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.md,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    borderBottomColor: colors.chrome.border,
   },
 
   // Footer
-  logoutBtn: {
+  disconnectBtn: {
     alignSelf: 'center',
     marginTop: spacing.xl,
   },
+  deleteAccountBtn: {
+    alignSelf: 'center',
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    opacity: 0.6,
+  },
   buildTag: {
-    marginTop: spacing.xl,
-    opacity: 0.4,
+    marginTop: spacing.lg,
+    opacity: 0.3,
+    letterSpacing: 2,
+    fontSize: 9,
   },
 });
 
