@@ -2,85 +2,24 @@
  * API Client
  *
  * Connects to the existing Frequen-C Node/Express backend.
- * Set USE_MOCKS = true for offline development (no backend needed).
+ * Toggle USE_MOCKS in config.ts for offline development.
  */
 
-import * as SecureStore from 'expo-secure-store';
 import { mockUser, mockSessions, mockQueue, mockSearchResults, mockUsers, mockDelay } from './mockData';
-import { searchItunes } from './itunesSearch';
-import { USE_MOCKS, API_BASE_URL } from './config';
+import { User, Session, Track, MockUser, ConnectedServices } from '../types';
+import { USE_MOCKS } from './config';
 
-// ─── Token Management ───────────────────────────────────────
+// Re-export from fetchClient so existing consumers don't break
+export { apiFetch, getStoredToken, storeToken, clearToken, ApiError } from './fetchClient';
+import { apiFetch, storeToken, clearToken, ApiError } from './fetchClient';
 
-const TOKEN_KEY = 'frequenc_auth_token';
+// Storage for active services config
+export let currentServices: ConnectedServices | undefined;
 
-async function getStoredToken(): Promise<string | null> {
-  try {
-    return await SecureStore.getItemAsync(TOKEN_KEY);
-  } catch {
-    return null;
-  }
+export function setCurrentServices(services?: ConnectedServices) {
+  currentServices = services;
 }
 
-async function storeToken(token: string): Promise<void> {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
-}
-
-async function clearToken(): Promise<void> {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
-}
-
-// ─── Fetch Wrapper ──────────────────────────────────────────
-
-interface ApiOptions extends RequestInit {
-  skipAuth?: boolean;
-}
-
-async function apiFetch<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-  const { skipAuth = false, headers: customHeaders, ...fetchOptions } = options;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...((customHeaders as Record<string, string>) || {}),
-  };
-
-  if (!skipAuth) {
-    const token = await getStoredToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...fetchOptions,
-    headers,
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({ message: 'Unknown error' }));
-    throw new ApiError(response.status, errorBody.message || response.statusText, errorBody);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
-}
-
-// ─── Error Class ────────────────────────────────────────────
-
-export class ApiError extends Error {
-  status: number;
-  body: unknown;
-
-  constructor(status: number, message: string, body?: unknown) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.body = body;
-  }
-}
 
 // ─── Auth Endpoints ─────────────────────────────────────────
 
@@ -121,8 +60,94 @@ export const authApi = {
     return apiFetch<{ user: import('../types').User }>('/auth/me');
   },
 
+  connectSpotify: async (code: string, codeVerifier: string, redirectUri: string) => {
+    if (USE_MOCKS) {
+      await mockDelay(100, 300);
+      return { message: 'Spotify mocked', user: mockUser };
+    }
+    return apiFetch<{ message: string; user: import('../types').User }>('/auth/spotify/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ code, codeVerifier, redirectUri }),
+    });
+  },
+
+  connectTidal: async (code: string, codeVerifier: string, redirectUri: string) => {
+    if (USE_MOCKS) {
+      await mockDelay(100, 300);
+      return { message: 'Tidal mocked' };
+    }
+    return apiFetch<{ message: string; user: import('../types').User }>('/auth/tidal/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ code, codeVerifier, redirectUri }),
+    });
+  },
+
+  connectLastfm: async (token: string) => {
+    if (USE_MOCKS) {
+      await mockDelay(100, 300);
+      return { message: 'Last.fm mocked', user: mockUser };
+    }
+    return apiFetch<{ message: string; user: import('../types').User }>('/auth/lastfm/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  /** Refresh the JWT before it expires (returns a fresh token). */
+  refresh: async () => {
+    if (USE_MOCKS) {
+      await mockDelay(50, 150);
+      const token = 'mock_jwt_refreshed_' + Date.now();
+      return { token };
+    }
+    return apiFetch<{ token: string }>('/auth/refresh', { method: 'POST' });
+  },
+
+  /** Permanently delete the current user's account and all data. */
+  deleteAccount: async () => {
+    if (USE_MOCKS) {
+      await mockDelay(200, 400);
+      await clearToken();
+      return { message: 'Account deleted (mock)' };
+    }
+    const result = await apiFetch<{ message: string }>('/auth/account', { method: 'DELETE' });
+    await clearToken();
+    return result;
+  },
+
   logout: async () => {
     await clearToken();
+  },
+
+  /** Register push notification token with the backend */
+  registerPushToken: async (pushToken: string) => {
+    if (USE_MOCKS) {
+      console.log('[API:Mock] Push token registered:', pushToken.slice(0, 30) + '...');
+      return { message: 'Push token saved' };
+    }
+    return apiFetch<{ message: string }>('/auth/push-token', {
+      method: 'POST',
+      body: JSON.stringify({ pushToken }),
+    });
+  },
+
+  /** Get user's noise gate preference */
+  getNoiseGate: async () => {
+    if (USE_MOCKS) {
+      return { noiseGate: 'medium' as const };
+    }
+    return apiFetch<{ noiseGate: 'off' | 'low' | 'medium' | 'high' }>('/auth/noise-gate');
+  },
+
+  /** Update user's noise gate preference */
+  setNoiseGate: async (noiseGate: 'off' | 'low' | 'medium' | 'high') => {
+    if (USE_MOCKS) {
+      return { noiseGate };
+    }
+    return apiFetch<{ noiseGate: string }>('/auth/noise-gate', {
+      method: 'PUT',
+      body: JSON.stringify({ noiseGate }),
+    });
   },
 };
 
@@ -244,26 +269,46 @@ export const sessionApi = {
     }
     return apiFetch<{ sessions: import('../types').Session[] }>('/sessions/discover');
   },
+
+  /** End a session (host only). Marks as not-live, clears queue + listeners. */
+  endSession: async (sessionId: string) => {
+    if (USE_MOCKS) {
+      await mockDelay(50, 150);
+      const s = mockSessionStore.get(sessionId);
+      if (s) s.isLive = false;
+      return { message: 'Session ended' };
+    }
+    return apiFetch<{ message: string }>(`/sessions/${sessionId}/end`, { method: 'POST' });
+  },
 };
 
 // ─── Search Endpoints ───────────────────────────────────────
 
 export const searchApi = {
   tracks: async (query: string) => {
-    // Always use iTunes for track search — real catalog, no auth needed.
-    // Falls back to mock data only if iTunes request fails (e.g. no network).
-    try {
-      const tracks = await searchItunes(query);
-      return { tracks };
-    } catch {
-      // Offline fallback: filter mock data
+    if (USE_MOCKS) {
+      await mockDelay(200, 500);
       const filtered = mockSearchResults.filter(
-        (t) =>
+        (t: any) =>
           t.title.toLowerCase().includes(query.toLowerCase()) ||
           t.artist.toLowerCase().includes(query.toLowerCase())
       );
       return { tracks: filtered.length > 0 ? filtered : mockSearchResults };
     }
+
+    // Try connected streaming service first
+    const { getActiveAdapter } = await import('./adapters/musicServiceAdapter');
+    const adapter = getActiveAdapter(currentServices);
+
+    if (adapter.isConnected()) {
+      const tracks = await adapter.search(query);
+      if (tracks.length > 0) return { tracks };
+    }
+
+    // Fallback: iTunes Search API — free, no auth, 30-sec previews
+    const { searchItunes } = await import('./itunesSearch');
+    const tracks = await searchItunes(query);
+    return { tracks };
   },
 
   sessions: async (query: string) => {
@@ -298,7 +343,31 @@ export const searchApi = {
   },
 };
 
+// ─── Integrations Endpoints ───────────────────────────────────
+
+export const integrationsApi = {
+  fetchLyrics: async (title: string, artist: string) => {
+    if (USE_MOCKS) {
+      await mockDelay(200, 400);
+      return { lyrics: `[Mock Lyrics]\n\nThese are placeholder lyrics for "${title}" by ${artist}.\nConnect to the backend to fetch real lyrics from Genius.` };
+    }
+    return apiFetch<{ lyrics: string; url?: string; thumbnail?: string }>(
+      `/lyrics/search?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`
+    );
+  },
+
+  scrobble: async (track: string, artist: string, timestamp: number) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { message: 'Mocked scrobble' };
+    }
+    return apiFetch<{ message: string }>('/user/scrobble', {
+      method: 'POST',
+      body: JSON.stringify({ track, artist, timestamp }),
+    });
+  },
+};
+
 // ─── Exports ────────────────────────────────────────────────
 
-export { getStoredToken, storeToken, clearToken, apiFetch };
-export default { auth: authApi, session: sessionApi, search: searchApi };
+export default { auth: authApi, session: sessionApi, search: searchApi, integrations: integrationsApi };
