@@ -2,7 +2,7 @@
   "expo": {
     "name": "Frequen-C",
     "slug": "frequen-c",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -15,8 +15,26 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.frequenc.app",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Frequen-C uses the camera to scan QR codes for joining rooms."
+        "NSCameraUsageDescription": "Frequen-C uses the camera to scan QR codes for joining rooms.",
+        "NSMicrophoneUsageDescription": "Frequen-C may access the microphone for future audio features.",
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -25,26 +43,50 @@
         "backgroundColor": "#0A0A0F"
       },
       "package": "com.frequenc.app",
-      "edgeToEdgeEnabled": true
+      "versionCode": 1,
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "CAMERA",
+        "NOTIFICATIONS",
+        "VIBRATE",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store",
-      "expo-barcode-scanner",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Frequen-C uses the camera to scan QR codes for joining rooms."
+        }
+      ],
       [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#00E5FF"
+          "color": "#00E5FF",
+          "sounds": []
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "02a6fcc5-211b-4765-aa4a-5d5714047a2a"
       }
+    },
+    "owner": "snvckdvddy",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/02a6fcc5-211b-4765-aa4a-5d5714047a2a"
     }
   }
 }
