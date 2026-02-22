@@ -1,1733 +1,1779 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Frequen-C Design System Lookbook</title>
-
-    <!-- Google Fonts: Chakra Petch, Space Mono, Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Mono:wght@400;700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
-
-    <style>
-        :root {
-            /* COLOR TOKENS */
-            --void: #06080F;
-            --midnight: #0E1219;
-            --steel: #161B28;
-            --gunmetal: #1E2436;
-            --ice: #00E5FF;
-            --amber: #FFB347;
-            --chrome-gradient: linear-gradient(135deg, #2a2d35, #3d4150, #2a2d35);
-            --ice-glow: 0 0 20px rgba(0, 229, 255, 0.4), 0 0 60px rgba(0, 229, 255, 0.15);
-
-            /* TEXT COLORS */
-            --text-primary: #E8EAED;
-            --text-secondary: #8B9EB0;
-            --text-dim: #4A5568;
-
-            /* FONT FAMILIES */
-            --display: 'Chakra Petch', sans-serif;
-            --mono: 'Space Mono', monospace;
-            --label: 'Inter', sans-serif;
-            --body: 'Inter', sans-serif;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html, body {
-            background: var(--void);
-            color: var(--text-primary);
-            font-family: var(--body);
-            overflow-x: hidden;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><defs><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise" seed="2"/><feColorMatrix in="noise" type="saturate" values="0"/></filter></defs><rect width="100" height="100" fill="rgba(255,255,255,0.03)" filter="url(%23noise)"/></svg>');
-            z-index: 0;
-        }
-
-        /* SECTION CONTAINER */
-        .section {
-            position: relative;
-            z-index: 1;
-            padding: 80px 40px;
-            border-bottom: 1px solid rgba(0, 229, 255, 0.1);
-        }
-
-        .section:last-child {
-            border-bottom: none;
-        }
-
-        .section-divider {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 40px 0;
-        }
-
-        .signal-line {
-            width: 60%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--ice) 20%, var(--ice) 80%, transparent);
-            opacity: 0.3;
-            position: relative;
-        }
-
-        .signal-line::after {
-            content: '';
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            width: 12px;
-            height: 12px;
-            border: 2px solid var(--ice);
-            border-radius: 50%;
-            background: rgba(0, 229, 255, 0.2);
-        }
-
-        /* SECTION TITLE */
-        .section-title {
-            font-family: var(--label);
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.15em;
-            color: var(--ice);
-            text-transform: uppercase;
-            margin-bottom: 40px;
-            opacity: 0.8;
-        }
-
-        /* === TYPOGRAPHY SECTION === */
-        .type-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 24px;
-            margin-bottom: 40px;
-        }
-
-        .type-card {
-            background: var(--gunmetal);
-            border: 1px solid rgba(0, 229, 255, 0.15);
-            border-radius: 2px;
-            padding: 24px;
-            position: relative;
-        }
-
-        .type-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-        }
-
-        .type-card-label {
-            font-family: var(--label);
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            margin-bottom: 16px;
-        }
-
-        .type-display {
-            font-family: var(--display);
-            font-weight: 600;
-            color: var(--ice);
-            margin-bottom: 12px;
-            line-height: 1.1;
-        }
-
-        .type-display-28 { font-size: 28px; }
-        .type-display-22 { font-size: 22px; }
-        .type-display-18 { font-size: 18px; }
-
-        .type-mono {
-            font-family: var(--mono);
-            font-weight: 400;
-            color: var(--text-primary);
-            margin-bottom: 8px;
-        }
-
-        .type-mono-16 { font-size: 16px; }
-        .type-mono-14 { font-size: 14px; }
-        .type-mono-12 { font-size: 12px; }
-
-        .type-label {
-            font-family: var(--label);
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            text-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
-            margin-bottom: 8px;
-        }
-
-        .type-body {
-            font-family: var(--body);
-            font-size: 14px;
-            font-weight: 400;
-            color: var(--text-secondary);
-            line-height: 1.5;
-        }
-
-        /* === MATERIALS SECTION === */
-        .material-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 24px;
-            margin-bottom: 40px;
-        }
-
-        .material-swatch {
-            width: 100%;
-            aspect-ratio: 1 / 1.2;
-            border-radius: 2px;
-            border: 1px solid rgba(0, 229, 255, 0.1);
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            padding-bottom: 12px;
-        }
-
-        .material-swatch::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-            z-index: 2;
-        }
-
-        .material-label {
-            font-family: var(--label);
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            position: relative;
-            z-index: 3;
-        }
-
-        /* VOID MATERIAL */
-        .material-void {
-            background: var(--void);
-        }
-
-        /* CHROME MATERIAL */
-        .material-chrome {
-            background: var(--chrome-gradient);
-        }
-
-        /* BRUSHED STEEL MATERIAL */
-        .material-steel {
-            background: linear-gradient(90deg, #1a1f2c 0%, #1f2434 50%, #1a1f2c 100%);
-            background-size: 200% 100%;
-            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1), inset 0 -1px 2px rgba(0, 0, 0, 0.5);
-        }
-
-        /* GLASS MATERIAL */
-        .material-glass {
-            background: rgba(30, 36, 54, 0.4);
-            backdrop-filter: blur(20px);
-            border: 1px solid;
-            border-image: linear-gradient(135deg, rgba(255, 255, 255, 0.3), transparent 50%, rgba(0, 0, 0, 0.3)) 1;
-            box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.1);
-        }
-
-        /* ICE EMISSION MATERIAL */
-        .material-ice-emit {
-            background: var(--gunmetal);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .material-ice-emit .ice-core {
-            font-family: var(--display);
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--ice);
-            text-shadow: var(--ice-glow);
-            z-index: 2;
-        }
-
-        .material-ice-emit::before {
-            content: '';
-            position: absolute;
-            width: 80%;
-            height: 80%;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(0, 229, 255, 0.15), transparent);
-            z-index: 1;
-            filter: blur(8px);
-        }
-
-        /* AMBER EMISSION MATERIAL */
-        .material-amber-emit {
-            background: var(--gunmetal);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .material-amber-emit .amber-core {
-            font-family: var(--display);
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--amber);
-            text-shadow: 0 0 20px rgba(255, 179, 71, 0.4), 0 0 60px rgba(255, 179, 71, 0.15);
-            z-index: 2;
-        }
-
-        .material-amber-emit::before {
-            content: '';
-            position: absolute;
-            width: 80%;
-            height: 80%;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(255, 179, 71, 0.15), transparent);
-            z-index: 1;
-            filter: blur(8px);
-        }
-
-        /* === RACK SYSTEM SECTION === */
-        .rack-frame {
-            background: var(--midnight);
-            border: 1px solid rgba(0, 229, 255, 0.1);
-            padding: 20px 0;
-            margin-bottom: 24px;
-            position: relative;
-        }
-
-        .rack-frame::before,
-        .rack-frame::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            width: 1px;
-            height: 100%;
-            background: linear-gradient(180deg, transparent 0%, rgba(0, 229, 255, 0.1) 50%, transparent 100%);
-        }
-
-        .rack-frame::before {
-            left: 12px;
-        }
-
-        .rack-frame::after {
-            right: 12px;
-        }
-
-        .rack-module {
-            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
-            border-radius: 0 2px 2px 0;
-            margin: 12px 20px;
-            padding: 16px 20px;
-            position: relative;
-            border-left: 1px solid rgba(0, 229, 255, 0.08);
-            border-right: 1px solid rgba(0, 0, 0, 0.3);
-            border-bottom: 1px solid rgba(0, 0, 0, 0.3);
-        }
-
-        .rack-module::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-        }
-
-        .rack-module-screw {
-            position: absolute;
-            width: 6px;
-            height: 6px;
-            background: #9CA3AF;
-            border-radius: 50%;
-            top: 8px;
-        }
-
-        .rack-module-screw.left {
-            left: 12px;
-        }
-
-        .rack-module-screw.right {
-            right: 12px;
-        }
-
-        .rack-module-label {
-            font-family: var(--label);
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            text-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
-            margin-bottom: 8px;
-        }
-
-        .rack-module-content {
-            font-family: var(--body);
-            font-size: 13px;
-            color: var(--text-primary);
-        }
-
-        .patch-point {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid rgba(0, 229, 255, 0.4);
-            border-radius: 50%;
-            background: rgba(0, 229, 255, 0.1);
-            position: relative;
-        }
-
-        .patch-point.active {
-            border-color: var(--ice);
-            background: rgba(0, 229, 255, 0.3);
-            box-shadow: var(--ice-glow);
-        }
-
-        .patch-point::after {
-            content: '';
-            position: absolute;
-            width: 4px;
-            height: 4px;
-            background: rgba(0, 229, 255, 0.6);
-            border-radius: 50%;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-        }
-
-        .patch-point.active::after {
-            background: var(--ice);
-            box-shadow: 0 0 8px var(--ice);
-        }
-
-        .rack-examples-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-top: 24px;
-        }
-
-        .rack-example-label {
-            font-family: var(--label);
-            font-size: 9px;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 8px;
-            font-weight: 700;
-        }
-
-        /* === DATA DISPLAY SECTION === */
-        .vu-meter-container {
-            background: var(--gunmetal);
-            border: 1px solid rgba(0, 229, 255, 0.15);
-            padding: 16px;
-            border-radius: 2px;
-            margin-bottom: 24px;
-        }
-
-        .vu-meter-label {
-            font-family: var(--label);
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            margin-bottom: 12px;
-        }
-
-        .vu-meter {
-            display: flex;
-            gap: 4px;
-            align-items: center;
-            height: 32px;
-        }
-
-        .vu-segment {
-            flex: 1;
-            height: 100%;
-            background: rgba(0, 229, 255, 0.15);
-            border-radius: 1px;
-            border: 1px solid rgba(0, 229, 255, 0.1);
-            transition: all 0.05s ease;
-        }
-
-        .vu-segment.filled {
-            background: #00E5FF;
-            box-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
-            border-color: var(--ice);
-        }
-
-        .vu-segment.filled.mid {
-            background: #FFD700;
-            box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
-            border-color: #FFD700;
-        }
-
-        .vu-segment.filled.high {
-            background: #FF3B30;
-            box-shadow: 0 0 8px rgba(255, 59, 48, 0.5);
-            border-color: #FF3B30;
-        }
-
-        .waveform-container {
-            background: var(--gunmetal);
-            border: 1px solid rgba(0, 229, 255, 0.15);
-            padding: 16px;
-            border-radius: 2px;
-            margin-bottom: 24px;
-        }
-
-        .waveform-label {
-            font-family: var(--label);
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            margin-bottom: 12px;
-        }
-
-        .waveform-wrapper {
-            position: relative;
-            height: 80px;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 2px;
-            overflow: hidden;
-            margin-bottom: 8px;
-        }
-
-        .waveform-filled {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 40%;
-            background: rgba(0, 229, 255, 0.2);
-            border-right: 2px solid var(--ice);
-        }
-
-        .waveform-svg {
-            width: 100%;
-            height: 100%;
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
-        .waveform-times {
-            display: flex;
-            justify-content: space-between;
-            font-family: var(--mono);
-            font-size: 11px;
-            color: var(--text-secondary);
-        }
-
-        .data-readout-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-
-        .data-readout {
-            background: var(--gunmetal);
-            border: 1px solid rgba(0, 229, 255, 0.15);
-            padding: 16px;
-            border-radius: 2px;
-            text-align: center;
-        }
-
-        .data-readout-value {
-            font-family: var(--mono);
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--ice);
-            text-shadow: var(--ice-glow);
-            margin-bottom: 6px;
-        }
-
-        .data-readout-label {
-            font-family: var(--label);
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-        }
-
-        /* === CONTROLS SECTION === */
-        .controls-demo {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 24px;
-            margin-bottom: 40px;
-        }
-
-        .button {
-            padding: 12px 24px;
-            border: 1px solid rgba(0, 229, 255, 0.3);
-            border-radius: 1px;
-            font-family: var(--label);
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: center;
-        }
-
-        .button-chrome {
-            background: var(--chrome-gradient);
-            color: var(--text-primary);
-            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.5);
-        }
-
-        .button-chrome:active {
-            background: linear-gradient(135deg, #1f2229, #2a2d35, #1f2229);
-            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 -1px 2px rgba(255, 255, 255, 0.05);
-        }
-
-        .button-glass {
-            background: rgba(30, 36, 54, 0.5);
-            color: var(--text-primary);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05);
-        }
-
-        .button-glass:hover {
-            background: rgba(30, 36, 54, 0.7);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .transport-rack {
-            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
-            border: 1px solid rgba(0, 229, 255, 0.1);
-            padding: 20px;
-            border-radius: 2px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 32px;
-            position: relative;
-        }
-
-        .transport-rack::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-        }
-
-        .transport-btn {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            border: 2px solid rgba(0, 229, 255, 0.3);
-            background: var(--gunmetal);
-            color: var(--text-primary);
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .transport-btn:hover {
-            border-color: var(--ice);
-            box-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
-        }
-
-        .transport-btn.play {
-            width: 64px;
-            height: 64px;
-            border-width: 2px;
-            background: rgba(0, 229, 255, 0.1);
-            border-color: var(--ice);
-            color: var(--ice);
-            font-weight: bold;
-            box-shadow: var(--ice-glow);
-        }
-
-        .transport-btn.play:active {
-            background: rgba(0, 229, 255, 0.2);
-            box-shadow: 0 0 30px rgba(0, 229, 255, 0.5), inset 0 0 10px rgba(0, 229, 255, 0.2);
-        }
-
-        /* === COMPOSITES SECTION === */
-        .track-module {
-            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
-            border: 1px solid rgba(0, 229, 255, 0.1);
-            border-radius: 0 2px 2px 0;
-            padding: 12px 16px;
-            margin: 12px 20px;
-            display: flex;
-            gap: 12px;
-            position: relative;
-        }
-
-        .track-module::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-        }
-
-        .track-module-screw {
-            position: absolute;
-            width: 5px;
-            height: 5px;
-            background: #9CA3AF;
-            border-radius: 50%;
-            top: 6px;
-        }
-
-        .track-module-screw.left {
-            left: 10px;
-        }
-
-        .track-module-screw.right {
-            right: 10px;
-        }
-
-        .track-art {
-            width: 48px;
-            height: 48px;
-            flex-shrink: 0;
-            border-radius: 1px;
-            background: linear-gradient(135deg, #2D1B69 0%, #0F4C75 50%, #1A1F2C 100%);
-            border: 1px solid rgba(0, 229, 255, 0.2);
-        }
-
-        .track-info {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 2px;
-        }
-
-        .track-title {
-            font-family: var(--display);
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .track-artist {
-            font-family: var(--mono);
-            font-size: 11px;
-            color: var(--text-secondary);
-        }
-
-        .track-meta {
-            font-family: var(--body);
-            font-size: 11px;
-            color: var(--text-dim);
-        }
-
-        .track-action {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .signal-connection {
-            height: 20px;
-            margin: 0 20px;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .signal-line-vertical {
-            width: 2px;
-            height: 100%;
-            background: linear-gradient(180deg, transparent, var(--ice) 50%, transparent);
-            opacity: 0.4;
-            animation: signal-pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes signal-pulse {
-            0%, 100% { opacity: 0.2; }
-            50% { opacity: 0.6; }
-        }
-
-        .queue-chain {
-            margin: 24px 0;
-        }
-
-        .participant-cluster {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            justify-content: center;
-            margin: 24px 0;
-            position: relative;
-        }
-
-        .avatar {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            border: 2px solid rgba(0, 229, 255, 0.3);
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: var(--mono);
-            font-size: 10px;
-            font-weight: 700;
-            color: var(--void);
-        }
-
-        .avatar:nth-child(1) { background: linear-gradient(135deg, #FF6B6B, #FF8E72); }
-        .avatar:nth-child(2) { background: linear-gradient(135deg, #4ECDC4, #44A08D); }
-        .avatar:nth-child(3) { background: linear-gradient(135deg, #95E1D3, #F38181); }
-        .avatar:nth-child(4) { background: linear-gradient(135deg, #AA96DA, #FCBAD3); }
-
-        .avatar.host {
-            border-color: var(--ice);
-            box-shadow: 0 0 12px var(--ice);
-        }
-
-        .participant-lines {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            z-index: -1;
-            pointer-events: none;
-        }
-
-        /* === ROOM SCREEN MOCKUP === */
-        .room-mockup-container {
-            display: flex;
-            justify-content: center;
-            margin: 40px 0;
-        }
-
-        .phone-frame {
-            width: 375px;
-            height: 812px;
-            background: var(--void);
-            border: 12px solid #1a1a1a;
-            border-radius: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-            overflow: hidden;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .phone-frame::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 200px;
-            height: 30px;
-            background: #1a1a1a;
-            border-radius: 0 0 20px 20px;
-            z-index: 10;
-        }
-
-        .room-status-bar {
-            height: 44px;
-            flex-shrink: 0;
-            padding: 0 16px;
-            display: flex;
-            align-items: center;
-            padding-top: 8px;
-        }
-
-        .room-header {
-            padding: 12px 16px;
-            backdrop-filter: blur(10px);
-            background: rgba(14, 18, 25, 0.5);
-            border-bottom: 1px solid rgba(0, 229, 255, 0.08);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            justify-content: space-between;
-        }
-
-        .room-header-left {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .room-back {
-            font-size: 20px;
-            color: var(--text-secondary);
-            cursor: pointer;
-        }
-
-        .room-title {
-            font-family: var(--display);
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .room-badge {
-            font-family: var(--mono);
-            font-size: 8px;
-            font-weight: 700;
-            color: var(--amber);
-            background: rgba(255, 179, 71, 0.1);
-            padding: 4px 8px;
-            border-radius: 1px;
-            border: 1px solid rgba(255, 179, 71, 0.2);
-        }
-
-        .room-menu {
-            cursor: pointer;
-            color: var(--text-secondary);
-            font-size: 18px;
-        }
-
-        .room-participants {
-            padding: 12px 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border-bottom: 1px solid rgba(0, 229, 255, 0.05);
-            background: rgba(14, 18, 25, 0.3);
-        }
-
-        .room-avatars {
-            display: flex;
-            margin-right: 8px;
-        }
-
-        .room-avatar {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            border: 2px solid var(--void);
-            margin-left: -8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 9px;
-            color: white;
-            font-weight: 700;
-        }
-
-        .room-avatar:first-child {
-            margin-left: 0;
-        }
-
-        .room-avatar:nth-child(1) { background: linear-gradient(135deg, #FF6B6B, #FF8E72); }
-        .room-avatar:nth-child(2) { background: linear-gradient(135deg, #4ECDC4, #44A08D); }
-        .room-avatar:nth-child(3) { background: linear-gradient(135deg, #95E1D3, #F38181); }
-        .room-avatar:nth-child(4) { background: linear-gradient(135deg, #AA96DA, #FCBAD3); }
-
-        .room-listening {
-            font-family: var(--label);
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-        }
-
-        .room-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 24px 16px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-        }
-
-        .room-art-hero {
-            width: 280px;
-            height: 280px;
-            border-radius: 2px;
-            background: linear-gradient(135deg, #2D1B69 0%, #0F4C75 50%, #1A1F2C 100%);
-            border: 1px solid rgba(0, 229, 255, 0.2);
-            margin-bottom: 24px;
-            position: relative;
-            box-shadow: 0 40px 80px rgba(15, 76, 117, 0.3);
-        }
-
-        .room-art-hero::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(15, 76, 117, 0.2), transparent);
-            filter: blur(60px);
-            z-index: -1;
-        }
-
-        .room-track-info {
-            text-align: center;
-            margin-bottom: 20px;
-            width: 100%;
-        }
-
-        .room-track-title {
-            font-family: var(--display);
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 4px;
-        }
-
-        .room-track-artist {
-            font-family: var(--mono);
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-bottom: 2px;
-        }
-
-        .room-track-meta {
-            font-family: var(--body);
-            font-size: 12px;
-            color: var(--text-dim);
-        }
-
-        .room-waveform {
-            width: 100%;
-            height: 60px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 2px;
-            margin-bottom: 16px;
-            position: relative;
-            overflow: hidden;
-            border: 1px solid rgba(0, 229, 255, 0.08);
-        }
-
-        .room-waveform-filled {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 40%;
-            background: rgba(0, 229, 255, 0.15);
-            border-right: 2px solid var(--ice);
-        }
-
-        .room-waveform-svg {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        .room-waveform-times {
-            display: flex;
-            justify-content: space-between;
-            padding: 0 4px;
-            font-family: var(--mono);
-            font-size: 10px;
-            color: var(--text-secondary);
-            margin-bottom: 16px;
-        }
-
-        .room-transport {
-            display: flex;
-            justify-content: center;
-            gap: 28px;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .room-transport-btn {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            border: 2px solid rgba(0, 229, 255, 0.3);
-            background: var(--gunmetal);
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            cursor: pointer;
-        }
-
-        .room-transport-btn.play {
-            width: 56px;
-            height: 56px;
-            background: rgba(0, 229, 255, 0.1);
-            border-color: var(--ice);
-            color: var(--ice);
-            font-weight: bold;
-            box-shadow: var(--ice-glow);
-        }
-
-        .room-reactions {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-            margin-bottom: 20px;
-            padding: 12px;
-            background: rgba(30, 36, 54, 0.4);
-            backdrop-filter: blur(10px);
-            border-radius: 2px;
-            border: 1px solid rgba(0, 229, 255, 0.08);
-        }
-
-        .reaction-btn {
-            width: 32px;
-            height: 32px;
-            border-radius: 1px;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(0, 229, 255, 0.1);
-            color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-        }
-
-        .reaction-btn:hover {
-            background: rgba(0, 229, 255, 0.1);
-            border-color: var(--ice);
-        }
-
-        .room-queue-peek {
-            width: 100%;
-            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
-            border: 1px solid rgba(0, 229, 255, 0.1);
-            border-radius: 2px 2px 0 0;
-            padding: 12px 16px;
-            margin-top: auto;
-            position: relative;
-        }
-
-        .room-queue-peek::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-        }
-
-        .room-queue-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .room-queue-label {
-            font-family: var(--label);
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-        }
-
-        .room-queue-cv {
-            font-family: var(--mono);
-            font-size: 10px;
-            font-weight: 700;
-            color: var(--ice);
-            background: rgba(0, 229, 255, 0.1);
-            padding: 3px 8px;
-            border-radius: 1px;
-            border: 1px solid rgba(0, 229, 255, 0.2);
-            text-shadow: var(--ice-glow);
-        }
-
-        .room-next-track {
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(0, 229, 255, 0.08);
-            border-radius: 1px;
-            padding: 10px;
-            display: flex;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-
-        .room-next-art {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, #69B3E7, #156064);
-            border-radius: 1px;
-            border: 1px solid rgba(0, 229, 255, 0.15);
-            flex-shrink: 0;
-        }
-
-        .room-next-info {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 2px;
-        }
-
-        .room-next-title {
-            font-family: var(--display);
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .room-next-artist {
-            font-family: var(--mono);
-            font-size: 9px;
-            color: var(--text-secondary);
-        }
-
-        .room-queue-hint {
-            font-family: var(--body);
-            font-size: 11px;
-            color: var(--text-dim);
-            text-align: center;
-        }
-
-        .room-tabbar {
-            height: 60px;
-            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
-            border-top: 1px solid rgba(0, 229, 255, 0.1);
-            display: flex;
-            justify-content: space-around;
-            align-items: flex-start;
-            padding-top: 8px;
-            flex-shrink: 0;
-            position: relative;
-        }
-
-        .room-tabbar::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-        }
-
-        .room-tab {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.2s ease;
-            position: relative;
-            text-decoration: none;
-            font-size: 22px;
-        }
-
-        .room-tab.active {
-            color: var(--ice);
-        }
-
-        .room-tab.active::after {
-            content: '';
-            position: absolute;
-            bottom: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 32px;
-            height: 2px;
-            background: var(--ice);
-            box-shadow: 0 0 10px var(--ice);
-        }
-
-        .room-tab-label {
-            font-family: var(--label);
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: inherit;
-        }
-
-        .room-tab.create {
-            color: var(--amber);
-        }
-
-        .room-tab.create::before {
-            content: '';
-            position: absolute;
-            width: 36px;
-            height: 36px;
-            background: rgba(255, 179, 71, 0.1);
-            border: 2px solid var(--amber);
-            border-radius: 50%;
-            top: -12px;
-            z-index: -1;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=375, initial-scale=1.0, maximum-scale=1.0">
+<title>Frequen-C — Rack × Chrome Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   FREQUEN-C DESIGN SYSTEM v2 — RACK × CHROME
+   Y2K Chrome-Era Futurism × Modular Synthesizer Hardware
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --void: #06080F;
+  --midnight: #0E1219;
+  --steel: #161B28;
+  --gunmetal: #1E2436;
+  --ice: #00E5FF;
+  --ice-bright: #5CF0FF;
+  --ice-dim: #007A8A;
+  --amber: #FFB347;
+  --amber-bright: #FFD08A;
+  --red-clip: #FF3B30;
+  --gold-caution: #FFD700;
+  --text-primary: #D8DDE6;
+  --text-secondary: #7A8BA0;
+  --text-dim: #3A4558;
+  --display-font: 'Chakra Petch', sans-serif;
+  --mono-font: 'Space Mono', monospace;
+  --body-font: 'Outfit', sans-serif;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html { background: var(--void); }
+
+body {
+  max-width: 440px;
+  margin: 0 auto;
+  background: var(--void);
+  color: var(--text-primary);
+  font-family: var(--body-font);
+  font-weight: 300;
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── NOISE GRAIN OVERLAY ──────────────────────────────────── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+/* ─── SECTION LAYOUT ───────────────────────────────────────── */
+.section {
+  padding: 56px 20px 40px;
+  position: relative;
+}
+
+.section-num {
+  font-family: var(--mono-font);
+  font-size: 10px;
+  color: var(--ice-dim);
+  letter-spacing: 0.2em;
+  margin-bottom: 4px;
+}
+
+.section-title {
+  font-family: var(--display-font);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0,229,255,0.08);
+}
+
+/* ─── SECTION DIVIDER — SIGNAL LINE ────────────────────────── */
+.divider {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.divider::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,229,255,0.15) 20%, rgba(0,229,255,0.15) 80%, transparent);
+}
+.divider::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ice-dim);
+  box-shadow: 0 0 6px rgba(0,229,255,0.3);
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   § 1  T Y P O G R A P H Y
+   ═══════════════════════════════════════════════════════════════ */
+
+.type-row {
+  margin-bottom: 24px;
+}
+.type-tier {
+  font-family: var(--mono-font);
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--ice-dim);
+  margin-bottom: 8px;
+}
+
+.type-display-hero {
+  font-family: var(--display-font);
+  font-weight: 700;
+  font-size: 32px;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--text-primary);
+  text-shadow: 0 0 40px rgba(0,229,255,0.12);
+}
+.type-display-sub {
+  font-family: var(--display-font);
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+.type-display-sm {
+  font-family: var(--display-font);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.type-mono-lg {
+  font-family: var(--mono-font);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--ice);
+  text-shadow: 0 0 20px rgba(0,229,255,0.4), 0 0 4px rgba(0,229,255,0.8);
+}
+.type-mono-md {
+  font-family: var(--mono-font);
+  font-size: 14px;
+  color: var(--ice);
+  text-shadow: 0 0 12px rgba(0,229,255,0.3);
+}
+.type-mono-sm {
+  font-family: var(--mono-font);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.type-label {
+  font-family: var(--body-font);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.8), 0 -1px 0 rgba(255,255,255,0.03);
+}
+.type-label-bright {
+  font-family: var(--body-font);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.type-body { font-size: 14px; color: var(--text-secondary); font-weight: 300; }
+.type-caption { font-size: 12px; color: var(--text-dim); font-weight: 300; }
+
+.mono-data-row {
+  display: flex;
+  gap: 20px;
+  align-items: baseline;
+  margin-top: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   § 2  M A T E R I A L S
+   ═══════════════════════════════════════════════════════════════ */
+
+.mat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.mat-swatch {
+  height: 120px;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  padding: 10px;
+}
+.mat-swatch-name {
+  font-family: var(--mono-font);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  position: relative;
+  z-index: 2;
+}
+
+/* VOID — noise grain visible */
+.mat-void {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(255,255,255,0.008) 2px,
+      rgba(255,255,255,0.008) 3px
+    ),
+    radial-gradient(ellipse at 50% 40%, #0a0f18 0%, #06080F 70%);
+}
+.mat-void::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,0,0,0.5) 100%);
+}
+
+/* CHROME — actual metallic reflection bands */
+.mat-chrome {
+  background: linear-gradient(
+    165deg,
+    #13161e 0%,
+    #1e2230 8%,
+    #3a3f52 18%,
+    #52586e 24%,
+    #686f85 28%,
+    #52586e 32%,
+    #2e3345 42%,
+    #1a1e2b 55%,
+    #2a2f40 65%,
+    #454b5e 72%,
+    #5a6178 76%,
+    #454b5e 80%,
+    #2a2f40 88%,
+    #13161e 100%
+  );
+  border-top: 1px solid rgba(255,255,255,0.12);
+  border-left: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(0,0,0,0.4);
+}
+.mat-chrome::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2) 30%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0.2) 70%, transparent);
+}
+
+/* BRUSHED STEEL — directional grain lines */
+.mat-brushed {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 1px,
+      rgba(255,255,255,0.015) 1px,
+      rgba(255,255,255,0.015) 2px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 7px,
+      rgba(255,255,255,0.025) 7px,
+      rgba(255,255,255,0.025) 8px
+    ),
+    linear-gradient(180deg, #1f2538 0%, #1a2030 50%, #161c2a 100%);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(0,0,0,0.3);
+}
+
+/* GLASS — real frosted effect */
+.mat-glass {
+  background: rgba(14, 18, 25, 0.35);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid transparent;
+  border-image: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.02) 50%, rgba(0,229,255,0.06)) 1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.2);
+}
+.mat-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* ICE EMISSION — blooming light source */
+.mat-ice-emit {
+  background: radial-gradient(circle at 50% 50%, rgba(0,229,255,0.12) 0%, transparent 60%),
+    var(--midnight);
+  border: 1px solid rgba(0,229,255,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mat-ice-emit .emit-core {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--ice-bright) 0%, var(--ice) 40%, rgba(0,229,255,0.4) 60%, transparent 70%);
+  box-shadow:
+    0 0 4px var(--ice),
+    0 0 12px rgba(0,229,255,0.6),
+    0 0 30px rgba(0,229,255,0.3),
+    0 0 60px rgba(0,229,255,0.15),
+    0 0 100px rgba(0,229,255,0.08);
+  animation: ice-breathe 3s ease-in-out infinite;
+}
+@keyframes ice-breathe {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* AMBER EMISSION */
+.mat-amber-emit {
+  background: radial-gradient(circle at 50% 50%, rgba(255,179,71,0.1) 0%, transparent 60%),
+    var(--midnight);
+  border: 1px solid rgba(255,179,71,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mat-amber-emit .emit-core {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--amber-bright) 0%, var(--amber) 40%, rgba(255,179,71,0.4) 60%, transparent 70%);
+  box-shadow:
+    0 0 4px var(--amber),
+    0 0 12px rgba(255,179,71,0.6),
+    0 0 30px rgba(255,179,71,0.3),
+    0 0 60px rgba(255,179,71,0.15),
+    0 0 100px rgba(255,179,71,0.08);
+  animation: amber-breathe 3.5s ease-in-out infinite;
+}
+@keyframes amber-breathe {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   § 3  R A C K   S Y S T E M
+   ═══════════════════════════════════════════════════════════════ */
+
+.rack-frame {
+  position: relative;
+  padding: 0 14px;
+  min-height: 200px;
+}
+
+/* RACK RAILS — visible guide grooves */
+.rack-frame::before,
+.rack-frame::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0px,
+      transparent 26px,
+      rgba(255,255,255,0.06) 26px,
+      rgba(255,255,255,0.06) 27px,
+      transparent 27px,
+      transparent 30px
+    ),
+    linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border-right: 1px solid rgba(255,255,255,0.03);
+}
+.rack-frame::before { left: 0; }
+.rack-frame::after { right: 0; border-right: none; border-left: 1px solid rgba(255,255,255,0.03); }
+
+/* MOUNTING HOLES along rails */
+.rack-rail-holes {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 52px;
+  padding-top: 14px;
+}
+.rack-rail-holes.left { left: 0; }
+.rack-rail-holes.right { right: 0; }
+.rail-hole {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
+  box-shadow: inset 0 1px 1px rgba(0,0,0,0.5), 0 0.5px 0 rgba(255,255,255,0.05);
+}
+
+/* RACK MODULE — hardware faceplate */
+.rack-module {
+  position: relative;
+  margin: 8px 0;
+  padding: 14px 16px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent 1px,
+      rgba(255,255,255,0.008) 1px,
+      rgba(255,255,255,0.008) 2px
+    ),
+    linear-gradient(180deg, #1f2538 0%, #1a2030 60%, #171d2a 100%);
+  border-radius: 0 0 2px 2px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  border-bottom: 1px solid rgba(0,0,0,0.4);
+  border-left: 1px solid rgba(255,255,255,0.03);
+  border-right: 1px solid rgba(255,255,255,0.03);
+}
+
+/* Top specular highlight */
+.rack-module::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(255,255,255,0.15) 20%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 80%, transparent 95%);
+}
+
+/* Mounting screws */
+.rack-module::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.18), rgba(255,255,255,0.04) 60%, rgba(0,0,0,0.2));
+  box-shadow:
+    -4px 0 0 0 transparent,
+    0 0 0 0.5px rgba(255,255,255,0.06),
+    inset 0 0.5px 0.5px rgba(0,0,0,0.4);
+}
+
+.screw-tl {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.18), rgba(255,255,255,0.04) 60%, rgba(0,0,0,0.2));
+  box-shadow: 0 0 0 0.5px rgba(255,255,255,0.06), inset 0 0.5px 0.5px rgba(0,0,0,0.4);
+}
+
+/* MODULE LABEL — engraved text */
+.module-label {
+  font-family: var(--body-font);
+  font-weight: 600;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.2);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.9), 0 -0.5px 0 rgba(255,255,255,0.04);
+}
+
+/* PATCH POINTS */
+.patch-row {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-top: 16px;
+}
+.patch-point {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.patch-point.inactive {
+  border: 1.5px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.3);
+}
+.patch-point.inactive::after {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+}
+.patch-point.active {
+  border: 1.5px solid rgba(0,229,255,0.5);
+  background: rgba(0,229,255,0.08);
+  box-shadow: 0 0 8px rgba(0,229,255,0.25), 0 0 20px rgba(0,229,255,0.1);
+}
+.patch-point.active::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ice);
+  box-shadow: 0 0 4px var(--ice), 0 0 8px rgba(0,229,255,0.5);
+}
+.patch-point.pulsing {
+  border: 1.5px solid rgba(0,229,255,0.6);
+  background: rgba(0,229,255,0.1);
+  box-shadow: 0 0 12px rgba(0,229,255,0.35), 0 0 30px rgba(0,229,255,0.15);
+  animation: patch-pulse 1.5s ease-in-out infinite;
+}
+.patch-point.pulsing::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ice-bright);
+  box-shadow: 0 0 6px var(--ice), 0 0 12px rgba(0,229,255,0.6);
+}
+@keyframes patch-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(0,229,255,0.35), 0 0 30px rgba(0,229,255,0.15); }
+  50% { box-shadow: 0 0 20px rgba(0,229,255,0.5), 0 0 50px rgba(0,229,255,0.25); }
+}
+
+.patch-label {
+  font-family: var(--mono-font);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   § 4  D A T A   D I S P L A Y
+   ═══════════════════════════════════════════════════════════════ */
+
+/* VU METER */
+.vu-container { margin-bottom: 24px; }
+.vu-label {
+  font-family: var(--mono-font);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+.vu-meter {
+  display: flex;
+  gap: 2px;
+  height: 18px;
+  align-items: flex-end;
+}
+.vu-seg {
+  flex: 1;
+  border-radius: 1px;
+  min-width: 0;
+  transition: background 0.1s;
+}
+.vu-seg.off {
+  background: rgba(30, 36, 54, 0.6);
+  border: 1px solid rgba(255,255,255,0.03);
+  height: 100%;
+}
+.vu-seg.ice {
+  background: var(--ice);
+  box-shadow: 0 0 4px rgba(0,229,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.2);
+  height: 100%;
+}
+.vu-seg.gold {
+  background: var(--gold-caution);
+  box-shadow: 0 0 4px rgba(255,215,0,0.4), inset 0 -1px 0 rgba(0,0,0,0.2);
+  height: 100%;
+}
+.vu-seg.red {
+  background: var(--red-clip);
+  box-shadow: 0 0 6px rgba(255,59,48,0.5), inset 0 -1px 0 rgba(0,0,0,0.2);
+  height: 100%;
+}
+
+/* WAVEFORM PROGRESS */
+.waveform-container {
+  position: relative;
+  margin: 20px 0;
+}
+.waveform-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.waveform-time {
+  font-family: var(--mono-font);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* DATA READOUTS — LED style */
+.readout-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 20px;
+}
+.readout {
+  padding: 8px 14px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+.readout::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0,229,255,0.06) 0%, transparent 70%);
+}
+.readout-val {
+  font-family: var(--mono-font);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--ice);
+  text-shadow: 0 0 8px rgba(0,229,255,0.5), 0 0 20px rgba(0,229,255,0.2);
+  position: relative;
+}
+.readout-unit {
+  font-family: var(--mono-font);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  position: relative;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   § 5  C O N T R O L S
+   ═══════════════════════════════════════════════════════════════ */
+
+.controls-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* CHROME BUTTON */
+.btn-chrome {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 2px;
+  font-family: var(--body-font);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  cursor: pointer;
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    #3a3f52 0%,
+    #2e3345 40%,
+    #252a3a 60%,
+    #1e2230 100%
+  );
+  border-top: 1px solid rgba(255,255,255,0.12);
+  border-bottom: 1px solid rgba(0,0,0,0.4);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.btn-chrome:active, .btn-chrome.pressed {
+  background: linear-gradient(
+    180deg,
+    #1e2230 0%,
+    #252a3a 40%,
+    #2e3345 60%,
+    #3a3f52 100%
+  );
+  border-top: 1px solid rgba(0,0,0,0.3);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+  transform: translateY(1px);
+}
+
+/* GLASS BUTTON */
+.btn-glass {
+  padding: 10px 20px;
+  border-radius: 2px;
+  font-family: var(--body-font);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: rgba(14,18,25,0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.btn-glass:active { background: rgba(14,18,25,0.5); border-color: rgba(255,255,255,0.12); }
+
+/* TRANSPORT RACK */
+.transport-module {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 16px 20px;
+  margin-top: 16px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0px, transparent 1px, rgba(255,255,255,0.006) 1px, rgba(255,255,255,0.006) 2px),
+    linear-gradient(180deg, #1e2436 0%, #1a1f30 100%);
+  border-radius: 0 0 2px 2px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(0,0,0,0.3);
+  position: relative;
+}
+.transport-module::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(255,255,255,0.12) 20%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.12) 80%, transparent 95%);
+}
+
+.transport-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, #252a3a, #1a1f2e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.transport-btn.play {
+  width: 52px;
+  height: 52px;
+  background: radial-gradient(circle at 40% 35%, rgba(0,229,255,0.25), rgba(0,229,255,0.08) 60%, transparent 80%),
+    linear-gradient(180deg, #1a3040, #0e2030);
+  border-color: rgba(0,229,255,0.3);
+  color: var(--ice);
+  font-size: 18px;
+  box-shadow:
+    0 0 12px rgba(0,229,255,0.25),
+    0 0 30px rgba(0,229,255,0.1),
+    0 2px 6px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(0,229,255,0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   § 6  C O M P O S I T E S
+   ═══════════════════════════════════════════════════════════════ */
+
+/* TRACK MODULE */
+.track-module {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0px, transparent 1px, rgba(255,255,255,0.006) 1px, rgba(255,255,255,0.006) 2px),
+    linear-gradient(180deg, #1c2234 0%, #181e2c 100%);
+  border-radius: 0 0 2px 2px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(0,0,0,0.3);
+  border-left: 1px solid rgba(255,255,255,0.03);
+  border-right: 1px solid rgba(255,255,255,0.03);
+}
+.track-module::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12) 20%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.12) 80%, transparent);
+}
+
+.track-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #1a1040, #0a2030, #0a3040);
+  border: 1px solid rgba(255,255,255,0.06);
+  position: relative;
+  overflow: hidden;
+}
+.track-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 60%);
+}
+
+.track-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.track-title {
+  font-family: var(--display-font);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.track-artist {
+  font-family: var(--mono-font);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.track-added {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 300;
+}
+
+/* SIGNAL LINE between queue items */
+.signal-line {
+  height: 24px;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 24px;
+  position: relative;
+}
+.signal-line::before {
+  content: '';
+  position: absolute;
+  right: 30px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(0,229,255,0.2), rgba(0,229,255,0.06));
+}
+.signal-line .signal-glow {
+  position: absolute;
+  right: 28px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ice);
+  box-shadow: 0 0 6px rgba(0,229,255,0.5);
+  animation: signal-travel 2s ease-in-out infinite;
+}
+@keyframes signal-travel {
+  0% { top: 0; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: calc(100% - 5px); opacity: 0; }
+}
+
+/* PARTICIPANT CLUSTER */
+.participant-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  position: relative;
+  padding: 16px 0;
+}
+.participant-node {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--midnight);
+  margin-left: -8px;
+  position: relative;
+  z-index: 1;
+}
+.participant-node:first-child { margin-left: 0; }
+.participant-node.host {
+  border-color: rgba(0,229,255,0.4);
+  box-shadow: 0 0 8px rgba(0,229,255,0.2);
+}
+.participant-node.n1 { background: linear-gradient(135deg, #FF6B6B, #C44D4D); z-index: 4; }
+.participant-node.n2 { background: linear-gradient(135deg, #4ECDC4, #36A89E); z-index: 3; }
+.participant-node.n3 { background: linear-gradient(135deg, #FFE66D, #DDC44D); z-index: 2; }
+.participant-node.n4 { background: linear-gradient(135deg, #A78BFA, #7C5DBF); z-index: 1; }
+
+.participant-count {
+  margin-left: 10px;
+  font-family: var(--body-font);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   § 7  R O O M   S C R E E N   M O C K U P
+   ═══════════════════════════════════════════════════════════════ */
+
+.phone-frame {
+  width: 375px;
+  height: 812px;
+  margin: 0 auto;
+  border-radius: 40px;
+  border: 2px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  position: relative;
+  background: var(--void);
+  box-shadow: 0 0 60px rgba(0,0,0,0.5), 0 0 1px rgba(255,255,255,0.1);
+}
+
+/* Status bar */
+.room-status {
+  height: 50px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  position: relative;
+  z-index: 10;
+}
+.status-notch {
+  width: 120px;
+  height: 28px;
+  background: #000;
+  border-radius: 0 0 16px 16px;
+  position: absolute;
+  top: 0;
+}
+
+/* ROOM HEADER */
+.room-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 16px 10px;
+  position: relative;
+  z-index: 10;
+}
+.room-back {
+  font-size: 20px;
+  color: var(--text-secondary);
+  margin-right: 8px;
+  font-weight: 300;
+}
+.room-name {
+  font-family: var(--display-font);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--text-primary);
+  flex: 1;
+  letter-spacing: -0.01em;
+}
+.mode-badge {
+  padding: 3px 8px;
+  border-radius: 2px;
+  font-family: var(--mono-font);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #FF9F43;
+  background: rgba(255,159,67,0.1);
+  border: 1px solid rgba(255,159,67,0.2);
+  margin-right: 12px;
+}
+.room-overflow {
+  font-size: 18px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+}
+
+/* PARTICIPANT ROW */
+.room-participants {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px 10px;
+  position: relative;
+  z-index: 10;
+}
+
+/* ALBUM ART HERO — atmosphere */
+.art-section {
+  position: relative;
+  padding: 8px 24px;
+}
+.art-atmosphere {
+  position: absolute;
+  top: -40px;
+  left: -20px;
+  right: -20px;
+  bottom: -60px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(10,48,64,0.6) 0%, rgba(6,20,40,0.3) 40%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.art-hero {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  position: relative;
+  z-index: 1;
+  background:
+    linear-gradient(135deg,
+      #0a1020 0%,
+      #0e1830 15%,
+      #0a2038 30%,
+      #082840 45%,
+      #0a3048 55%,
+      #0e2838 70%,
+      #0a1830 85%,
+      #0a1020 100%
+    );
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.5),
+    0 2px 8px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+.art-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(0,229,255,0.08) 0%, transparent 50%),
+    radial-gradient(circle at 70% 60%, rgba(100,60,180,0.06) 0%, transparent 40%);
+}
+.art-hero::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08) 30%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.08) 70%, transparent);
+}
+/* Simulated album art label */
+.art-inner-text {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  z-index: 2;
+  font-family: var(--display-font);
+  font-weight: 700;
+  font-size: 28px;
+  color: rgba(255,255,255,0.06);
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+}
+
+/* TRACK INFO */
+.track-info-section {
+  padding: 16px 24px 4px;
+  position: relative;
+  z-index: 2;
+}
+.room-track-title {
+  font-family: var(--display-font);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.room-track-artist {
+  font-family: var(--mono-font);
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+.room-track-added {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  font-weight: 300;
+}
+
+/* WAVEFORM IN ROOM */
+.room-waveform {
+  padding: 12px 24px;
+  position: relative;
+  z-index: 2;
+}
+
+/* TRANSPORT IN ROOM */
+.room-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 4px 24px 8px;
+  position: relative;
+  z-index: 2;
+}
+.room-transport-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  background: none;
+  border: none;
+}
+.room-transport-btn.play-main {
+  width: 48px;
+  height: 48px;
+  background: radial-gradient(circle at 40% 35%, rgba(0,229,255,0.2), transparent 70%),
+    linear-gradient(180deg, #162838, #0e1e2e);
+  border: 1px solid rgba(0,229,255,0.25);
+  color: var(--ice);
+  font-size: 16px;
+  box-shadow:
+    0 0 16px rgba(0,229,255,0.2),
+    0 0 40px rgba(0,229,255,0.08),
+    inset 0 1px 0 rgba(0,229,255,0.12);
+}
+
+/* REACTIONS */
+.room-reactions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 24px;
+  position: relative;
+  z-index: 2;
+}
+.reaction-btn {
+  width: 40px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  background: rgba(14,18,25,0.3);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 2px;
+}
+
+/* QUEUE PEEK */
+.room-queue-peek {
+  margin: 6px 16px 0;
+  padding: 10px 12px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0px, transparent 1px, rgba(255,255,255,0.005) 1px, rgba(255,255,255,0.005) 2px),
+    linear-gradient(180deg, #1a2030, #161c28);
+  border-radius: 8px 8px 0 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-left: 1px solid rgba(255,255,255,0.03);
+  border-right: 1px solid rgba(255,255,255,0.03);
+  position: relative;
+  z-index: 2;
+}
+.room-queue-peek::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1) 20%, rgba(255,255,255,0.16) 50%, rgba(255,255,255,0.1) 80%, transparent);
+}
+.queue-peek-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.cv-pill {
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-family: var(--mono-font);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ice);
+  background: rgba(0,229,255,0.08);
+  border: 1px solid rgba(0,229,255,0.2);
+  text-shadow: 0 0 8px rgba(0,229,255,0.3);
+}
+.queue-peek-track {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.queue-peek-art {
+  width: 36px;
+  height: 36px;
+  border-radius: 2px;
+  background: linear-gradient(135deg, #1a0830, #200a20);
+  border: 1px solid rgba(255,255,255,0.04);
+  flex-shrink: 0;
+}
+.queue-hint {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 8px;
+  font-weight: 300;
+}
+
+/* MASTER BUS TAB BAR */
+.master-bus {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background:
+    linear-gradient(180deg,
+      #1e2230 0%,
+      #282d3e 30%,
+      #333848 50%,
+      #282d3e 70%,
+      #1a1f2e 100%
+    );
+  border-top: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: flex-start;
+  padding-top: 8px;
+  padding-bottom: 20px;
+  z-index: 20;
+}
+.master-bus::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15) 20%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 80%, transparent);
+}
+
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  position: relative;
+}
+.tab-icon {
+  font-size: 18px;
+  color: var(--text-dim);
+  height: 24px;
+  display: flex;
+  align-items: center;
+}
+.tab-icon.active { color: var(--ice); filter: drop-shadow(0 0 6px rgba(0,229,255,0.4)); }
+.tab-label {
+  font-family: var(--body-font);
+  font-weight: 600;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.tab-label.active { color: var(--ice); text-shadow: 0 0 8px rgba(0,229,255,0.3); }
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 25%;
+  right: 25%;
+  height: 2px;
+  background: var(--ice);
+  box-shadow: 0 0 8px rgba(0,229,255,0.5), 0 0 20px rgba(0,229,255,0.2);
+  border-radius: 1px;
+}
+
+/* CREATE button — center glow */
+.tab-create-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, rgba(0,229,255,0.2), transparent 70%),
+    linear-gradient(180deg, #162838, #0e1e2e);
+  border: 1px solid rgba(0,229,255,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ice);
+  font-size: 20px;
+  font-weight: 300;
+  margin-top: -10px;
+  box-shadow: 0 0 12px rgba(0,229,255,0.2), 0 0 30px rgba(0,229,255,0.08);
+}
+
+</style>
 </head>
 <body>
-    <!-- SVG FILTERS -->
-    <svg width="0" height="0" style="display: none;">
-        <defs>
-            <filter id="noise">
-                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise" seed="2"/>
-                <feColorMatrix in="noise" type="saturate" values="0"/>
-            </filter>
-        </defs>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     HEADER
+     ═══════════════════════════════════════════════════════════════ -->
+<div style="padding: 40px 20px 20px; text-align: center;">
+  <div style="font-family: var(--display-font); font-weight: 700; font-size: 24px; color: var(--text-primary); letter-spacing: -0.02em;">Frequen-C</div>
+  <div style="font-family: var(--mono-font); font-size: 9px; color: var(--ice-dim); letter-spacing: 0.25em; margin-top: 4px;">RACK × CHROME DESIGN SYSTEM v2</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     § 1  TYPOGRAPHY
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-num">§ 01</div>
+  <div class="section-title">Typography</div>
+
+  <div class="type-row">
+    <div class="type-tier">DISPLAY — CHAKRA PETCH</div>
+    <div class="type-display-hero">Frequen-C</div>
+    <div class="type-display-sub" style="margin-top:6px;">Chrome Sessions</div>
+    <div class="type-display-sm" style="margin-top:4px;">Midnight Protocol</div>
+  </div>
+
+  <div class="type-row">
+    <div class="type-tier">MONO — SPACE MONO</div>
+    <div class="mono-data-row">
+      <span class="type-mono-lg">03:27</span>
+      <span class="type-mono-md">128 BPM</span>
+      <span class="type-mono-sm">−12dB</span>
+    </div>
+    <div class="mono-data-row" style="margin-top:4px;">
+      <span class="type-mono-md">25 CV</span>
+      <span class="type-mono-sm">44.1kHz</span>
+      <span class="type-mono-sm">16bit</span>
+    </div>
+  </div>
+
+  <div class="type-row">
+    <div class="type-tier">LABEL — ENGRAVED</div>
+    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:4px;">
+      <span class="type-label">SIGNAL CHAIN</span>
+      <span class="type-label">UP NEXT</span>
+      <span class="type-label">MASTER BUS</span>
+    </div>
+    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px;">
+      <span class="type-label-bright">QUEUE</span>
+      <span class="type-label-bright">CAMPFIRE</span>
+      <span class="type-label-bright">LIVE</span>
+    </div>
+  </div>
+
+  <div class="type-row">
+    <div class="type-tier">BODY — OUTFIT</div>
+    <div class="type-body">Added by @snvckdvddy</div>
+    <div class="type-caption" style="margin-top:2px;">Pull up for full queue · 4 tracks remaining</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     § 2  MATERIALS
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-num">§ 02</div>
+  <div class="section-title">Materials & Surfaces</div>
+
+  <div class="mat-grid">
+    <div class="mat-swatch mat-void">
+      <span class="mat-swatch-name">VOID</span>
+    </div>
+    <div class="mat-swatch mat-chrome">
+      <span class="mat-swatch-name">CHROME</span>
+    </div>
+    <div class="mat-swatch mat-brushed">
+      <span class="mat-swatch-name">BRUSHED STEEL</span>
+    </div>
+    <div class="mat-swatch mat-glass">
+      <span class="mat-swatch-name">GLASS</span>
+    </div>
+    <div class="mat-swatch mat-ice-emit">
+      <div class="emit-core"></div>
+      <span class="mat-swatch-name" style="position:absolute;bottom:10px;left:10px;">ICE EMIT</span>
+    </div>
+    <div class="mat-swatch mat-amber-emit">
+      <div class="emit-core"></div>
+      <span class="mat-swatch-name" style="position:absolute;bottom:10px;left:10px;">AMBER EMIT</span>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     § 3  RACK SYSTEM
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-num">§ 03</div>
+  <div class="section-title">Rack System</div>
+
+  <div class="rack-frame">
+    <div class="rack-rail-holes left">
+      <div class="rail-hole"></div>
+      <div class="rail-hole"></div>
+      <div class="rail-hole"></div>
+    </div>
+    <div class="rack-rail-holes right">
+      <div class="rail-hole"></div>
+      <div class="rail-hole"></div>
+      <div class="rail-hole"></div>
+    </div>
+
+    <div class="rack-module">
+      <div class="screw-tl"></div>
+      <div class="module-label">EQUALIZER MODULE</div>
+      <div style="margin-top:10px; font-size:13px; color:var(--text-secondary); font-weight:300;">
+        Rack-mounted hardware module with brushed steel faceplate, specular edge highlight, and mounting screws.
+      </div>
+    </div>
+
+    <div style="height:8px;"></div>
+
+    <div class="rack-module">
+      <div class="screw-tl"></div>
+      <div class="module-label">SIGNAL ROUTER</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+        <div style="font-family:var(--mono-font); font-size:12px; color:var(--text-secondary);">IN → PROCESS → OUT</div>
+        <div class="patch-point active"></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;">
+    <div class="type-tier" style="margin-bottom:10px;">PATCH POINTS</div>
+    <div class="patch-row">
+      <div class="patch-point inactive"></div>
+      <span class="patch-label">INACTIVE</span>
+      <div class="patch-point active"></div>
+      <span class="patch-label">ACTIVE</span>
+      <div class="patch-point pulsing"></div>
+      <span class="patch-label">FLOWING</span>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     § 4  DATA DISPLAY
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-num">§ 04</div>
+  <div class="section-title">Data Display</div>
+
+  <div class="vu-container">
+    <div class="vu-label">VU METER — LEVEL</div>
+    <div class="vu-meter">
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg ice"></div>
+      <div class="vu-seg gold"></div>
+      <div class="vu-seg gold"></div>
+      <div class="vu-seg gold"></div>
+      <div class="vu-seg off"></div>
+      <div class="vu-seg off"></div>
+      <div class="vu-seg off"></div>
+      <div class="vu-seg off"></div>
+      <div class="vu-seg off"></div>
+    </div>
+  </div>
+
+  <!-- WAVEFORM SVG -->
+  <div class="waveform-container">
+    <div class="vu-label">WAVEFORM PROGRESS — 40%</div>
+    <svg width="100%" height="40" viewBox="0 0 400 40" preserveAspectRatio="none" style="display:block; margin-top:6px;">
+      <defs>
+        <clipPath id="wave-clip">
+          <path d="M0,20 Q5,8 10,15 Q15,22 20,12 Q25,2 30,18 Q35,34 40,14 Q45,0 50,20 Q55,38 60,10 Q65,4 70,22 Q75,36 80,16 Q85,2 90,24 Q95,38 100,12 Q105,0 110,20 Q115,35 120,8 Q125,4 130,22 Q135,38 140,14 Q145,0 150,20 Q155,36 160,10 Q165,2 170,24 Q175,38 180,12 Q185,0 190,22 Q195,36 200,16 Q205,2 210,24 Q215,38 220,10 Q225,0 230,20 Q235,38 240,12 Q245,2 250,22 Q255,38 260,14 Q265,0 270,20 Q275,36 280,8 Q285,2 290,24 Q295,38 300,12 Q305,0 310,20 Q315,38 320,10 Q325,4 330,22 Q335,36 340,14 Q345,2 350,24 Q355,38 360,12 Q365,4 370,20 Q375,36 380,10 Q385,2 390,22 Q395,36 400,20 L400,40 L0,40 Z"/>
+        </clipPath>
+        <linearGradient id="wave-fill-active" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#00E5FF" stop-opacity="0.3"/>
+        </linearGradient>
+        <linearGradient id="wave-fill-dim" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1E2436" stop-opacity="0.6"/>
+          <stop offset="100%" stop-color="#1E2436" stop-opacity="0.2"/>
+        </linearGradient>
+        <filter id="wave-glow">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2"/>
+        </filter>
+      </defs>
+      <!-- Dim background wave -->
+      <g clip-path="url(#wave-clip)">
+        <rect width="400" height="40" fill="url(#wave-fill-dim)"/>
+      </g>
+      <!-- Active filled portion (40%) -->
+      <g clip-path="url(#wave-clip)">
+        <rect width="160" height="40" fill="url(#wave-fill-active)"/>
+      </g>
+      <!-- Glow on active portion -->
+      <g clip-path="url(#wave-clip)" filter="url(#wave-glow)" opacity="0.4">
+        <rect width="160" height="40" fill="#00E5FF"/>
+      </g>
+      <!-- Playhead line -->
+      <line x1="160" y1="0" x2="160" y2="40" stroke="#00E5FF" stroke-width="1.5" opacity="0.8"/>
+      <circle cx="160" cy="20" r="3" fill="#00E5FF" filter="url(#wave-glow)" opacity="0.6"/>
+      <circle cx="160" cy="20" r="2" fill="var(--ice-bright)"/>
     </svg>
+    <div class="waveform-times">
+      <span class="waveform-time">1:23</span>
+      <span class="waveform-time">3:27</span>
+    </div>
+  </div>
 
-    <!-- SECTION 1: TYPOGRAPHY SCALE -->
-    <section class="section">
-        <h2 class="section-title">§ 1. Typography Scale</h2>
+  <!-- DATA READOUTS -->
+  <div class="vu-label" style="margin-top:20px;">LED READOUTS</div>
+  <div class="readout-row">
+    <div class="readout">
+      <div class="readout-val">03:27</div>
+      <div class="readout-unit">TIME</div>
+    </div>
+    <div class="readout">
+      <div class="readout-val">−6.2</div>
+      <div class="readout-unit">dB LUFS</div>
+    </div>
+    <div class="readout">
+      <div class="readout-val">128.0</div>
+      <div class="readout-unit">BPM</div>
+    </div>
+  </div>
+</div>
 
-        <div class="type-grid">
-            <!-- Display Tier -->
-            <div class="type-card">
-                <div class="type-card-label">Display Bold (Chakra Petch)</div>
-                <div class="type-display type-display-28">Frequen-C</div>
-                <div class="type-display type-display-22">Chrome Sessions</div>
-                <div class="type-display type-display-18">Midnight Protocol</div>
-            </div>
+<div class="divider"></div>
 
-            <!-- Mono Tier -->
-            <div class="type-card">
-                <div class="type-card-label">Mono (Space Mono)</div>
-                <div class="type-mono type-mono-16">03:27</div>
-                <div class="type-mono type-mono-14">128 BPM</div>
-                <div class="type-mono type-mono-12">25 CV · −12dB</div>
-            </div>
+<!-- ═══════════════════════════════════════════════════════════════
+     § 5  CONTROLS
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-num">§ 05</div>
+  <div class="section-title">Controls</div>
 
-            <!-- Label Tier -->
-            <div class="type-card">
-                <div class="type-card-label">Label (Inter Bold)</div>
-                <div class="type-label">SIGNAL CHAIN</div>
-                <div class="type-label">UP NEXT</div>
-                <div class="type-label">MASTER BUS</div>
-            </div>
+  <div class="vu-label" style="margin-bottom:10px;">BUTTONS</div>
+  <div class="controls-row">
+    <button class="btn-chrome">CHROME</button>
+    <button class="btn-chrome pressed">PRESSED</button>
+    <button class="btn-glass">GLASS</button>
+  </div>
 
-            <!-- Body Tier -->
-            <div class="type-card">
-                <div class="type-card-label">Body (Inter Regular)</div>
-                <div class="type-body">Added by @snvckdvddy</div>
-                <div class="type-body">Pull up for full queue</div>
-                <div class="type-body">6 listeners in this room</div>
-            </div>
-        </div>
-    </section>
+  <div class="vu-label" style="margin-bottom:10px; margin-top:20px;">TRANSPORT RACK</div>
+  <div class="transport-module">
+    <div class="transport-btn">⏮</div>
+    <div class="transport-btn play">▶</div>
+    <div class="transport-btn">⏭</div>
+  </div>
+</div>
 
-    <div class="section-divider">
-        <div class="signal-line"></div>
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     § 6  COMPOSITES
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-num">§ 06</div>
+  <div class="section-title">Composites</div>
+
+  <div class="vu-label" style="margin-bottom:10px;">QUEUE — SIGNAL CHAIN</div>
+
+  <div class="track-module">
+    <div class="track-art"></div>
+    <div class="track-info">
+      <div class="track-title">Midnight Protocol</div>
+      <div class="track-artist">SIGNAL//VOID</div>
+      <div class="track-added">Added by @snvckdvddy</div>
+    </div>
+    <div class="patch-point active"></div>
+  </div>
+
+  <div class="signal-line">
+    <div class="signal-glow"></div>
+  </div>
+
+  <div class="track-module">
+    <div class="track-art" style="background:linear-gradient(135deg,#200a20,#301040);"></div>
+    <div class="track-info">
+      <div class="track-title">Phase Drift</div>
+      <div class="track-artist">CHROME.HALL</div>
+      <div class="track-added">Added by @audionaut42</div>
+    </div>
+    <div class="patch-point active"></div>
+  </div>
+
+  <div class="signal-line">
+    <div class="signal-glow"></div>
+  </div>
+
+  <div class="track-module">
+    <div class="track-art" style="background:linear-gradient(135deg,#0a1a10,#0a2a18);"></div>
+    <div class="track-info">
+      <div class="track-title">Resonance Cascade</div>
+      <div class="track-artist">FREQUENCY.NULL</div>
+      <div class="track-added">Added by @waveform_kid</div>
+    </div>
+    <div class="patch-point inactive"></div>
+  </div>
+
+  <div style="margin-top:24px;">
+    <div class="vu-label" style="margin-bottom:10px;">PARTICIPANT CLUSTER</div>
+    <div class="participant-cluster">
+      <div class="participant-node n1 host"></div>
+      <div class="participant-node n2"></div>
+      <div class="participant-node n3"></div>
+      <div class="participant-node n4"></div>
+      <span class="participant-count">6 LISTENING</span>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     § 7  ROOM SCREEN MOCKUP
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="section" style="padding-bottom:60px;">
+  <div class="section-num">§ 07</div>
+  <div class="section-title">Room Screen — 375×812</div>
+
+  <div class="phone-frame">
+    <!-- Status Bar -->
+    <div class="room-status">
+      <div class="status-notch"></div>
     </div>
 
-    <!-- SECTION 2: MATERIALS -->
-    <section class="section">
-        <h2 class="section-title">§ 2. Materials & Textures</h2>
-
-        <div class="material-grid">
-            <div class="material-swatch material-void">
-                <span class="material-label">VOID</span>
-            </div>
-
-            <div class="material-swatch material-chrome">
-                <span class="material-label">CHROME</span>
-            </div>
-
-            <div class="material-swatch material-steel">
-                <span class="material-label">BRUSHED</span>
-            </div>
-
-            <div class="material-swatch material-glass">
-                <span class="material-label">GLASS</span>
-            </div>
-
-            <div class="material-swatch material-ice-emit">
-                <span class="ice-core">◆</span>
-                <span class="material-label" style="position: absolute; bottom: 12px;">ICE EMIT</span>
-            </div>
-
-            <div class="material-swatch material-amber-emit">
-                <span class="amber-core">◆</span>
-                <span class="material-label" style="position: absolute; bottom: 12px;">AMBER EMIT</span>
-            </div>
-        </div>
-    </section>
-
-    <div class="section-divider">
-        <div class="signal-line"></div>
+    <!-- Header -->
+    <div class="room-header">
+      <span class="room-back">‹</span>
+      <span class="room-name">Chrome Sessions</span>
+      <span class="mode-badge">CAMPFIRE</span>
+      <span class="room-overflow">⋯</span>
     </div>
 
-    <!-- SECTION 3: RACK SYSTEM -->
-    <section class="section">
-        <h2 class="section-title">§ 3. Rack System</h2>
-
-        <!-- Rack Frame Example -->
-        <div class="rack-frame">
-            <div class="rack-module">
-                <div class="rack-module-screw left"></div>
-                <div class="rack-module-screw right"></div>
-                <div class="rack-module-label">MODULE</div>
-                <div class="rack-module-content">
-                    This is a rack-mounted module. It has top edge lighting, mounting screws, and sits between invisible rail guides.
-                </div>
-            </div>
-
-            <div class="rack-module">
-                <div class="rack-module-screw left"></div>
-                <div class="rack-module-screw right"></div>
-                <div class="rack-module-label">Patch Point Example</div>
-                <div class="rack-module-content">
-                    <span class="patch-point"></span>
-                    <span style="margin-left: 12px;">Inactive</span>
-                    <span class="patch-point active" style="margin-left: 24px;"></span>
-                    <span style="margin-left: 12px;">Active (Glowing)</span>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <div class="section-divider">
-        <div class="signal-line"></div>
+    <!-- Participants -->
+    <div class="room-participants">
+      <div class="participant-node n1 host" style="width:22px;height:22px;"></div>
+      <div class="participant-node n2" style="width:22px;height:22px;"></div>
+      <div class="participant-node n3" style="width:22px;height:22px;"></div>
+      <div class="participant-node n4" style="width:22px;height:22px;"></div>
+      <span class="participant-count">6 LISTENING</span>
     </div>
 
-    <!-- SECTION 4: DATA DISPLAY -->
-    <section class="section">
-        <h2 class="section-title">§ 4. Data Display & Meters</h2>
-
-        <!-- VU Meter -->
-        <div class="vu-meter-container">
-            <div class="vu-meter-label">VU Meter (70% Level)</div>
-            <div class="vu-meter">
-                <div class="vu-segment filled"></div>
-                <div class="vu-segment filled"></div>
-                <div class="vu-segment filled"></div>
-                <div class="vu-segment filled"></div>
-                <div class="vu-segment filled"></div>
-                <div class="vu-segment filled mid"></div>
-                <div class="vu-segment filled mid"></div>
-                <div class="vu-segment filled mid"></div>
-                <div class="vu-segment filled mid"></div>
-                <div class="vu-segment filled mid"></div>
-                <div class="vu-segment filled mid"></div>
-                <div class="vu-segment filled mid"></div>
-                <div class="vu-segment filled mid"></div>
-                <div class="vu-segment filled mid"></div>
-                <div class="vu-segment"></div>
-                <div class="vu-segment"></div>
-                <div class="vu-segment"></div>
-                <div class="vu-segment"></div>
-                <div class="vu-segment"></div>
-                <div class="vu-segment"></div>
-            </div>
-        </div>
-
-        <!-- Waveform Progress -->
-        <div class="waveform-container">
-            <div class="waveform-label">Waveform Progress (40%)</div>
-            <div class="waveform-wrapper">
-                <div class="waveform-filled"></div>
-                <svg class="waveform-svg" viewBox="0 0 400 60" preserveAspectRatio="xMidYMid meet">
-                    <path d="M 0,30 Q 25,20 50,30 T 100,30 T 150,30 T 200,30 T 250,30 T 300,30 T 350,30 T 400,30"
-                          fill="none" stroke="rgba(0, 229, 255, 0.3)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-                </svg>
-            </div>
-            <div class="waveform-times">
-                <span>1:23</span>
-                <span>3:27</span>
-            </div>
-        </div>
-
-        <!-- Data Readouts -->
-        <div class="data-readout-grid">
-            <div class="data-readout">
-                <div class="data-readout-value">03:27</div>
-                <div class="data-readout-label">Time</div>
-            </div>
-            <div class="data-readout">
-                <div class="data-readout-value">−6.2</div>
-                <div class="data-readout-label">dB</div>
-            </div>
-            <div class="data-readout">
-                <div class="data-readout-value">128.0</div>
-                <div class="data-readout-label">BPM</div>
-            </div>
-        </div>
-    </section>
-
-    <div class="section-divider">
-        <div class="signal-line"></div>
+    <!-- Album Art -->
+    <div class="art-section">
+      <div class="art-atmosphere"></div>
+      <div class="art-hero">
+        <div class="art-inner-text">MIDNIGHT<br>PROTOCOL</div>
+      </div>
     </div>
 
-    <!-- SECTION 5: CONTROLS -->
-    <section class="section">
-        <h2 class="section-title">§ 5. Control Elements</h2>
-
-        <div class="controls-demo">
-            <button class="button button-chrome">Chrome Button</button>
-            <button class="button button-glass">Glass Button</button>
-        </div>
-
-        <!-- Transport Rack -->
-        <h3 class="rack-example-label">Transport Rack</h3>
-        <div class="transport-rack">
-            <button class="transport-btn">⏮</button>
-            <button class="transport-btn play">▶</button>
-            <button class="transport-btn">⏭</button>
-        </div>
-    </section>
-
-    <div class="section-divider">
-        <div class="signal-line"></div>
+    <!-- Track Info -->
+    <div class="track-info-section">
+      <div class="room-track-title">Midnight Protocol</div>
+      <div class="room-track-artist">SIGNAL//VOID</div>
+      <div class="room-track-added">Added by @snvckdvddy</div>
     </div>
 
-    <!-- SECTION 6: COMPOSITES -->
-    <section class="section">
-        <h2 class="section-title">§ 6. Composite Components</h2>
-
-        <!-- Track Module -->
-        <h3 class="rack-example-label">Track Module</h3>
-        <div class="rack-frame" style="margin-bottom: 24px;">
-            <div class="track-module">
-                <div class="track-module-screw left"></div>
-                <div class="track-module-screw right"></div>
-                <div class="track-art"></div>
-                <div class="track-info">
-                    <div class="track-title">Midnight Protocol</div>
-                    <div class="track-artist">SIGNAL//VOID</div>
-                    <div class="track-meta">Added by @snvckdvddy</div>
-                </div>
-                <div class="track-action">
-                    <span class="patch-point active"></span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Queue Chain -->
-        <h3 class="rack-example-label">Queue Chain (3 Tracks)</h3>
-        <div class="queue-chain">
-            <div class="rack-frame">
-                <div class="track-module">
-                    <div class="track-module-screw left"></div>
-                    <div class="track-module-screw right"></div>
-                    <div class="track-art" style="background: linear-gradient(135deg, #69B3E7, #156064);"></div>
-                    <div class="track-info">
-                        <div class="track-title">Neon Cascade</div>
-                        <div class="track-artist">CHROME//VOID</div>
-                        <div class="track-meta">Added by @luminara</div>
-                    </div>
-                    <div class="track-action">
-                        <span class="patch-point active"></span>
-                    </div>
-                </div>
-                <div class="signal-connection">
-                    <div class="signal-line-vertical"></div>
-                </div>
-                <div class="track-module">
-                    <div class="track-module-screw left"></div>
-                    <div class="track-module-screw right"></div>
-                    <div class="track-art" style="background: linear-gradient(135deg, #A8E6CF, #556270);"></div>
-                    <div class="track-info">
-                        <div class="track-title">Analog Dream</div>
-                        <div class="track-artist">STATIC//PULSE</div>
-                        <div class="track-meta">Added by @waveshaper</div>
-                    </div>
-                    <div class="track-action">
-                        <span class="patch-point active"></span>
-                    </div>
-                </div>
-                <div class="signal-connection">
-                    <div class="signal-line-vertical"></div>
-                </div>
-                <div class="track-module">
-                    <div class="track-module-screw left"></div>
-                    <div class="track-module-screw right"></div>
-                    <div class="track-art" style="background: linear-gradient(135deg, #FFD89B, #19547B);"></div>
-                    <div class="track-info">
-                        <div class="track-title">Echo Chamber</div>
-                        <div class="track-artist">REVERB//SPACE</div>
-                        <div class="track-meta">Added by @ambient_sky</div>
-                    </div>
-                    <div class="track-action">
-                        <span class="patch-point"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Participant Cluster -->
-        <h3 class="rack-example-label">Participant Nodes</h3>
-        <div class="participant-cluster">
-            <div class="avatar host">CB</div>
-            <div class="avatar">LM</div>
-            <div class="avatar">KR</div>
-            <div class="avatar">JS</div>
-            <svg class="participant-lines" viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet">
-                <path d="M 14,50 L 64,50" stroke="rgba(0, 229, 255, 0.2)" stroke-width="1" fill="none"/>
-                <path d="M 64,50 L 136,50" stroke="rgba(0, 229, 255, 0.2)" stroke-width="1" fill="none"/>
-                <path d="M 136,50 L 186,50" stroke="rgba(0, 229, 255, 0.2)" stroke-width="1" fill="none"/>
-            </svg>
-        </div>
-    </section>
-
-    <div class="section-divider">
-        <div class="signal-line"></div>
+    <!-- Waveform -->
+    <div class="room-waveform">
+      <svg width="100%" height="28" viewBox="0 0 327 28" preserveAspectRatio="none">
+        <defs>
+          <clipPath id="rw-clip">
+            <path d="M0,14 Q4,6 8,11 Q12,16 16,8 Q20,2 24,14 Q28,24 32,10 Q36,2 40,14 Q44,26 48,8 Q52,2 56,16 Q60,26 64,10 Q68,0 72,14 Q76,26 80,8 Q84,2 88,16 Q92,26 96,10 Q100,2 104,14 Q108,24 112,8 Q116,0 120,14 Q124,26 128,10 Q132,2 136,16 Q140,26 144,8 Q148,2 152,14 Q156,24 160,10 Q164,2 168,16 Q172,26 176,8 Q180,2 184,14 Q188,24 192,10 Q196,0 200,16 Q204,28 208,8 Q212,0 216,14 Q220,26 224,10 Q228,2 232,16 Q236,24 240,8 Q244,0 248,14 Q252,26 256,10 Q260,2 264,16 Q268,24 272,8 Q276,2 280,14 Q284,24 288,10 Q292,2 296,16 Q300,26 304,8 Q308,2 312,14 Q316,24 320,10 Q324,4 327,14 L327,28 L0,28 Z"/>
+          </clipPath>
+          <linearGradient id="rw-active" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.85"/>
+            <stop offset="100%" stop-color="#00E5FF" stop-opacity="0.25"/>
+          </linearGradient>
+          <linearGradient id="rw-dim" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1E2436" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="#1E2436" stop-opacity="0.15"/>
+          </linearGradient>
+          <filter id="rw-glow"><feGaussianBlur stdDeviation="1.5"/></filter>
+        </defs>
+        <g clip-path="url(#rw-clip)"><rect width="327" height="28" fill="url(#rw-dim)"/></g>
+        <g clip-path="url(#rw-clip)"><rect width="130" height="28" fill="url(#rw-active)"/></g>
+        <g clip-path="url(#rw-clip)" filter="url(#rw-glow)" opacity="0.35"><rect width="130" height="28" fill="#00E5FF"/></g>
+        <line x1="130" y1="0" x2="130" y2="28" stroke="#00E5FF" stroke-width="1.5" opacity="0.7"/>
+        <circle cx="130" cy="14" r="2" fill="var(--ice-bright)"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;">
+        <span style="font-family:var(--mono-font);font-size:9px;color:var(--text-dim);">1:23</span>
+        <span style="font-family:var(--mono-font);font-size:9px;color:var(--text-dim);">3:27</span>
+      </div>
     </div>
 
-    <!-- SECTION 7: ROOM SCREEN MOCKUP -->
-    <section class="section">
-        <h2 class="section-title">§ 7. Room Screen (375×812 Mobile Mockup)</h2>
+    <!-- Transport -->
+    <div class="room-transport">
+      <div class="room-transport-btn">⏮</div>
+      <div class="room-transport-btn play-main">▶</div>
+      <div class="room-transport-btn">⏭</div>
+    </div>
 
-        <div class="room-mockup-container">
-            <div class="phone-frame">
-                <!-- Status Bar -->
-                <div class="room-status-bar"></div>
+    <!-- Reactions -->
+    <div class="room-reactions">
+      <div class="reaction-btn">🔥</div>
+      <div class="reaction-btn">❤️</div>
+      <div class="reaction-btn">👏</div>
+      <div class="reaction-btn">😂</div>
+      <div class="reaction-btn">💀</div>
+    </div>
 
-                <!-- Header -->
-                <div class="room-header">
-                    <div class="room-header-left">
-                        <span class="room-back">‹</span>
-                        <span class="room-title">Chrome Sessions</span>
-                        <span class="room-badge">CAMPFIRE</span>
-                    </div>
-                    <span class="room-menu">⋯</span>
-                </div>
-
-                <!-- Participants -->
-                <div class="room-participants">
-                    <div class="room-avatars">
-                        <div class="room-avatar">CB</div>
-                        <div class="room-avatar">LM</div>
-                        <div class="room-avatar">KR</div>
-                        <div class="room-avatar">JS</div>
-                    </div>
-                    <div class="room-listening">6 Listening</div>
-                </div>
-
-                <!-- Main Content -->
-                <div class="room-content">
-                    <!-- Album Art Hero -->
-                    <div class="room-art-hero"></div>
-
-                    <!-- Track Info -->
-                    <div class="room-track-info">
-                        <div class="room-track-title">Midnight Protocol</div>
-                        <div class="room-track-artist">SIGNAL//VOID</div>
-                        <div class="room-track-meta">Added by @snvckdvddy</div>
-                    </div>
-
-                    <!-- Waveform Progress -->
-                    <div class="room-waveform">
-                        <div class="room-waveform-filled"></div>
-                        <svg class="room-waveform-svg" viewBox="0 0 343 60" preserveAspectRatio="xMidYMid meet">
-                            <path d="M 0,30 Q 15,15 30,30 T 60,30 T 90,30 T 120,30 T 150,30 T 180,30 T 210,30 T 240,30 T 270,30 T 300,30 T 330,30 T 343,30"
-                                  fill="none" stroke="rgba(0, 229, 255, 0.3)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-                        </svg>
-                    </div>
-                    <div class="room-waveform-times">
-                        <span>1:23</span>
-                        <span>3:27</span>
-                    </div>
-
-                    <!-- Transport Controls -->
-                    <div class="room-transport">
-                        <button class="room-transport-btn">⏮</button>
-                        <button class="room-transport-btn play">▶</button>
-                        <button class="room-transport-btn">⏭</button>
-                    </div>
-
-                    <!-- Reactions -->
-                    <div class="room-reactions">
-                        <button class="reaction-btn">🔥</button>
-                        <button class="reaction-btn">❤️</button>
-                        <button class="reaction-btn">👏</button>
-                        <button class="reaction-btn">😂</button>
-                        <button class="reaction-btn">💀</button>
-                    </div>
-
-                    <!-- Queue Peek -->
-                    <div class="room-queue-peek">
-                        <div class="room-queue-header">
-                            <span class="room-queue-label">Up Next</span>
-                            <span class="room-queue-cv">25 CV</span>
-                        </div>
-                        <div class="room-next-track">
-                            <div class="room-next-art"></div>
-                            <div class="room-next-info">
-                                <div class="room-next-title">Neon Cascade</div>
-                                <div class="room-next-artist">CHROME//VOID</div>
-                            </div>
-                        </div>
-                        <div class="room-queue-hint">Pull up for full queue</div>
-                    </div>
-                </div>
-
-                <!-- Tab Bar -->
-                <div class="room-tabbar">
-                    <a href="#" class="room-tab active">
-                        <span>🏠</span>
-                        <span class="room-tab-label">Home</span>
-                    </a>
-                    <a href="#" class="room-tab">
-                        <span>🔍</span>
-                        <span class="room-tab-label">Discover</span>
-                    </a>
-                    <a href="#" class="room-tab create">
-                        <span>➕</span>
-                        <span class="room-tab-label">Create</span>
-                    </a>
-                    <a href="#" class="room-tab">
-                        <span>📚</span>
-                        <span class="room-tab-label">Library</span>
-                    </a>
-                </div>
-            </div>
+    <!-- Queue Peek -->
+    <div class="room-queue-peek">
+      <div class="queue-peek-header">
+        <span class="type-label-bright">UP NEXT</span>
+        <span class="cv-pill">25 CV</span>
+      </div>
+      <div class="queue-peek-track">
+        <div class="queue-peek-art"></div>
+        <div class="track-info">
+          <div class="track-title" style="font-size:12px;">Phase Drift</div>
+          <div class="track-artist" style="font-size:9px;">CHROME.HALL</div>
         </div>
-    </section>
+        <div class="patch-point active" style="width:12px;height:12px;"></div>
+      </div>
+      <div class="queue-hint">Pull up for full queue</div>
+    </div>
+
+    <!-- Master Bus Tab Bar -->
+    <div class="master-bus">
+      <div class="tab-item">
+        <div class="tab-icon">⌂</div>
+        <div class="tab-label">HOME</div>
+      </div>
+      <div class="tab-item">
+        <div class="tab-icon">◎</div>
+        <div class="tab-label">DISCOVER</div>
+      </div>
+      <div class="tab-item active">
+        <div class="tab-create-icon">+</div>
+        <div class="tab-label active">CREATE</div>
+      </div>
+      <div class="tab-item">
+        <div class="tab-icon">♫</div>
+        <div class="tab-label">LIBRARY</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="padding:40px 20px 80px; text-align:center;">
+  <div style="font-family:var(--mono-font);font-size:9px;color:var(--text-dim);letter-spacing:0.2em;">FREQUEN-C DESIGN SYSTEM v2.0</div>
+  <div style="font-family:var(--mono-font);font-size:9px;color:var(--text-dim);letter-spacing:0.1em;margin-top:4px;">Y2K CHROME-ERA FUTURISM × MODULAR RACK</div>
+</div>
 
 </body>
 </html>
