@@ -12,7 +12,7 @@ import {
   TouchableOpacity, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen, ADSRFadeIn, RoomModeBadge, ErrorState, Skeleton } from '../components/ui';
+import { Text, SafeScreen, ADSRFadeIn, RoomModeBadge, ErrorState, Skeleton, CrossfadeSwitch } from '../components/ui';
 import { WaveformIcon } from '../components/ui/WaveformIcon';
 import { AnimatedPressable } from '../components/ui/AnimatedPressable';
 import { useAuth } from '../contexts/AuthContext';
@@ -267,10 +267,10 @@ export function PatchBayScreen({
           <View style={styles.header}>
             <View>
               <Text variant="h2" color={colors.text.primary}>
-                Patch Bay
+                Home
               </Text>
               <Text variant="bodySmall" color={colors.text.secondary}>
-                {allRooms.filter((r) => r.isLive).length} live signals
+                {allRooms.filter((r) => r.isLive).length} live rooms
               </Text>
             </View>
             <View style={styles.headerActions}>
@@ -312,74 +312,78 @@ export function PatchBayScreen({
           </ADSRFadeIn>
         )}
 
-        {/* Loading State */}
-        {isLoading && !error && (
-          <ADSRFadeIn index={2}>
-            <View style={styles.section}>
-              <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
-                LIVE GRID
-              </Text>
-              <View style={styles.moduleGrid}>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <ModuleCardSkeleton key={`skeleton-${i}`} />
-                ))}
-              </View>
-            </View>
-          </ADSRFadeIn>
-        )}
-
-        {/* Your Signal Chain */}
-        {!isLoading && !error && myRooms.length > 0 && (
-          <ADSRFadeIn index={2}>
-            <View style={styles.section}>
-              <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
-                YOUR SIGNAL CHAIN
-              </Text>
-              <View style={styles.moduleGrid}>
-                {myRooms.map((room) => (
-                  <ModuleCard
-                    key={room.id}
-                    session={room}
-                    onPress={() => onOpenRoom(room.id)}
-                  />
-                ))}
-              </View>
-            </View>
-          </ADSRFadeIn>
-        )}
-
-        {/* Live Grid */}
-        {!isLoading && !error && (
-          <ADSRFadeIn index={3}>
-            <View style={styles.section}>
-            <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
-              LIVE GRID
-            </Text>
-            {filteredRooms.length === 0 ? (
-              <View style={styles.emptyModule}>
-                <Ionicons name="radio-outline" size={32} color={colors.text.muted} />
-                <Text variant="body" color={colors.text.muted} align="center">
-                  No live signals{genreFilter !== 'All' ? ` in ${genreFilter}` : ''}.
+        {/* Loading → Content crossfade */}
+        {!error && (
+          <CrossfadeSwitch loading={isLoading}>
+            {/* Skeleton placeholder */}
+            <ADSRFadeIn index={2}>
+              <View style={styles.section}>
+                <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
+                  LIVE GRID
                 </Text>
-                <TouchableOpacity onPress={onCreateSession} accessibilityRole="button" accessibilityLabel="Create a session">
-                  <Text variant="label" color={colors.action.primary}>
-                    Be the first to patch in
+                <View style={styles.moduleGrid}>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <ModuleCardSkeleton key={`skeleton-${i}`} />
+                  ))}
+                </View>
+              </View>
+            </ADSRFadeIn>
+
+            {/* Loaded content */}
+            <View>
+              {/* Your Signal Chain */}
+              {myRooms.length > 0 && (
+                <ADSRFadeIn index={2}>
+                  <View style={styles.section}>
+                    <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
+                      YOUR ROOMS
+                    </Text>
+                    <View style={styles.moduleGrid}>
+                      {myRooms.map((room) => (
+                        <ModuleCard
+                          key={room.id}
+                          session={room}
+                          onPress={() => onOpenRoom(room.id)}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                </ADSRFadeIn>
+              )}
+
+              {/* Live Grid */}
+              <ADSRFadeIn index={3}>
+                <View style={styles.section}>
+                  <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
+                    LIVE NOW
                   </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.moduleGrid}>
-                {filteredRooms.map((room) => (
-                  <ModuleCard
-                    key={room.id}
-                    session={room}
-                    onPress={() => onOpenRoom(room.id)}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-          </ADSRFadeIn>
+                  {filteredRooms.length === 0 ? (
+                    <View style={styles.emptyModule}>
+                      <Ionicons name="radio-outline" size={32} color={colors.text.muted} />
+                      <Text variant="body" color={colors.text.muted} align="center">
+                        No live rooms{genreFilter !== 'All' ? ` in ${genreFilter}` : ''}.
+                      </Text>
+                      <TouchableOpacity onPress={onCreateSession} accessibilityRole="button" accessibilityLabel="Create a session">
+                        <Text variant="label" color={colors.action.primary}>
+                          Create a room
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.moduleGrid}>
+                      {filteredRooms.map((room) => (
+                        <ModuleCard
+                          key={room.id}
+                          session={room}
+                          onPress={() => onOpenRoom(room.id)}
+                        />
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </ADSRFadeIn>
+            </View>
+          </CrossfadeSwitch>
         )}
 
         {/* Bottom spacer */}

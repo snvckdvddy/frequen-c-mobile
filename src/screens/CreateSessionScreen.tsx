@@ -190,11 +190,11 @@ export function CreateSessionScreen() {
         <View style={styles.toggleRow}>
           <View style={{ flex: 1 }}>
             <Text variant="labelLarge" color={colors.text.primary}>
-              {isPublic ? 'Public Signal' : 'Private Signal'}
+              {isPublic ? 'Public Room' : 'Private Room'}
             </Text>
             <Text variant="bodySmall" color={colors.text.muted}>
               {isPublic
-                ? 'Visible on the Patch Bay. Anyone can connect.'
+                ? 'Visible on Discover. Anyone can join.'
                 : 'Invite-only. Share the join code to connect.'}
             </Text>
           </View>

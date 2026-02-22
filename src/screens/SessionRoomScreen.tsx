@@ -16,7 +16,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  TextInput, Alert, Share, Keyboard, Modal,
+  TextInput, Alert, Share, Keyboard, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -24,12 +24,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Text, SafeScreen, RoomModeBadge, WaveformIcon, SignalPathBreadcrumb } from '../components/ui';
 import type { BreadcrumbNode } from '../components/ui/SignalPathBreadcrumb';
 import { useAuth } from '../contexts/AuthContext';
-import { sessionApi } from '../services/api';
+import api, { sessionApi } from '../services/api';
 import {
   connectSocket, joinSession, leaveSession, quitSession, addToQueue,
   voteTrack, sendReaction, skipTrack, trackEnded,
   approveTrackEvent, rejectTrackEvent, changeModeEvent, endSessionEvent,
   onSessionEvent, spendCV, duelVote, submitForecast, phantomPower,
+  overdrive, phaseCancel,
 } from '../services/socket';
 import {
   addTrackToQueue, applyVote, skipCurrentTrack, moveTrack as moveTrackEngine,
@@ -54,13 +55,17 @@ import { tapMedium, tapLight, tapHeavy, notifySuccess } from '../utils/haptics';
 import { notifyParticipantJoined, notifyTrackChanged } from '../services/notifications';
 import type { Session, QueueTrack, Track, RoomMode, Listener } from '../types';
 import { QueueTrackCard } from '../components/QueueTrackCard';
+import { LyricsOverlay } from '../components/ui/LyricsOverlay';
 import { DraggableQueue } from '../components/DraggableQueue';
 import { SearchResultItem } from '../components/SearchResultItem';
 import { MiniPlayer, MINI_PLAYER_HEIGHT } from '../components/MiniPlayer';
 import { SuggestionCard } from '../components/SuggestionCard';
 import { PlayedHistory } from '../components/PlayedHistory';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { ConnectionBanner } from '../components/ConnectionBanner';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useAppState } from '../hooks/useAppState';
+import { getGlobalLimiter } from '../utils/rateLimiter';
 import { ADSRFadeIn, StepSequencer, TrackContextMenu, SwipeableRow } from '../components/ui';
 import { QUEUE_ACTIONS, type ContextMenuAction } from '../components/ui/TrackContextMenu';
 import { Skeleton, TrackCardSkeleton } from '../components/ui/Skeleton';
@@ -120,6 +125,16 @@ export function SessionRoomScreen() {
     isLoading: false, error: null,
   });
 
+  // ─── App state recovery (background → foreground) ──
+  useAppState({
+    onForeground: useCallback(() => {
+      // Re-join the session to get fresh state after returning from background
+      if (user?.id && sessionId) {
+        joinSession(sessionId, user.id, user.username);
+      }
+    }, [user?.id, user?.username, sessionId]),
+  });
+
   // ─── Layer 3-4: Social / Game / Economy / Environment state ──
   const cv = useCV();
 
@@ -143,6 +158,9 @@ export function SessionRoomScreen() {
     userPick: string | null;
     lastResult: { predicted: string; actual: string; correct: boolean; earned: number } | null;
   }>({ active: false, candidates: [], reward: 0, timeRemaining: 0, userPick: null, lastResult: null });
+
+  // Phase 6: Lyrics
+  const [lyricsVisible, setLyricsVisible] = useState(false);
 
   // Resonance Event
   const [resonanceState, setResonanceState] = useState<{
@@ -180,7 +198,6 @@ export function SessionRoomScreen() {
 
   // Guards against double-removal (skip + auto-advance race)
   const isAdvancingRef = useRef(false);
-  const skipCooldownRef = useRef(false);
   const MAX_PLAYED_HISTORY = 50;
   const { query, setQuery, results, isSearching, clearSearch } = useSearch();
   const { searches: recentSearches, addSearch: saveRecentSearch, removeSearch: removeRecentSearch } = useRecentSearches();
@@ -198,13 +215,22 @@ export function SessionRoomScreen() {
       }
       // Move finished track to history
       const finished = prev[0];
-      setPlayedHistory((hist) =>
-        [finished, ...hist].slice(0, MAX_PLAYED_HISTORY)
-      );
+      if (finished) {
+        setPlayedHistory((hist) => [finished, ...hist].slice(0, MAX_PLAYED_HISTORY));
+        // Phase 6: Scrobble if $> 30s
+        if (finished.duration > 30 && !!user?.connectedServices?.lastfm?.connected) {
+          api.integrations.scrobble(
+            finished.title,
+            finished.artist,
+            Math.floor(Date.now() / 1000) - Math.floor(finished.duration)
+          ).catch(() => { });
+        }
+      }
+
       const next = prev.slice(1);
       // Notify about the new track (next[0]) if one exists
       if (next.length > 0) {
-        notifyTrackChanged(next[0].title, next[0].artist, sessionId).catch(() => {});
+        notifyTrackChanged(next[0].title, next[0].artist, sessionId).catch(() => { });
       }
       // Reset guard after a short delay to allow new track to load
       setTimeout(() => { isAdvancingRef.current = false; }, 300);
@@ -413,6 +439,16 @@ export function SessionRoomScreen() {
         if (data.roomMode !== 'spotlight') {
           setSuggestedQueue([]);
         }
+        // Mode transition toast + haptic
+        const label = modeLabel[data.roomMode] || data.roomMode;
+        const toast: ToastMessage = {
+          id: `mode_${Date.now()}`,
+          text: `Waveform → ${label}`,
+          type: 'mode',
+        };
+        setToasts((prev) => [...prev, toast]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 3000);
+        tapMedium();
       }),
       // Full replacement of suggested/pending queue (sent by server after approve/reject/mode-change)
       onSessionEvent('pending-updated', (pendingQueue) => {
@@ -514,7 +550,7 @@ export function SessionRoomScreen() {
         }, 3000);
         // Push notification (shown even when foregrounded via notification handler)
         if (participant.userId !== user?.id && session?.name) {
-          notifyParticipantJoined(participant.username, session.name, sessionId).catch(() => {});
+          notifyParticipantJoined(participant.username, session.name, sessionId).catch(() => { });
         }
       }),
       onSessionEvent('participant-left', (data) => {
@@ -596,6 +632,7 @@ export function SessionRoomScreen() {
   // ─── Handlers ─────────────────────────────────────────
   const handleAddTrack = useCallback((track: Track) => {
     if (!user || !session) return;
+    if (!getGlobalLimiter().canDo('addTrack')) return;
     const queueTrack: QueueTrack = {
       ...track,
       addedBy: { userId: user.id, username: user.username },
@@ -614,6 +651,7 @@ export function SessionRoomScreen() {
 
   const handleVote = useCallback((trackId: string, direction: 1 | -1) => {
     if (!user) return;
+    if (!getGlobalLimiter().canDo('vote')) return;
     tapMedium();
     // Optimistic update: apply vote locally for instant UI feedback
     const mode = session?.roomMode || 'campfire';
@@ -624,6 +662,7 @@ export function SessionRoomScreen() {
 
   const handleReaction = useCallback((trackId: string, type: string) => {
     if (!user) return;
+    if (!getGlobalLimiter().canDo('reaction')) return;
     tapLight();
     sendReaction(sessionId, trackId, user.id, type as "fire" | "vibe" | "skip");
   }, [user, sessionId]);
@@ -641,17 +680,13 @@ export function SessionRoomScreen() {
 
   const handleSkip = useCallback(() => {
     if (!user || !session) return;
-    // Cooldown: prevent rapid double-taps
-    if (skipCooldownRef.current) return;
+    if (!getGlobalLimiter().canDo('skip')) return;
     // Engine checks if this user is allowed to skip in this mode
     const { skipped } = skipCurrentTrack(queue, user.id, session.hostId, session.roomMode);
     if (!skipped) {
       Alert.alert('Host only', 'Only the host can skip tracks in Spotlight mode.');
       return;
     }
-    // Activate cooldown
-    skipCooldownRef.current = true;
-    setTimeout(() => { skipCooldownRef.current = false; }, 1000);
     tapHeavy();
     // Stop current playback immediately to prevent auto-advance race
     stopPlayback();
@@ -681,6 +716,7 @@ export function SessionRoomScreen() {
   // ─── Layer 3-4 Handlers ─────────────────────────────────
   const handleDuelVote = useCallback((side: 'a' | 'b') => {
     if (!user || !session) return;
+    if (!getGlobalLimiter().canDo('duelVote')) return;
     tapHeavy();
     setDuelState((prev) => ({ ...prev, userVote: side }));
     duelVote(sessionId, user.id, side);
@@ -688,6 +724,7 @@ export function SessionRoomScreen() {
 
   const handleForecastPick = useCallback((trackId: string) => {
     if (!user || !session) return;
+    if (!getGlobalLimiter().canDo('forecast')) return;
     tapMedium();
     submitForecast(sessionId, user.id, trackId);
     setForecastState((prev) => ({ ...prev, userPick: trackId }));
@@ -695,6 +732,7 @@ export function SessionRoomScreen() {
 
   const handlePhantomPower = useCallback((trackId: string) => {
     if (!user || !session) return;
+    if (!getGlobalLimiter().canDo('cvSpend')) return;
     if (!cv.canUse('phantom_power')) {
       Alert.alert('Insufficient CV', 'You need 5 CV for Phantom Power.');
       return;
@@ -708,6 +746,55 @@ export function SessionRoomScreen() {
     });
     phantomPower(sessionId, trackId, user.id);
   }, [user, session, sessionId, cv, queue]);
+
+  const handleOverdrive = useCallback((trackId: string) => {
+    if (!user || !session) return;
+    if (!getGlobalLimiter().canDo('cvSpend')) return;
+    if (!cv.canUse('overdrive')) {
+      Alert.alert('Insufficient CV', 'You need 25 CV for Overdrive.');
+      return;
+    }
+    Alert.alert(
+      '⚡ Overdrive',
+      'Spend 25 CV to force this track to the top of the queue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Overdrive',
+          style: 'destructive',
+          onPress: () => {
+            tapHeavy();
+            cv.spend('overdrive');
+            overdrive(sessionId, trackId, user.id);
+          },
+        },
+      ],
+    );
+  }, [user, session, sessionId, cv]);
+
+  const handlePhaseCancel = useCallback(() => {
+    if (!user || !session) return;
+    if (!getGlobalLimiter().canDo('cvSpend')) return;
+    if (!cv.canUse('phase_cancel')) {
+      Alert.alert('Insufficient CV', 'You need 15 CV for Phase Cancel.');
+      return;
+    }
+    Alert.alert(
+      '🛡️ Phase Cancel',
+      'Spend 15 CV to block the next skip in this room?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Activate',
+          onPress: () => {
+            tapHeavy();
+            cv.spend('phase_cancel');
+            phaseCancel(sessionId, user.id);
+          },
+        },
+      ],
+    );
+  }, [user, session, sessionId, cv]);
 
   // ─── Reorder (long-press) ──────────────────────────────
   const [reorderTrackId, setReorderTrackId] = useState<string | null>(null);
@@ -725,7 +812,6 @@ export function SessionRoomScreen() {
   const handleContextAction = useCallback((actionId: string, track: Track) => {
     switch (actionId) {
       case 'removeFromQueue':
-        // Remove from queue — only allowed for own tracks or host
         setQueue((prev) => prev.filter((t) => t.id !== track.id));
         break;
       case 'addToLibrary':
@@ -734,11 +820,16 @@ export function SessionRoomScreen() {
       case 'share':
         Share.share({ message: `${track.title} by ${track.artist} — on Frequen-C` });
         break;
+      case 'overdrive':
+        handleOverdrive(track.id);
+        break;
+      case 'phantomPower':
+        handlePhantomPower(track.id);
+        break;
       default:
-        // viewArtist, viewAlbum — future navigation
         break;
     }
-  }, [handleToggleFavorite]);
+  }, [handleToggleFavorite, handleOverdrive, handlePhantomPower]);
 
   const handleMoveUp = useCallback((trackId: string) => {
     tapLight();
@@ -901,15 +992,20 @@ export function SessionRoomScreen() {
 
   return (
     <SafeScreen>
-      <View style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
 
-        {/* ─── Offline Banner ─────────────────────────── */}
+        {/* ─── Connection Status ──────────────────────── */}
         <OfflineBanner visible={!isConnected} />
+        <ConnectionBanner />
 
         {/* ─── Signal Path Breadcrumb ─────────────────────── */}
         <SignalPathBreadcrumb
           nodes={[
-            { id: 'bay', label: 'PATCH BAY', onPress: () => navigation.goBack() },
+            { id: 'home', label: 'HOME', onPress: () => navigation.goBack() },
             { id: 'room', label: session.name.toUpperCase() },
           ]}
         />
@@ -945,8 +1041,13 @@ export function SessionRoomScreen() {
             ) : null}
           </View>
 
-          {/* Right: chat + share + leave */}
+          {/* Right: lyrics + chat + share + leave */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {currentTrack && (
+              <TouchableOpacity onPress={() => setLyricsVisible(true)} style={styles.headerAction}>
+                <Ionicons name="musical-notes-outline" size={16} color={colors.chrome.text} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={() => setChatOpen(true)} style={styles.headerAction}>
               <Ionicons name="chatbubble-outline" size={16} color={colors.chrome.text} />
             </TouchableOpacity>
@@ -963,12 +1064,39 @@ export function SessionRoomScreen() {
           </View>
         </View>
 
+        {/* ─── CV Economy Bar ─────────────────────────────── */}
+        <View style={styles.cvBar}>
+          <View style={styles.cvBalanceChip}>
+            <Ionicons name="flash" size={12} color={colors.action.primary} />
+            <Text variant="labelSmall" color={colors.action.primary} style={{ fontWeight: '600' }}>
+              {cv.balance} CV
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.cvActionChip,
+              !cv.canUse('phase_cancel') && styles.cvActionDisabled,
+            ]}
+            onPress={handlePhaseCancel}
+            activeOpacity={0.6}
+            disabled={!cv.canUse('phase_cancel')}
+          >
+            <Ionicons name="shield-outline" size={12} color={cv.canUse('phase_cancel') ? colors.text.primary : colors.text.muted} />
+            <Text
+              variant="labelSmall"
+              color={cv.canUse('phase_cancel') ? colors.text.primary : colors.text.muted}
+            >
+              Phase Cancel · 15
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* ─── Filter Sweep (Search) ────────────────────── */}
         <View style={styles.searchBarRow}>
           <TextInput
             ref={searchInputRef}
             style={styles.searchInput}
-            placeholder="Filter sweep..."
+            placeholder="Search for tracks..."
             placeholderTextColor={colors.text.muted}
             value={query}
             onChangeText={setQuery}
@@ -1139,7 +1267,7 @@ export function SessionRoomScreen() {
 
                 <View style={styles.queueHeader}>
                   <Text variant="label" color={colors.text.secondary} style={{ letterSpacing: 1.5, fontSize: 10 }}>
-                    SIGNAL CHAIN
+                    UP NEXT
                   </Text>
                   <Text variant="labelSmall" color={colors.text.muted}>
                     {queue.length} track{queue.length !== 1 ? 's' : ''}
@@ -1155,10 +1283,10 @@ export function SessionRoomScreen() {
               >
                 <WaveformIcon mode={session.roomMode as RoomMode} size={32} />
                 <Text variant="body" color={colors.text.muted} align="center" style={{ marginTop: spacing.sm }}>
-                  No signal in the chain
+                  Queue is empty
                 </Text>
                 <Text variant="labelSmall" color={colors.action.primary} align="center" style={{ marginTop: spacing.xs }}>
-                  Filter sweep to patch in tracks
+                  Search to add tracks
                 </Text>
               </TouchableOpacity>
             }
@@ -1280,7 +1408,7 @@ export function SessionRoomScreen() {
           />
         ))}
 
-      </View>
+      </KeyboardAvoidingView>
 
       {/* QR Code Modal */}
       <Modal
@@ -1322,6 +1450,13 @@ export function SessionRoomScreen() {
           }}
         />
       )}
+
+      {/* ─── Layer 6: Lyrics ───────────────────────────── */}
+      <LyricsOverlay
+        track={currentTrack || undefined}
+        visible={lyricsVisible}
+        onClose={() => setLyricsVisible(false)}
+      />
     </SafeScreen>
   );
 }
@@ -1391,6 +1526,40 @@ const styles = StyleSheet.create({
     borderColor: colors.chrome.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // CV Economy Bar
+  cvBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.screenPadding,
+    paddingVertical: 6,
+    gap: 8,
+  },
+  cvBalanceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.15)',
+  },
+  cvActionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: colors.bg.surface,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  cvActionDisabled: {
+    opacity: 0.4,
   },
 
   // Filter Sweep (search bar)

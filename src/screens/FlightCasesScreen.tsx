@@ -186,7 +186,7 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
         <ADSRFadeIn index={0}>
           <View style={styles.header}>
             <Text variant="h2" color={colors.text.primary}>
-              Flight Cases
+              Library
             </Text>
             <Text variant="bodySmall" color={colors.text.secondary}>
               Your gear, organized
@@ -206,7 +206,10 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
               <View style={styles.emptyCase}>
                 <Ionicons name="heart-outline" size={28} color={colors.text.muted} />
                 <Text variant="bodySmall" color={colors.text.muted} align="center">
-                  No liked tracks yet. Heart tracks in a session to save them here.
+                  No liked tracks yet.
+                </Text>
+                <Text variant="labelSmall" color={colors.text.secondary} align="center">
+                  Heart tracks during a session to save them here.
                 </Text>
               </View>
             ) : (
@@ -271,7 +274,10 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
             <View style={styles.emptyCase}>
               <Ionicons name="folder-open-outline" size={28} color={colors.text.muted} />
               <Text variant="bodySmall" color={colors.text.muted} align="center">
-                Create collections to organize your favorite sessions and tracks.
+                Organize your favorite sessions and tracks into collections.
+              </Text>
+              <Text variant="labelSmall" color={colors.chrome.text} align="center" style={styles.comingSoonTag}>
+                COMING SOON
               </Text>
             </View>
           </FlightCase>
@@ -285,9 +291,12 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
             count={0}
           >
             <View style={styles.emptyCase}>
-              <Ionicons name="analytics-outline" size={28} color={colors.text.muted} />
+              <WaveformIcon mode="campfire" size={28} />
               <Text variant="bodySmall" color={colors.text.muted} align="center">
                 Session receipts will appear here after completed sessions.
+              </Text>
+              <Text variant="labelSmall" color={colors.chrome.text} align="center" style={styles.comingSoonTag}>
+                COMING SOON
               </Text>
             </View>
           </FlightCase>
@@ -314,6 +323,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.lg,
+  },
+  comingSoonTag: {
+    fontSize: 8,
+    letterSpacing: 2,
+    marginTop: spacing.xs,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    backgroundColor: colors.chrome.surface,
+    borderWidth: 1,
+    borderColor: colors.chrome.border,
+    overflow: 'hidden',
   },
   historyCard: {
     flexDirection: 'row',

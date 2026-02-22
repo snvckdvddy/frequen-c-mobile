@@ -1,9 +1,11 @@
 /**
- * App Navigation — Modular Synthesis Architecture
+ * App Navigation — Convergence Strategy §1.1, §5
  *
- * 3-tab layout: Patch Bay | Flight Cases | Profile
- * Contextual FAB: "Patch In" adapts to current screen
- * Signal Path breadcrumbs on every screen
+ * 4-tab layout: Home | Discover | [+] Create | Library
+ * Profile accessed via header avatar (not a tab).
+ * Center Create button opens CreateSession modal.
+ *
+ * Replaces the previous 3-tab jargon layout (Patch Bay | Flight Cases | Profile).
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -11,14 +13,13 @@ import { NavigationContainer, LinkingOptions, NavigationContainerRef } from '@re
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { DURATION, EASING as MOTION_EASING } from '../theme/motion';
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import * as Linking from 'expo-linking';
 
 import { useAuth } from '../contexts/AuthContext';
 import { onNotificationResponse, getInitialNotification } from '../services/notifications';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Text } from '../components/ui';
@@ -26,7 +27,8 @@ import { Text } from '../components/ui';
 // Screens
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
-import { PatchBayScreen } from '../screens/PatchBayScreen';
+import { HomeScreen } from '../screens/HomeScreen';
+import { DiscoverScreen } from '../screens/DiscoverScreen';
 import { CreateSessionScreen } from '../screens/CreateSessionScreen';
 import { JoinSessionScreen } from '../screens/JoinSessionScreen';
 import { SessionRoomScreen } from '../screens/SessionRoomScreen';
@@ -49,9 +51,10 @@ type MainStackParamList = {
 };
 
 type TabParamList = {
-  PatchBay: undefined;
-  FlightCases: undefined;
-  ProfileTab: undefined;
+  Home: undefined;
+  Discover: undefined;
+  Create: undefined;     // Placeholder — intercepted by listener, opens modal
+  Library: undefined;
 };
 
 // ─── Navigators ─────────────────────────────────────────────
@@ -60,108 +63,55 @@ const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// ─── Tab Icons — Modular Synthesis Visual Language ──────────
-
-/** Patch Bay icon — grid of connected nodes */
-function PatchBayIcon({ focused }: { focused: boolean }) {
-  const color = focused ? colors.action.primary : colors.text.muted;
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Circle cx={6} cy={6} r={2.5} fill={color} opacity={focused ? 1 : 0.6} />
-      <Circle cx={18} cy={6} r={2.5} fill={color} opacity={focused ? 1 : 0.6} />
-      <Circle cx={6} cy={18} r={2.5} fill={color} opacity={focused ? 1 : 0.6} />
-      <Circle cx={18} cy={18} r={2.5} fill={color} opacity={focused ? 1 : 0.6} />
-      <Path d="M 8.5 6 L 15.5 6" stroke={color} strokeWidth={1} opacity={0.4} />
-      <Path d="M 6 8.5 L 6 15.5" stroke={color} strokeWidth={1} opacity={0.4} />
-      <Path d="M 8.5 18 L 15.5 18" stroke={color} strokeWidth={1} opacity={0.4} />
-      <Path d="M 18 8.5 L 18 15.5" stroke={color} strokeWidth={1} opacity={0.4} />
-      <Path d="M 8 8 L 16 16" stroke={color} strokeWidth={1} opacity={0.25} strokeDasharray="2,2" />
-    </Svg>
-  );
-}
-
-/** Flight Cases icon — stacked containers */
-function FlightCasesIcon({ focused }: { focused: boolean }) {
-  const color = focused ? colors.action.primary : colors.text.muted;
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      {/* Top case */}
-      <Rect x={3} y={4} width={18} height={6} rx={2} stroke={color} strokeWidth={1.5} fill="none" />
-      {/* Bottom case */}
-      <Rect x={3} y={13} width={18} height={7} rx={2} stroke={color} strokeWidth={1.5} fill="none" />
-      {/* Handle */}
-      <Path d="M 10 4 L 10 2 L 14 2 L 14 4" stroke={color} strokeWidth={1.2} fill="none" />
-      {/* Latches */}
-      <Path d="M 9 7 L 15 7" stroke={color} strokeWidth={1} opacity={0.5} />
-      <Path d="M 9 16.5 L 15 16.5" stroke={color} strokeWidth={1} opacity={0.5} />
-    </Svg>
-  );
-}
-
-/** Profile icon — signal node with connections */
-function ProfileIcon({ focused }: { focused: boolean }) {
-  const color = focused ? colors.action.primary : colors.text.muted;
-  return (
-    <Ionicons
-      name={focused ? 'person-circle' : 'person-circle-outline'}
-      size={22}
-      color={color}
-    />
-  );
-}
-
-// ─── Patch In FAB ───────────────────────────────────────────
+// ─── Create Button (center tab) ─────────────────────────────
 
 /**
- * Contextual Floating Action Button.
- * From Patch Bay → Create/Join Room
- * From Flight Cases → New Collection
- * From Profile → Connect Service
+ * Elevated center button per Convergence Strategy §1.1:
+ * "Create — Elevated CTA (floating circle or distinct icon)"
+ * 44×44pt circular, palette.ice bg, void icon.
  */
-function PatchInFAB({ onPress }: { onPress: () => void }) {
+function CreateTabButton({ onPress }: { onPress: () => void }) {
   return (
-    <TouchableOpacity style={fabStyles.container} onPress={onPress} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Patch In, create or join a session">
-      <View style={fabStyles.button}>
-        <Ionicons name="add" size={26} color={colors.action.primaryText} />
+    <TouchableOpacity
+      style={createBtnStyles.container}
+      onPress={onPress}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel="Create a new session"
+    >
+      <View style={createBtnStyles.button}>
+        <Ionicons name="add" size={24} color={colors.bg.primary} />
       </View>
-      <Text variant="labelSmall" color={colors.action.primary} style={fabStyles.label}>
-        PATCH IN
-      </Text>
     </TouchableOpacity>
   );
 }
 
-const fabStyles = StyleSheet.create({
+const createBtnStyles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    bottom: 90, // above tab bar
-    right: 20,
+    top: -12, // Elevate above tab bar
+    justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 100,
   },
   button: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.action.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    // Chrome border
-    borderWidth: 1,
-    borderColor: colors.chrome.highlight,
     // Glow
     shadowColor: colors.action.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
-    shadowRadius: 16,
+    shadowRadius: 12,
     elevation: 8,
   },
-  label: {
-    marginTop: 4,
-    fontSize: 8,
-    letterSpacing: 1.5,
-  },
 });
+
+// ─── Placeholder screen for the Create tab (never rendered) ──
+function CreatePlaceholder() {
+  return <View style={{ flex: 1, backgroundColor: colors.bg.primary }} />;
+}
 
 // ─── Tab Navigator ──────────────────────────────────────────
 
@@ -174,33 +124,39 @@ function TabNavigator() {
         animation: 'fade',
         tabBarStyle: {
           backgroundColor: colors.bg.surface,
-          borderTopColor: colors.border.default,      // Dark steel divider — Convergence §1.1
+          borderTopColor: colors.border.default,      // Dark steel divider — §1.1
           borderTopWidth: 1,
           height: 80,
           paddingBottom: 24,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: colors.action.primary,
-        tabBarInactiveTintColor: colors.text.muted,
+        tabBarActiveTintColor: colors.action.primary,  // ice cyan — §1.3
+        tabBarInactiveTintColor: colors.text.muted,    // slate — §8
         tabBarLabelStyle: {
           fontFamily: typography.fontFamily,
-          fontSize: 9,
+          fontSize: 10,                                // §1.9: Micro 10pt
           fontWeight: typography.weight.medium,
-          letterSpacing: 1.2,
+          letterSpacing: 0.5,
         },
       }}
     >
-      {/* Tab 1: Patch Bay — Live session grid (Home + Discover merged) */}
+      {/* Tab 1: Home — Your rooms, recent activity */}
       <Tab.Screen
-        name="PatchBay"
+        name="Home"
         options={{
-          tabBarLabel: 'PATCH BAY',
-          tabBarIcon: ({ focused }) => <PatchBayIcon focused={focused} />,
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? 'home' : 'home-outline'}
+              size={22}
+              color={color}
+            />
+          ),
         }}
       >
         {(props) => (
-          <View style={{ flex: 1 }}>
-            <PatchBayScreen
+          <ErrorBoundary screenName="Home">
+            <HomeScreen
               onCreateSession={() => props.navigation.getParent()?.navigate('CreateSession')}
               onJoinSession={() => props.navigation.getParent()?.navigate('JoinSession')}
               onOpenRoom={(sessionId: string) =>
@@ -208,39 +164,84 @@ function TabNavigator() {
               }
               onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
             />
-            <PatchInFAB
-              onPress={() => props.navigation.getParent()?.navigate('CreateSession')}
-            />
-          </View>
+          </ErrorBoundary>
         )}
       </Tab.Screen>
 
-      {/* Tab 2: Flight Cases — Library, collections, history */}
+      {/* Tab 2: Discover — Browse public rooms, trending, genre filters */}
       <Tab.Screen
-        name="FlightCases"
+        name="Discover"
         options={{
-          tabBarLabel: 'FLIGHT CASES',
-          tabBarIcon: ({ focused }) => <FlightCasesIcon focused={focused} />,
+          tabBarLabel: 'Discover',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? 'compass' : 'compass-outline'}
+              size={22}
+              color={color}
+            />
+          ),
         }}
       >
         {(props) => (
-          <FlightCasesScreen
-            onOpenRoom={(sessionId: string) =>
-              props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
-            }
-          />
+          <ErrorBoundary screenName="Discover">
+            <DiscoverScreen
+              onOpenRoom={(sessionId: string) =>
+                props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
+              }
+            />
+          </ErrorBoundary>
         )}
       </Tab.Screen>
 
-      {/* Tab 3: Profile — Identity, services, CV, settings */}
+      {/* Tab 3: Create — Center elevated button (opens modal, no screen) */}
       <Tab.Screen
-        name="ProfileTab"
+        name="Create"
+        component={CreatePlaceholder}
         options={{
-          tabBarLabel: 'PROFILE',
-          tabBarIcon: ({ focused }) => <ProfileIcon focused={focused} />,
+          tabBarLabel: '',
+          tabBarIcon: () => null,
+          tabBarButton: (props) => (
+            <CreateTabButton
+              onPress={() => {
+                // Navigate to CreateSession modal via parent stack
+                // We need to access the parent navigator
+              }}
+            />
+          ),
+        }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Prevent navigating to the Create tab screen
+            e.preventDefault();
+            // Open CreateSession modal instead
+            navigation.getParent()?.navigate('CreateSession');
+          },
+        })}
+      />
+
+      {/* Tab 4: Library — Saved tracks, session history, collections */}
+      <Tab.Screen
+        name="Library"
+        options={{
+          tabBarLabel: 'Library',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? 'library' : 'library-outline'}
+              size={22}
+              color={color}
+            />
+          ),
         }}
       >
-        {() => <ProfileScreen />}
+        {(props) => (
+          <ErrorBoundary screenName="Library">
+            <FlightCasesScreen
+              onOpenRoom={(sessionId: string) =>
+                props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
+              }
+            />
+          </ErrorBoundary>
+        )}
       </Tab.Screen>
     </Tab.Navigator>
   );
@@ -281,20 +282,41 @@ function MainNavigator() {
       <MainStack.Screen name="Tabs" component={TabNavigator} />
       <MainStack.Screen
         name="CreateSession"
-        component={CreateSessionScreen}
         options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-      />
+      >
+        {() => (
+          <ErrorBoundary screenName="CreateSession">
+            <CreateSessionScreen />
+          </ErrorBoundary>
+        )}
+      </MainStack.Screen>
       <MainStack.Screen
         name="JoinSession"
-        component={JoinSessionScreen}
         options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-      />
-      <MainStack.Screen name="SessionRoom" component={SessionRoomScreen} />
+      >
+        {() => (
+          <ErrorBoundary screenName="JoinSession">
+            <JoinSessionScreen />
+          </ErrorBoundary>
+        )}
+      </MainStack.Screen>
+      <MainStack.Screen name="SessionRoom">
+        {() => (
+          <ErrorBoundary screenName="SessionRoom">
+            <SessionRoomScreen />
+          </ErrorBoundary>
+        )}
+      </MainStack.Screen>
       <MainStack.Screen
         name="Profile"
-        component={ProfileScreen}
         options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-      />
+      >
+        {() => (
+          <ErrorBoundary screenName="Profile:Modal">
+            <ProfileScreen />
+          </ErrorBoundary>
+        )}
+      </MainStack.Screen>
     </MainStack.Navigator>
   );
 }
