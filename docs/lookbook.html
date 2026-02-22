@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frequen-C Design System Lookbook</title>
+
+    <!-- Google Fonts: Chakra Petch, Space Mono, Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Mono:wght@400;700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* COLOR TOKENS */
+            --void: #06080F;
+            --midnight: #0E1219;
+            --steel: #161B28;
+            --gunmetal: #1E2436;
+            --ice: #00E5FF;
+            --amber: #FFB347;
+            --chrome-gradient: linear-gradient(135deg, #2a2d35, #3d4150, #2a2d35);
+            --ice-glow: 0 0 20px rgba(0, 229, 255, 0.4), 0 0 60px rgba(0, 229, 255, 0.15);
+
+            /* TEXT COLORS */
+            --text-primary: #E8EAED;
+            --text-secondary: #8B9EB0;
+            --text-dim: #4A5568;
+
+            /* FONT FAMILIES */
+            --display: 'Chakra Petch', sans-serif;
+            --mono: 'Space Mono', monospace;
+            --label: 'Inter', sans-serif;
+            --body: 'Inter', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            background: var(--void);
+            color: var(--text-primary);
+            font-family: var(--body);
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><defs><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise" seed="2"/><feColorMatrix in="noise" type="saturate" values="0"/></filter></defs><rect width="100" height="100" fill="rgba(255,255,255,0.03)" filter="url(%23noise)"/></svg>');
+            z-index: 0;
+        }
+
+        /* SECTION CONTAINER */
+        .section {
+            position: relative;
+            z-index: 1;
+            padding: 80px 40px;
+            border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-divider {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 0;
+        }
+
+        .signal-line {
+            width: 60%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--ice) 20%, var(--ice) 80%, transparent);
+            opacity: 0.3;
+            position: relative;
+        }
+
+        .signal-line::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--ice);
+            border-radius: 50%;
+            background: rgba(0, 229, 255, 0.2);
+        }
+
+        /* SECTION TITLE */
+        .section-title {
+            font-family: var(--label);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--ice);
+            text-transform: uppercase;
+            margin-bottom: 40px;
+            opacity: 0.8;
+        }
+
+        /* === TYPOGRAPHY SECTION === */
+        .type-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .type-card {
+            background: var(--gunmetal);
+            border: 1px solid rgba(0, 229, 255, 0.15);
+            border-radius: 2px;
+            padding: 24px;
+            position: relative;
+        }
+
+        .type-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        }
+
+        .type-card-label {
+            font-family: var(--label);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+
+        .type-display {
+            font-family: var(--display);
+            font-weight: 600;
+            color: var(--ice);
+            margin-bottom: 12px;
+            line-height: 1.1;
+        }
+
+        .type-display-28 { font-size: 28px; }
+        .type-display-22 { font-size: 22px; }
+        .type-display-18 { font-size: 18px; }
+
+        .type-mono {
+            font-family: var(--mono);
+            font-weight: 400;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .type-mono-16 { font-size: 16px; }
+        .type-mono-14 { font-size: 14px; }
+        .type-mono-12 { font-size: 12px; }
+
+        .type-label {
+            font-family: var(--label);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            text-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+            margin-bottom: 8px;
+        }
+
+        .type-body {
+            font-family: var(--body);
+            font-size: 14px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* === MATERIALS SECTION === */
+        .material-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .material-swatch {
+            width: 100%;
+            aspect-ratio: 1 / 1.2;
+            border-radius: 2px;
+            border: 1px solid rgba(0, 229, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 12px;
+        }
+
+        .material-swatch::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+            z-index: 2;
+        }
+
+        .material-label {
+            font-family: var(--label);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            position: relative;
+            z-index: 3;
+        }
+
+        /* VOID MATERIAL */
+        .material-void {
+            background: var(--void);
+        }
+
+        /* CHROME MATERIAL */
+        .material-chrome {
+            background: var(--chrome-gradient);
+        }
+
+        /* BRUSHED STEEL MATERIAL */
+        .material-steel {
+            background: linear-gradient(90deg, #1a1f2c 0%, #1f2434 50%, #1a1f2c 100%);
+            background-size: 200% 100%;
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1), inset 0 -1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        /* GLASS MATERIAL */
+        .material-glass {
+            background: rgba(30, 36, 54, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid;
+            border-image: linear-gradient(135deg, rgba(255, 255, 255, 0.3), transparent 50%, rgba(0, 0, 0, 0.3)) 1;
+            box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.1);
+        }
+
+        /* ICE EMISSION MATERIAL */
+        .material-ice-emit {
+            background: var(--gunmetal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .material-ice-emit .ice-core {
+            font-family: var(--display);
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--ice);
+            text-shadow: var(--ice-glow);
+            z-index: 2;
+        }
+
+        .material-ice-emit::before {
+            content: '';
+            position: absolute;
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 229, 255, 0.15), transparent);
+            z-index: 1;
+            filter: blur(8px);
+        }
+
+        /* AMBER EMISSION MATERIAL */
+        .material-amber-emit {
+            background: var(--gunmetal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .material-amber-emit .amber-core {
+            font-family: var(--display);
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--amber);
+            text-shadow: 0 0 20px rgba(255, 179, 71, 0.4), 0 0 60px rgba(255, 179, 71, 0.15);
+            z-index: 2;
+        }
+
+        .material-amber-emit::before {
+            content: '';
+            position: absolute;
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 179, 71, 0.15), transparent);
+            z-index: 1;
+            filter: blur(8px);
+        }
+
+        /* === RACK SYSTEM SECTION === */
+        .rack-frame {
+            background: var(--midnight);
+            border: 1px solid rgba(0, 229, 255, 0.1);
+            padding: 20px 0;
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .rack-frame::before,
+        .rack-frame::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            width: 1px;
+            height: 100%;
+            background: linear-gradient(180deg, transparent 0%, rgba(0, 229, 255, 0.1) 50%, transparent 100%);
+        }
+
+        .rack-frame::before {
+            left: 12px;
+        }
+
+        .rack-frame::after {
+            right: 12px;
+        }
+
+        .rack-module {
+            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
+            border-radius: 0 2px 2px 0;
+            margin: 12px 20px;
+            padding: 16px 20px;
+            position: relative;
+            border-left: 1px solid rgba(0, 229, 255, 0.08);
+            border-right: 1px solid rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+        }
+
+        .rack-module::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+        }
+
+        .rack-module-screw {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #9CA3AF;
+            border-radius: 50%;
+            top: 8px;
+        }
+
+        .rack-module-screw.left {
+            left: 12px;
+        }
+
+        .rack-module-screw.right {
+            right: 12px;
+        }
+
+        .rack-module-label {
+            font-family: var(--label);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            text-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+            margin-bottom: 8px;
+        }
+
+        .rack-module-content {
+            font-family: var(--body);
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        .patch-point {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(0, 229, 255, 0.4);
+            border-radius: 50%;
+            background: rgba(0, 229, 255, 0.1);
+            position: relative;
+        }
+
+        .patch-point.active {
+            border-color: var(--ice);
+            background: rgba(0, 229, 255, 0.3);
+            box-shadow: var(--ice-glow);
+        }
+
+        .patch-point::after {
+            content: '';
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(0, 229, 255, 0.6);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .patch-point.active::after {
+            background: var(--ice);
+            box-shadow: 0 0 8px var(--ice);
+        }
+
+        .rack-examples-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .rack-example-label {
+            font-family: var(--label);
+            font-size: 9px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        /* === DATA DISPLAY SECTION === */
+        .vu-meter-container {
+            background: var(--gunmetal);
+            border: 1px solid rgba(0, 229, 255, 0.15);
+            padding: 16px;
+            border-radius: 2px;
+            margin-bottom: 24px;
+        }
+
+        .vu-meter-label {
+            font-family: var(--label);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .vu-meter {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            height: 32px;
+        }
+
+        .vu-segment {
+            flex: 1;
+            height: 100%;
+            background: rgba(0, 229, 255, 0.15);
+            border-radius: 1px;
+            border: 1px solid rgba(0, 229, 255, 0.1);
+            transition: all 0.05s ease;
+        }
+
+        .vu-segment.filled {
+            background: #00E5FF;
+            box-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+            border-color: var(--ice);
+        }
+
+        .vu-segment.filled.mid {
+            background: #FFD700;
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+            border-color: #FFD700;
+        }
+
+        .vu-segment.filled.high {
+            background: #FF3B30;
+            box-shadow: 0 0 8px rgba(255, 59, 48, 0.5);
+            border-color: #FF3B30;
+        }
+
+        .waveform-container {
+            background: var(--gunmetal);
+            border: 1px solid rgba(0, 229, 255, 0.15);
+            padding: 16px;
+            border-radius: 2px;
+            margin-bottom: 24px;
+        }
+
+        .waveform-label {
+            font-family: var(--label);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .waveform-wrapper {
+            position: relative;
+            height: 80px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .waveform-filled {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 40%;
+            background: rgba(0, 229, 255, 0.2);
+            border-right: 2px solid var(--ice);
+        }
+
+        .waveform-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .waveform-times {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .data-readout-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .data-readout {
+            background: var(--gunmetal);
+            border: 1px solid rgba(0, 229, 255, 0.15);
+            padding: 16px;
+            border-radius: 2px;
+            text-align: center;
+        }
+
+        .data-readout-value {
+            font-family: var(--mono);
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--ice);
+            text-shadow: var(--ice-glow);
+            margin-bottom: 6px;
+        }
+
+        .data-readout-label {
+            font-family: var(--label);
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        /* === CONTROLS SECTION === */
+        .controls-demo {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .button {
+            padding: 12px 24px;
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 1px;
+            font-family: var(--label);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .button-chrome {
+            background: var(--chrome-gradient);
+            color: var(--text-primary);
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .button-chrome:active {
+            background: linear-gradient(135deg, #1f2229, #2a2d35, #1f2229);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 -1px 2px rgba(255, 255, 255, 0.05);
+        }
+
+        .button-glass {
+            background: rgba(30, 36, 54, 0.5);
+            color: var(--text-primary);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05);
+        }
+
+        .button-glass:hover {
+            background: rgba(30, 36, 54, 0.7);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .transport-rack {
+            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
+            border: 1px solid rgba(0, 229, 255, 0.1);
+            padding: 20px;
+            border-radius: 2px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 32px;
+            position: relative;
+        }
+
+        .transport-rack::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+        }
+
+        .transport-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 229, 255, 0.3);
+            background: var(--gunmetal);
+            color: var(--text-primary);
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .transport-btn:hover {
+            border-color: var(--ice);
+            box-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+        }
+
+        .transport-btn.play {
+            width: 64px;
+            height: 64px;
+            border-width: 2px;
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--ice);
+            color: var(--ice);
+            font-weight: bold;
+            box-shadow: var(--ice-glow);
+        }
+
+        .transport-btn.play:active {
+            background: rgba(0, 229, 255, 0.2);
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.5), inset 0 0 10px rgba(0, 229, 255, 0.2);
+        }
+
+        /* === COMPOSITES SECTION === */
+        .track-module {
+            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
+            border: 1px solid rgba(0, 229, 255, 0.1);
+            border-radius: 0 2px 2px 0;
+            padding: 12px 16px;
+            margin: 12px 20px;
+            display: flex;
+            gap: 12px;
+            position: relative;
+        }
+
+        .track-module::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+        }
+
+        .track-module-screw {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            background: #9CA3AF;
+            border-radius: 50%;
+            top: 6px;
+        }
+
+        .track-module-screw.left {
+            left: 10px;
+        }
+
+        .track-module-screw.right {
+            right: 10px;
+        }
+
+        .track-art {
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+            border-radius: 1px;
+            background: linear-gradient(135deg, #2D1B69 0%, #0F4C75 50%, #1A1F2C 100%);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+        }
+
+        .track-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .track-title {
+            font-family: var(--display);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .track-artist {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .track-meta {
+            font-family: var(--body);
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
+        .track-action {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .signal-connection {
+            height: 20px;
+            margin: 0 20px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .signal-line-vertical {
+            width: 2px;
+            height: 100%;
+            background: linear-gradient(180deg, transparent, var(--ice) 50%, transparent);
+            opacity: 0.4;
+            animation: signal-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes signal-pulse {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 0.6; }
+        }
+
+        .queue-chain {
+            margin: 24px 0;
+        }
+
+        .participant-cluster {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: center;
+            margin: 24px 0;
+            position: relative;
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 229, 255, 0.3);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--mono);
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--void);
+        }
+
+        .avatar:nth-child(1) { background: linear-gradient(135deg, #FF6B6B, #FF8E72); }
+        .avatar:nth-child(2) { background: linear-gradient(135deg, #4ECDC4, #44A08D); }
+        .avatar:nth-child(3) { background: linear-gradient(135deg, #95E1D3, #F38181); }
+        .avatar:nth-child(4) { background: linear-gradient(135deg, #AA96DA, #FCBAD3); }
+
+        .avatar.host {
+            border-color: var(--ice);
+            box-shadow: 0 0 12px var(--ice);
+        }
+
+        .participant-lines {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* === ROOM SCREEN MOCKUP === */
+        .room-mockup-container {
+            display: flex;
+            justify-content: center;
+            margin: 40px 0;
+        }
+
+        .phone-frame {
+            width: 375px;
+            height: 812px;
+            background: var(--void);
+            border: 12px solid #1a1a1a;
+            border-radius: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .phone-frame::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 30px;
+            background: #1a1a1a;
+            border-radius: 0 0 20px 20px;
+            z-index: 10;
+        }
+
+        .room-status-bar {
+            height: 44px;
+            flex-shrink: 0;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            padding-top: 8px;
+        }
+
+        .room-header {
+            padding: 12px 16px;
+            backdrop-filter: blur(10px);
+            background: rgba(14, 18, 25, 0.5);
+            border-bottom: 1px solid rgba(0, 229, 255, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: space-between;
+        }
+
+        .room-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .room-back {
+            font-size: 20px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .room-title {
+            font-family: var(--display);
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .room-badge {
+            font-family: var(--mono);
+            font-size: 8px;
+            font-weight: 700;
+            color: var(--amber);
+            background: rgba(255, 179, 71, 0.1);
+            padding: 4px 8px;
+            border-radius: 1px;
+            border: 1px solid rgba(255, 179, 71, 0.2);
+        }
+
+        .room-menu {
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 18px;
+        }
+
+        .room-participants {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid rgba(0, 229, 255, 0.05);
+            background: rgba(14, 18, 25, 0.3);
+        }
+
+        .room-avatars {
+            display: flex;
+            margin-right: 8px;
+        }
+
+        .room-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid var(--void);
+            margin-left: -8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            color: white;
+            font-weight: 700;
+        }
+
+        .room-avatar:first-child {
+            margin-left: 0;
+        }
+
+        .room-avatar:nth-child(1) { background: linear-gradient(135deg, #FF6B6B, #FF8E72); }
+        .room-avatar:nth-child(2) { background: linear-gradient(135deg, #4ECDC4, #44A08D); }
+        .room-avatar:nth-child(3) { background: linear-gradient(135deg, #95E1D3, #F38181); }
+        .room-avatar:nth-child(4) { background: linear-gradient(135deg, #AA96DA, #FCBAD3); }
+
+        .room-listening {
+            font-family: var(--label);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .room-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .room-art-hero {
+            width: 280px;
+            height: 280px;
+            border-radius: 2px;
+            background: linear-gradient(135deg, #2D1B69 0%, #0F4C75 50%, #1A1F2C 100%);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            margin-bottom: 24px;
+            position: relative;
+            box-shadow: 0 40px 80px rgba(15, 76, 117, 0.3);
+        }
+
+        .room-art-hero::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(15, 76, 117, 0.2), transparent);
+            filter: blur(60px);
+            z-index: -1;
+        }
+
+        .room-track-info {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+
+        .room-track-title {
+            font-family: var(--display);
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .room-track-artist {
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+
+        .room-track-meta {
+            font-family: var(--body);
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .room-waveform {
+            width: 100%;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 2px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(0, 229, 255, 0.08);
+        }
+
+        .room-waveform-filled {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 40%;
+            background: rgba(0, 229, 255, 0.15);
+            border-right: 2px solid var(--ice);
+        }
+
+        .room-waveform-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .room-waveform-times {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 4px;
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .room-transport {
+            display: flex;
+            justify-content: center;
+            gap: 28px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .room-transport-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 229, 255, 0.3);
+            background: var(--gunmetal);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .room-transport-btn.play {
+            width: 56px;
+            height: 56px;
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--ice);
+            color: var(--ice);
+            font-weight: bold;
+            box-shadow: var(--ice-glow);
+        }
+
+        .room-reactions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 20px;
+            padding: 12px;
+            background: rgba(30, 36, 54, 0.4);
+            backdrop-filter: blur(10px);
+            border-radius: 2px;
+            border: 1px solid rgba(0, 229, 255, 0.08);
+        }
+
+        .reaction-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 1px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(0, 229, 255, 0.1);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .reaction-btn:hover {
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--ice);
+        }
+
+        .room-queue-peek {
+            width: 100%;
+            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
+            border: 1px solid rgba(0, 229, 255, 0.1);
+            border-radius: 2px 2px 0 0;
+            padding: 12px 16px;
+            margin-top: auto;
+            position: relative;
+        }
+
+        .room-queue-peek::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+        }
+
+        .room-queue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .room-queue-label {
+            font-family: var(--label);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .room-queue-cv {
+            font-family: var(--mono);
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--ice);
+            background: rgba(0, 229, 255, 0.1);
+            padding: 3px 8px;
+            border-radius: 1px;
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            text-shadow: var(--ice-glow);
+        }
+
+        .room-next-track {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(0, 229, 255, 0.08);
+            border-radius: 1px;
+            padding: 10px;
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .room-next-art {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #69B3E7, #156064);
+            border-radius: 1px;
+            border: 1px solid rgba(0, 229, 255, 0.15);
+            flex-shrink: 0;
+        }
+
+        .room-next-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .room-next-title {
+            font-family: var(--display);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .room-next-artist {
+            font-family: var(--mono);
+            font-size: 9px;
+            color: var(--text-secondary);
+        }
+
+        .room-queue-hint {
+            font-family: var(--body);
+            font-size: 11px;
+            color: var(--text-dim);
+            text-align: center;
+        }
+
+        .room-tabbar {
+            height: 60px;
+            background: linear-gradient(180deg, var(--steel) 0%, var(--gunmetal) 100%);
+            border-top: 1px solid rgba(0, 229, 255, 0.1);
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+            padding-top: 8px;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .room-tabbar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+        }
+
+        .room-tab {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            text-decoration: none;
+            font-size: 22px;
+        }
+
+        .room-tab.active {
+            color: var(--ice);
+        }
+
+        .room-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 32px;
+            height: 2px;
+            background: var(--ice);
+            box-shadow: 0 0 10px var(--ice);
+        }
+
+        .room-tab-label {
+            font-family: var(--label);
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: inherit;
+        }
+
+        .room-tab.create {
+            color: var(--amber);
+        }
+
+        .room-tab.create::before {
+            content: '';
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 179, 71, 0.1);
+            border: 2px solid var(--amber);
+            border-radius: 50%;
+            top: -12px;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <!-- SVG FILTERS -->
+    <svg width="0" height="0" style="display: none;">
+        <defs>
+            <filter id="noise">
+                <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise" seed="2"/>
+                <feColorMatrix in="noise" type="saturate" values="0"/>
+            </filter>
+        </defs>
+    </svg>
+
+    <!-- SECTION 1: TYPOGRAPHY SCALE -->
+    <section class="section">
+        <h2 class="section-title">§ 1. Typography Scale</h2>
+
+        <div class="type-grid">
+            <!-- Display Tier -->
+            <div class="type-card">
+                <div class="type-card-label">Display Bold (Chakra Petch)</div>
+                <div class="type-display type-display-28">Frequen-C</div>
+                <div class="type-display type-display-22">Chrome Sessions</div>
+                <div class="type-display type-display-18">Midnight Protocol</div>
+            </div>
+
+            <!-- Mono Tier -->
+            <div class="type-card">
+                <div class="type-card-label">Mono (Space Mono)</div>
+                <div class="type-mono type-mono-16">03:27</div>
+                <div class="type-mono type-mono-14">128 BPM</div>
+                <div class="type-mono type-mono-12">25 CV · −12dB</div>
+            </div>
+
+            <!-- Label Tier -->
+            <div class="type-card">
+                <div class="type-card-label">Label (Inter Bold)</div>
+                <div class="type-label">SIGNAL CHAIN</div>
+                <div class="type-label">UP NEXT</div>
+                <div class="type-label">MASTER BUS</div>
+            </div>
+
+            <!-- Body Tier -->
+            <div class="type-card">
+                <div class="type-card-label">Body (Inter Regular)</div>
+                <div class="type-body">Added by @snvckdvddy</div>
+                <div class="type-body">Pull up for full queue</div>
+                <div class="type-body">6 listeners in this room</div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider">
+        <div class="signal-line"></div>
+    </div>
+
+    <!-- SECTION 2: MATERIALS -->
+    <section class="section">
+        <h2 class="section-title">§ 2. Materials & Textures</h2>
+
+        <div class="material-grid">
+            <div class="material-swatch material-void">
+                <span class="material-label">VOID</span>
+            </div>
+
+            <div class="material-swatch material-chrome">
+                <span class="material-label">CHROME</span>
+            </div>
+
+            <div class="material-swatch material-steel">
+                <span class="material-label">BRUSHED</span>
+            </div>
+
+            <div class="material-swatch material-glass">
+                <span class="material-label">GLASS</span>
+            </div>
+
+            <div class="material-swatch material-ice-emit">
+                <span class="ice-core">◆</span>
+                <span class="material-label" style="position: absolute; bottom: 12px;">ICE EMIT</span>
+            </div>
+
+            <div class="material-swatch material-amber-emit">
+                <span class="amber-core">◆</span>
+                <span class="material-label" style="position: absolute; bottom: 12px;">AMBER EMIT</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider">
+        <div class="signal-line"></div>
+    </div>
+
+    <!-- SECTION 3: RACK SYSTEM -->
+    <section class="section">
+        <h2 class="section-title">§ 3. Rack System</h2>
+
+        <!-- Rack Frame Example -->
+        <div class="rack-frame">
+            <div class="rack-module">
+                <div class="rack-module-screw left"></div>
+                <div class="rack-module-screw right"></div>
+                <div class="rack-module-label">MODULE</div>
+                <div class="rack-module-content">
+                    This is a rack-mounted module. It has top edge lighting, mounting screws, and sits between invisible rail guides.
+                </div>
+            </div>
+
+            <div class="rack-module">
+                <div class="rack-module-screw left"></div>
+                <div class="rack-module-screw right"></div>
+                <div class="rack-module-label">Patch Point Example</div>
+                <div class="rack-module-content">
+                    <span class="patch-point"></span>
+                    <span style="margin-left: 12px;">Inactive</span>
+                    <span class="patch-point active" style="margin-left: 24px;"></span>
+                    <span style="margin-left: 12px;">Active (Glowing)</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider">
+        <div class="signal-line"></div>
+    </div>
+
+    <!-- SECTION 4: DATA DISPLAY -->
+    <section class="section">
+        <h2 class="section-title">§ 4. Data Display & Meters</h2>
+
+        <!-- VU Meter -->
+        <div class="vu-meter-container">
+            <div class="vu-meter-label">VU Meter (70% Level)</div>
+            <div class="vu-meter">
+                <div class="vu-segment filled"></div>
+                <div class="vu-segment filled"></div>
+                <div class="vu-segment filled"></div>
+                <div class="vu-segment filled"></div>
+                <div class="vu-segment filled"></div>
+                <div class="vu-segment filled mid"></div>
+                <div class="vu-segment filled mid"></div>
+                <div class="vu-segment filled mid"></div>
+                <div class="vu-segment filled mid"></div>
+                <div class="vu-segment filled mid"></div>
+                <div class="vu-segment filled mid"></div>
+                <div class="vu-segment filled mid"></div>
+                <div class="vu-segment filled mid"></div>
+                <div class="vu-segment filled mid"></div>
+                <div class="vu-segment"></div>
+                <div class="vu-segment"></div>
+                <div class="vu-segment"></div>
+                <div class="vu-segment"></div>
+                <div class="vu-segment"></div>
+                <div class="vu-segment"></div>
+            </div>
+        </div>
+
+        <!-- Waveform Progress -->
+        <div class="waveform-container">
+            <div class="waveform-label">Waveform Progress (40%)</div>
+            <div class="waveform-wrapper">
+                <div class="waveform-filled"></div>
+                <svg class="waveform-svg" viewBox="0 0 400 60" preserveAspectRatio="xMidYMid meet">
+                    <path d="M 0,30 Q 25,20 50,30 T 100,30 T 150,30 T 200,30 T 250,30 T 300,30 T 350,30 T 400,30"
+                          fill="none" stroke="rgba(0, 229, 255, 0.3)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+                </svg>
+            </div>
+            <div class="waveform-times">
+                <span>1:23</span>
+                <span>3:27</span>
+            </div>
+        </div>
+
+        <!-- Data Readouts -->
+        <div class="data-readout-grid">
+            <div class="data-readout">
+                <div class="data-readout-value">03:27</div>
+                <div class="data-readout-label">Time</div>
+            </div>
+            <div class="data-readout">
+                <div class="data-readout-value">−6.2</div>
+                <div class="data-readout-label">dB</div>
+            </div>
+            <div class="data-readout">
+                <div class="data-readout-value">128.0</div>
+                <div class="data-readout-label">BPM</div>
+            </div>
+        </div>
+    </section>
+
+    <div class="section-divider">
+        <div class="signal-line"></div>
+    </div>
+
+    <!-- SECTION 5: CONTROLS -->
+    <section class="section">
+        <h2 class="section-title">§ 5. Control Elements</h2>
+
+        <div class="controls-demo">
+            <button class="button button-chrome">Chrome Button</button>
+            <button class="button button-glass">Glass Button</button>
+        </div>
+
+        <!-- Transport Rack -->
+        <h3 class="rack-example-label">Transport Rack</h3>
+        <div class="transport-rack">
+            <button class="transport-btn">⏮</button>
+            <button class="transport-btn play">▶</button>
+            <button class="transport-btn">⏭</button>
+        </div>
+    </section>
+
+    <div class="section-divider">
+        <div class="signal-line"></div>
+    </div>
+
+    <!-- SECTION 6: COMPOSITES -->
+    <section class="section">
+        <h2 class="section-title">§ 6. Composite Components</h2>
+
+        <!-- Track Module -->
+        <h3 class="rack-example-label">Track Module</h3>
+        <div class="rack-frame" style="margin-bottom: 24px;">
+            <div class="track-module">
+                <div class="track-module-screw left"></div>
+                <div class="track-module-screw right"></div>
+                <div class="track-art"></div>
+                <div class="track-info">
+                    <div class="track-title">Midnight Protocol</div>
+                    <div class="track-artist">SIGNAL//VOID</div>
+                    <div class="track-meta">Added by @snvckdvddy</div>
+                </div>
+                <div class="track-action">
+                    <span class="patch-point active"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Queue Chain -->
+        <h3 class="rack-example-label">Queue Chain (3 Tracks)</h3>
+        <div class="queue-chain">
+            <div class="rack-frame">
+                <div class="track-module">
+                    <div class="track-module-screw left"></div>
+                    <div class="track-module-screw right"></div>
+                    <div class="track-art" style="background: linear-gradient(135deg, #69B3E7, #156064);"></div>
+                    <div class="track-info">
+                        <div class="track-title">Neon Cascade</div>
+                        <div class="track-artist">CHROME//VOID</div>
+                        <div class="track-meta">Added by @luminara</div>
+                    </div>
+                    <div class="track-action">
+                        <span class="patch-point active"></span>
+                    </div>
+                </div>
+                <div class="signal-connection">
+                    <div class="signal-line-vertical"></div>
+                </div>
+                <div class="track-module">
+                    <div class="track-module-screw left"></div>
+                    <div class="track-module-screw right"></div>
+                    <div class="track-art" style="background: linear-gradient(135deg, #A8E6CF, #556270);"></div>
+                    <div class="track-info">
+                        <div class="track-title">Analog Dream</div>
+                        <div class="track-artist">STATIC//PULSE</div>
+                        <div class="track-meta">Added by @waveshaper</div>
+                    </div>
+                    <div class="track-action">
+                        <span class="patch-point active"></span>
+                    </div>
+                </div>
+                <div class="signal-connection">
+                    <div class="signal-line-vertical"></div>
+                </div>
+                <div class="track-module">
+                    <div class="track-module-screw left"></div>
+                    <div class="track-module-screw right"></div>
+                    <div class="track-art" style="background: linear-gradient(135deg, #FFD89B, #19547B);"></div>
+                    <div class="track-info">
+                        <div class="track-title">Echo Chamber</div>
+                        <div class="track-artist">REVERB//SPACE</div>
+                        <div class="track-meta">Added by @ambient_sky</div>
+                    </div>
+                    <div class="track-action">
+                        <span class="patch-point"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Participant Cluster -->
+        <h3 class="rack-example-label">Participant Nodes</h3>
+        <div class="participant-cluster">
+            <div class="avatar host">CB</div>
+            <div class="avatar">LM</div>
+            <div class="avatar">KR</div>
+            <div class="avatar">JS</div>
+            <svg class="participant-lines" viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet">
+                <path d="M 14,50 L 64,50" stroke="rgba(0, 229, 255, 0.2)" stroke-width="1" fill="none"/>
+                <path d="M 64,50 L 136,50" stroke="rgba(0, 229, 255, 0.2)" stroke-width="1" fill="none"/>
+                <path d="M 136,50 L 186,50" stroke="rgba(0, 229, 255, 0.2)" stroke-width="1" fill="none"/>
+            </svg>
+        </div>
+    </section>
+
+    <div class="section-divider">
+        <div class="signal-line"></div>
+    </div>
+
+    <!-- SECTION 7: ROOM SCREEN MOCKUP -->
+    <section class="section">
+        <h2 class="section-title">§ 7. Room Screen (375×812 Mobile Mockup)</h2>
+
+        <div class="room-mockup-container">
+            <div class="phone-frame">
+                <!-- Status Bar -->
+                <div class="room-status-bar"></div>
+
+                <!-- Header -->
+                <div class="room-header">
+                    <div class="room-header-left">
+                        <span class="room-back">‹</span>
+                        <span class="room-title">Chrome Sessions</span>
+                        <span class="room-badge">CAMPFIRE</span>
+                    </div>
+                    <span class="room-menu">⋯</span>
+                </div>
+
+                <!-- Participants -->
+                <div class="room-participants">
+                    <div class="room-avatars">
+                        <div class="room-avatar">CB</div>
+                        <div class="room-avatar">LM</div>
+                        <div class="room-avatar">KR</div>
+                        <div class="room-avatar">JS</div>
+                    </div>
+                    <div class="room-listening">6 Listening</div>
+                </div>
+
+                <!-- Main Content -->
+                <div class="room-content">
+                    <!-- Album Art Hero -->
+                    <div class="room-art-hero"></div>
+
+                    <!-- Track Info -->
+                    <div class="room-track-info">
+                        <div class="room-track-title">Midnight Protocol</div>
+                        <div class="room-track-artist">SIGNAL//VOID</div>
+                        <div class="room-track-meta">Added by @snvckdvddy</div>
+                    </div>
+
+                    <!-- Waveform Progress -->
+                    <div class="room-waveform">
+                        <div class="room-waveform-filled"></div>
+                        <svg class="room-waveform-svg" viewBox="0 0 343 60" preserveAspectRatio="xMidYMid meet">
+                            <path d="M 0,30 Q 15,15 30,30 T 60,30 T 90,30 T 120,30 T 150,30 T 180,30 T 210,30 T 240,30 T 270,30 T 300,30 T 330,30 T 343,30"
+                                  fill="none" stroke="rgba(0, 229, 255, 0.3)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+                        </svg>
+                    </div>
+                    <div class="room-waveform-times">
+                        <span>1:23</span>
+                        <span>3:27</span>
+                    </div>
+
+                    <!-- Transport Controls -->
+                    <div class="room-transport">
+                        <button class="room-transport-btn">⏮</button>
+                        <button class="room-transport-btn play">▶</button>
+                        <button class="room-transport-btn">⏭</button>
+                    </div>
+
+                    <!-- Reactions -->
+                    <div class="room-reactions">
+                        <button class="reaction-btn">🔥</button>
+                        <button class="reaction-btn">❤️</button>
+                        <button class="reaction-btn">👏</button>
+                        <button class="reaction-btn">😂</button>
+                        <button class="reaction-btn">💀</button>
+                    </div>
+
+                    <!-- Queue Peek -->
+                    <div class="room-queue-peek">
+                        <div class="room-queue-header">
+                            <span class="room-queue-label">Up Next</span>
+                            <span class="room-queue-cv">25 CV</span>
+                        </div>
+                        <div class="room-next-track">
+                            <div class="room-next-art"></div>
+                            <div class="room-next-info">
+                                <div class="room-next-title">Neon Cascade</div>
+                                <div class="room-next-artist">CHROME//VOID</div>
+                            </div>
+                        </div>
+                        <div class="room-queue-hint">Pull up for full queue</div>
+                    </div>
+                </div>
+
+                <!-- Tab Bar -->
+                <div class="room-tabbar">
+                    <a href="#" class="room-tab active">
+                        <span>🏠</span>
+                        <span class="room-tab-label">Home</span>
+                    </a>
+                    <a href="#" class="room-tab">
+                        <span>🔍</span>
+                        <span class="room-tab-label">Discover</span>
+                    </a>
+                    <a href="#" class="room-tab create">
+                        <span>➕</span>
+                        <span class="room-tab-label">Create</span>
+                    </a>
+                    <a href="#" class="room-tab">
+                        <span>📚</span>
+                        <span class="room-tab-label">Library</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</body>
+</html>
