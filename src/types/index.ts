@@ -19,6 +19,7 @@ export interface User {
   tracksAdded?: number;
   totalListeningTime?: number; // minutes
   voltageBalance?: number;
+  noiseGate?: 'off' | 'low' | 'medium' | 'high';
 }
 
 export interface ConnectedServices {
@@ -27,6 +28,7 @@ export interface ConnectedServices {
   soundcloud?: ServiceConnection;
   youtube?: ServiceConnection;
   tidal?: ServiceConnection;
+  lastfm?: ServiceConnection;
 }
 
 export interface ServiceConnection {

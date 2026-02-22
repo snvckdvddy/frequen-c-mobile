@@ -32,3 +32,4 @@ export { FloatingReaction } from './FloatingReaction';
 export { TrackContextMenu } from './TrackContextMenu';
 export { SwipeableRow } from './SwipeableRow';
 export { LivePulse } from './LivePulse';
+export { CrossfadeSwitch } from './CrossfadeSwitch';

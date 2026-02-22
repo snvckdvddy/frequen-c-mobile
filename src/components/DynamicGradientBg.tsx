@@ -15,9 +15,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import ImageColors from 'react-native-image-colors';
-import type { ImageColorsResult } from 'react-native-image-colors';
 import { colors } from '../theme/colors';
+
+// ─── Optional native module (crashes in Expo Go) ───────────
+// Graceful degrade: if missing → fall back to void palette.
+let ImageColors: any = null;
+/*
+try {
+  ImageColors = require('react-native-image-colors').default;
+} catch {
+  // Native module not linked — running in Expo Go
+}
+*/
+
+type ImageColorsResult = any;
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -117,6 +128,9 @@ export function DynamicGradientBg({
 
     (async () => {
       try {
+        // If native module unavailable, just stay dark
+        if (!ImageColors) return;
+
         // Fade out current gradient
         Animated.timing(fadeAnim, {
           toValue: 0,

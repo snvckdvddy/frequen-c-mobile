@@ -11,14 +11,15 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import {
   View, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, RefreshControl, Image,
+  Alert, RefreshControl, Image, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, Button, SafeScreen, VoltageMeter, EmptyState, ErrorState, RoomCardSkeleton } from '../components/ui';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
-import { sessionApi } from '../services/api';
+import { sessionApi, authApi } from '../services/api';
+import { config } from '../config';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import type { Session } from '../types';
@@ -230,12 +231,15 @@ interface ProfileScreenProps {
 }
 
 export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
-  const { user, logout, connectSpotify } = useAuth();
+  const { user, logout, deleteAccount, connectSpotify, connectLastfm } = useAuth();
   const { favorites, removeFavorite } = useFavoritesContext();
   const [recentRooms, setRecentRooms] = useState<Session[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [noiseGate, setNoiseGate] = useState<'off' | 'low' | 'medium' | 'high'>(
+    user?.noiseGate || 'medium'
+  );
 
   const fetchRecentRooms = useCallback(async () => {
     try {
@@ -285,9 +289,76 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
     );
   }, [logout]);
 
+  const handleDeleteAccount = useCallback(() => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently erase your account and all associated data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Forever',
+          style: 'destructive',
+          onPress: () => {
+            // Double confirm — this is irreversible
+            Alert.alert(
+              'Are you sure?',
+              'All sessions, favorites, and listening history will be permanently deleted.',
+              [
+                { text: 'Go Back', style: 'cancel' },
+                { text: 'Yes, Delete', style: 'destructive', onPress: deleteAccount },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }, [deleteAccount]);
+
+  const noiseGateLabels: Record<string, string> = {
+    off: 'OFF', low: 'LOW', medium: 'MEDIUM', high: 'HIGH',
+  };
+
+  const handleNoiseGateChange = useCallback(() => {
+    const levels: Array<'off' | 'low' | 'medium' | 'high'> = ['off', 'low', 'medium', 'high'];
+    const labels = ['Off — No notifications', 'Low — Critical only', 'Medium — Default', 'High — Everything', 'Cancel'];
+
+    Alert.alert(
+      'Noise Gate',
+      'Set your notification threshold',
+      [
+        ...levels.map((level, i) => ({
+          text: labels[i],
+          onPress: () => {
+            setNoiseGate(level);
+            authApi.setNoiseGate(level).catch(console.error);
+          },
+        })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ]
+    );
+  }, []);
+
   const handleConnectService = (service: string) => {
     if (service === 'Spotify') {
+      if (!config.SPOTIFY_CLIENT_ID) {
+        Alert.alert(
+          'Spotify Not Configured',
+          'Set EXPO_PUBLIC_SPOTIFY_CLIENT_ID in your .env file.\n\nCreate a free Spotify Developer App at developer.spotify.com to get your Client ID.'
+        );
+        return;
+      }
       connectSpotify();
+      return;
+    }
+    if (service === 'Last.fm') {
+      if (!config.LASTFM_API_KEY) {
+        Alert.alert(
+          'Last.fm Not Configured',
+          'Set EXPO_PUBLIC_LASTFM_API_KEY in your .env file.\n\nGet a free API key at last.fm/api/account/create'
+        );
+        return;
+      }
+      connectLastfm();
       return;
     }
     Alert.alert('Coming Soon', `${service} patch cable is coming in a future update.`);
@@ -469,22 +540,45 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
             serviceKey="tidal"
             onConnect={() => handleConnectService('Tidal')}
           />
+          <ServiceJack
+            name="Last.fm"
+            connected={!!user?.connectedServices?.lastfm?.connected}
+            username={user?.connectedServices?.lastfm?.username}
+            serviceKey="lastfm"
+            onConnect={() => handleConnectService('Last.fm')}
+          />
         </View>
 
         {/* ─── Preferences ────────────────────────────── */}
         <SectionStrip label="CONFIGURATION" />
         <View style={styles.prefsPanel}>
-          <TouchableOpacity style={styles.prefRow}>
+          <TouchableOpacity style={styles.prefRow} onPress={handleNoiseGateChange}>
             <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Noise Gate</Text>
-            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>MEDIUM</Text>
+            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>
+              {noiseGateLabels[noiseGate] || 'MEDIUM'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.prefRow}>
             <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Default Waveform</Text>
             <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>SINE</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.prefRow}>
-            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Privacy</Text>
-            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>PUBLIC</Text>
+          <TouchableOpacity
+            style={styles.prefRow}
+            onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() =>
+              Alert.alert('Error', 'Could not open Privacy Policy')
+            )}
+          >
+            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Privacy Policy</Text>
+            <Ionicons name="open-outline" size={12} color={colors.chrome.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.prefRow}
+            onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() =>
+              Alert.alert('Error', 'Could not open Terms of Service')
+            )}
+          >
+            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Terms of Service</Text>
+            <Ionicons name="open-outline" size={12} color={colors.chrome.text} />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.prefRow, { borderBottomWidth: 0 }]}>
             <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>About</Text>
@@ -500,6 +594,13 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
           size="md"
           style={styles.disconnectBtn}
         />
+
+        {/* ─── Delete Account ────────────────────────── */}
+        <TouchableOpacity onPress={handleDeleteAccount} style={styles.deleteAccountBtn}>
+          <Text variant="labelSmall" color="#FF4444" align="center" style={{ fontSize: 11, letterSpacing: 1 }}>
+            DELETE ACCOUNT
+          </Text>
+        </TouchableOpacity>
 
         {/* Build tag */}
         <Text variant="labelSmall" color={colors.text.muted} align="center" style={styles.buildTag}>
@@ -596,6 +697,13 @@ const styles = StyleSheet.create({
   disconnectBtn: {
     alignSelf: 'center',
     marginTop: spacing.xl,
+  },
+  deleteAccountBtn: {
+    alignSelf: 'center',
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    opacity: 0.6,
   },
   buildTag: {
     marginTop: spacing.lg,

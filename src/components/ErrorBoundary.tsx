@@ -15,6 +15,10 @@ interface Props {
   children: ReactNode;
   /** Optional fallback component */
   fallback?: ReactNode;
+  /** Screen name for error logging context */
+  screenName?: string;
+  /** Called after internal state reset — use for navigation recovery */
+  onReset?: () => void;
 }
 
 interface State {
@@ -33,12 +37,13 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log to console in dev — future: send to crash reporting
-    console.error('[ErrorBoundary]', error, errorInfo);
+    const label = this.props.screenName ? `[ErrorBoundary:${this.props.screenName}]` : '[ErrorBoundary]';
+    console.error(label, error, errorInfo);
   }
 
   handleReset = () => {
     this.setState({ hasError: false, error: null });
+    this.props.onReset?.();
   };
 
   render() {

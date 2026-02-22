@@ -82,8 +82,72 @@ export const authApi = {
     });
   },
 
+  connectLastfm: async (token: string) => {
+    if (USE_MOCKS) {
+      await mockDelay(100, 300);
+      return { message: 'Last.fm mocked', user: mockUser };
+    }
+    return apiFetch<{ message: string; user: import('../types').User }>('/auth/lastfm/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  /** Refresh the JWT before it expires (returns a fresh token). */
+  refresh: async () => {
+    if (USE_MOCKS) {
+      await mockDelay(50, 150);
+      const token = 'mock_jwt_refreshed_' + Date.now();
+      return { token };
+    }
+    return apiFetch<{ token: string }>('/auth/refresh', { method: 'POST' });
+  },
+
+  /** Permanently delete the current user's account and all data. */
+  deleteAccount: async () => {
+    if (USE_MOCKS) {
+      await mockDelay(200, 400);
+      await clearToken();
+      return { message: 'Account deleted (mock)' };
+    }
+    const result = await apiFetch<{ message: string }>('/auth/account', { method: 'DELETE' });
+    await clearToken();
+    return result;
+  },
+
   logout: async () => {
     await clearToken();
+  },
+
+  /** Register push notification token with the backend */
+  registerPushToken: async (pushToken: string) => {
+    if (USE_MOCKS) {
+      console.log('[API:Mock] Push token registered:', pushToken.slice(0, 30) + '...');
+      return { message: 'Push token saved' };
+    }
+    return apiFetch<{ message: string }>('/auth/push-token', {
+      method: 'POST',
+      body: JSON.stringify({ pushToken }),
+    });
+  },
+
+  /** Get user's noise gate preference */
+  getNoiseGate: async () => {
+    if (USE_MOCKS) {
+      return { noiseGate: 'medium' as const };
+    }
+    return apiFetch<{ noiseGate: 'off' | 'low' | 'medium' | 'high' }>('/auth/noise-gate');
+  },
+
+  /** Update user's noise gate preference */
+  setNoiseGate: async (noiseGate: 'off' | 'low' | 'medium' | 'high') => {
+    if (USE_MOCKS) {
+      return { noiseGate };
+    }
+    return apiFetch<{ noiseGate: string }>('/auth/noise-gate', {
+      method: 'PUT',
+      body: JSON.stringify({ noiseGate }),
+    });
   },
 };
 
@@ -232,10 +296,18 @@ export const searchApi = {
       return { tracks: filtered.length > 0 ? filtered : mockSearchResults };
     }
 
-    // Lazy import to avoid circular dependency (api → adapters → fetchClient, not api → adapters → api)
+    // Try connected streaming service first
     const { getActiveAdapter } = await import('./adapters/musicServiceAdapter');
     const adapter = getActiveAdapter(currentServices);
-    const tracks = await adapter.search(query);
+
+    if (adapter.isConnected()) {
+      const tracks = await adapter.search(query);
+      if (tracks.length > 0) return { tracks };
+    }
+
+    // Fallback: iTunes Search API — free, no auth, 30-sec previews
+    const { searchItunes } = await import('./itunesSearch');
+    const tracks = await searchItunes(query);
     return { tracks };
   },
 
@@ -271,6 +343,31 @@ export const searchApi = {
   },
 };
 
+// ─── Integrations Endpoints ───────────────────────────────────
+
+export const integrationsApi = {
+  fetchLyrics: async (title: string, artist: string) => {
+    if (USE_MOCKS) {
+      await mockDelay(200, 400);
+      return { lyrics: `[Mock Lyrics]\n\nThese are placeholder lyrics for "${title}" by ${artist}.\nConnect to the backend to fetch real lyrics from Genius.` };
+    }
+    return apiFetch<{ lyrics: string; url?: string; thumbnail?: string }>(
+      `/lyrics/search?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`
+    );
+  },
+
+  scrobble: async (track: string, artist: string, timestamp: number) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { message: 'Mocked scrobble' };
+    }
+    return apiFetch<{ message: string }>('/user/scrobble', {
+      method: 'POST',
+      body: JSON.stringify({ track, artist, timestamp }),
+    });
+  },
+};
+
 // ─── Exports ────────────────────────────────────────────────
 
-export default { auth: authApi, session: sessionApi, search: searchApi };
+export default { auth: authApi, session: sessionApi, search: searchApi, integrations: integrationsApi };

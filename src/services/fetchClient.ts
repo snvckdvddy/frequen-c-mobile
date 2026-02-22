@@ -48,6 +48,9 @@ interface ApiOptions extends RequestInit {
   skipAuth?: boolean;
 }
 
+/** Default request timeout in ms — prevents infinite Loading on network failures */
+const DEFAULT_TIMEOUT_MS = 10_000;
+
 export async function apiFetch<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   const { skipAuth = false, headers: customHeaders, ...fetchOptions } = options;
 
@@ -63,10 +66,26 @@ export async function apiFetch<T>(endpoint: string, options: ApiOptions = {}): P
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...fetchOptions,
-    headers,
-  });
+  // AbortController timeout — prevents infinite hang when backend is unreachable
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...fetchOptions,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new ApiError(0, 'Request timed out — is the backend running?');
+    }
+    throw new ApiError(0, `Network error — could not reach server`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({ message: 'Unknown error' }));

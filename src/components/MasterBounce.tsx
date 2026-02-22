@@ -23,12 +23,14 @@
 
 import React, { useRef, useEffect } from 'react';
 import {
-  View, StyleSheet, ScrollView, Animated, Easing,
+  View, StyleSheet, ScrollView, Animated, Easing, TouchableOpacity, Share,
 } from 'react-native';
 import Svg, { Path, Rect, Line } from 'react-native-svg';
 import { Text } from './ui/Text';
+import { Button } from './ui/Button';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
+import { notifySuccess, tapLight } from '../utils/haptics';
 import type { QueueTrack, RoomMode } from '../types';
 
 interface MasterBounceProps {
@@ -228,6 +230,8 @@ export function MasterBounce({
 
   useEffect(() => {
     if (visible) {
+      // Satisfying haptic on receipt reveal
+      notifySuccess();
       Animated.parallel([
         Animated.timing(fadeIn, {
           toValue: 1,
@@ -244,6 +248,16 @@ export function MasterBounce({
       ]).start();
     }
   }, [visible, fadeIn, slideUp]);
+
+  const handleShare = () => {
+    tapLight();
+    const topSignals = topTracks.length > 0
+      ? `\nTop signals: ${topTracks.map((t, i) => `${i + 1}. ${t.title}`).join(', ')}`
+      : '';
+    Share.share({
+      message: `Master Bounce: "${sessionName}"\n${tracksPlayed.length} tracks / ${formatDuration(durationSeconds)} / ${participantCount} listeners${topSignals}\n\nFrequen-C`,
+    });
+  };
 
   // Sort tracks by votes for top 3
   const topTracks = [...tracksPlayed]
@@ -348,6 +362,22 @@ export function MasterBounce({
             </>
           )}
 
+          {/* Actions */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.7}>
+              <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1.5 }}>
+                SHARE BOUNCE
+              </Text>
+            </TouchableOpacity>
+            <Button
+              title="Done"
+              onPress={() => { tapLight(); onDismiss?.(); }}
+              variant="primary"
+              size="md"
+              style={{ flex: 1 }}
+            />
+          </View>
+
           {/* Footer / build tag */}
           <View style={styles.footer}>
             <Text variant="labelSmall" color={colors.text.muted} style={styles.buildTag}>
@@ -435,6 +465,22 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 3,
     marginBottom: spacing.sm,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  shareBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.chrome.border,
+    backgroundColor: colors.chrome.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   footer: {
     alignItems: 'center',

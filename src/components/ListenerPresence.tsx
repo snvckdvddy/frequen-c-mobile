@@ -265,7 +265,7 @@ const drawerStyles = StyleSheet.create({
 interface ToastMessage {
   id: string;
   text: string;
-  type: 'join' | 'leave';
+  type: 'join' | 'leave' | 'mode';
 }
 
 interface JoinLeaveToastProps {
@@ -277,14 +277,20 @@ export function JoinLeaveToast({ messages }: JoinLeaveToastProps) {
 
   // Show only the most recent toast
   const latest = messages[messages.length - 1];
-  const iconColor = latest.type === 'join' ? colors.session.live : colors.text.muted;
-  const icon = latest.type === 'join' ? '→' : '←';
+  const iconColor = latest.type === 'join' ? colors.session.live
+    : latest.type === 'mode' ? colors.action.primary
+    : colors.text.muted;
+  const icon = latest.type === 'join' ? '→'
+    : latest.type === 'mode' ? '~'
+    : '←';
 
   return (
     <View style={toastStyles.container}>
-      <View style={toastStyles.pill}>
+      <View style={[toastStyles.pill, latest.type === 'mode' && toastStyles.modePill]}>
         <Text variant="labelSmall" color={iconColor}>{icon}</Text>
-        <Text variant="labelSmall" color={colors.text.secondary}>{latest.text}</Text>
+        <Text variant="labelSmall" color={latest.type === 'mode' ? colors.action.primary : colors.text.secondary}>
+          {latest.text}
+        </Text>
       </View>
     </View>
   );
@@ -309,6 +315,10 @@ const toastStyles = StyleSheet.create({
     backgroundColor: colors.bg.elevated,
     borderWidth: 1,
     borderColor: colors.border.subtle,
+  },
+  modePill: {
+    borderColor: colors.action.primary + '30',
+    backgroundColor: colors.action.primary + '08',
   },
 });
 

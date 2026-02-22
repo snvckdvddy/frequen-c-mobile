@@ -15,6 +15,7 @@ import { Text } from './ui';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { sendChatMessage, onSessionEvent } from '../services/socket';
+import { getGlobalLimiter, validateChatMessage, CHAT_MAX_LENGTH } from '../utils/rateLimiter';
 import type { ChatMessage } from '../types';
 
 // ─── Props ──────────────────────────────────────────────────
@@ -179,16 +180,18 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
     }
   }, [messages.length]);
 
-  // ─── Send message ─────────────────────────────────────
+  // ─── Send message (validated + rate-limited) ─────────
   const handleSend = useCallback(() => {
-    const text = inputText.trim();
-    if (!text) return;
-    sendChatMessage(sessionId, userId, username, text);
+    const validated = validateChatMessage(inputText);
+    if (!validated) return;
+    if (!getGlobalLimiter().canDo('chat')) return;
+    sendChatMessage(sessionId, userId, username, validated);
     setInputText('');
   }, [inputText, sessionId, userId, username]);
 
-  // ─── Quick reaction ───────────────────────────────────
+  // ─── Quick reaction (rate-limited) ────────────────────
   const handleQuickReaction = useCallback((emoji: string) => {
+    if (!getGlobalLimiter().canDo('reaction')) return;
     sendChatMessage(sessionId, userId, username, emoji);
   }, [sessionId, userId, username]);
 
@@ -264,6 +267,7 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
             autoCapitalize="none"
             autoCorrect={false}
             blurOnSubmit={false}
+            maxLength={CHAT_MAX_LENGTH}
           />
           <TouchableOpacity
             style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}

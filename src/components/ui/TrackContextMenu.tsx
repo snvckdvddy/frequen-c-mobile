@@ -35,6 +35,8 @@ export interface ContextMenuAction {
 
 /** Pre-built action sets for common contexts */
 export const QUEUE_ACTIONS: ContextMenuAction[] = [
+  { id: 'overdrive', label: 'Overdrive · 25 CV', icon: 'flash-outline' },
+  { id: 'phantomPower', label: 'Phantom Power · 5 CV', icon: 'pulse-outline' },
   { id: 'addToLibrary', label: 'Add to Library', icon: 'add-circle-outline' },
   { id: 'viewArtist', label: 'View Artist', icon: 'person-outline' },
   { id: 'viewAlbum', label: 'View Album', icon: 'disc-outline' },

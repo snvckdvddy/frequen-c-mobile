@@ -121,15 +121,20 @@ export async function loadTrack(
   previewUrl?: string
 ): Promise<void> {
 
-  // Dynamically fetch fresh stream URLs securely via the Service Adapter layer
-  try {
-    const adapter = getActiveAdapter(currentServices);
-    const freshUrl = await adapter.getStreamUrl(trackId);
-    if (freshUrl) {
-      previewUrl = freshUrl;
+  // Dynamically fetch fresh stream URLs via the Service Adapter layer.
+  // Skip for iTunes tracks (already have direct preview URL) or when no adapter is connected.
+  if (!trackId.startsWith('itunes_')) {
+    try {
+      const adapter = getActiveAdapter(currentServices);
+      if (adapter.isConnected()) {
+        const freshUrl = await adapter.getStreamUrl(trackId);
+        if (freshUrl) {
+          previewUrl = freshUrl;
+        }
+      }
+    } catch (err) {
+      console.warn('PlaybackEngine adapter failed to fetch fresh stream:', err);
     }
-  } catch (err) {
-    console.warn('PlaybackEngine adapter failed to fetch fresh stream:', err);
   }
 
   await ensureAudioMode();

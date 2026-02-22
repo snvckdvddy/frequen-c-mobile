@@ -34,6 +34,44 @@ function mockOff(event: string, handler: MockHandler) {
   mockListeners.get(event)?.delete(handler);
 }
 
+// ─── Socket Health State ─────────────────────────────────────
+// Reactive state so UI can respond to connection changes.
+
+export type SocketStatus = 'connected' | 'connecting' | 'disconnected' | 'reconnecting';
+
+interface SocketHealthState {
+  status: SocketStatus;
+  lastError: string | null;
+  reconnectAttempt: number;
+}
+
+let healthState: SocketHealthState = {
+  status: 'disconnected',
+  lastError: null,
+  reconnectAttempt: 0,
+};
+
+type HealthListener = (state: SocketHealthState) => void;
+const healthListeners = new Set<HealthListener>();
+
+function setHealth(patch: Partial<SocketHealthState>) {
+  healthState = { ...healthState, ...patch };
+  healthListeners.forEach((fn) => fn(healthState));
+}
+
+/** Subscribe to socket health changes. Returns unsubscribe function. */
+export function onHealthChange(listener: HealthListener): () => void {
+  healthListeners.add(listener);
+  // Immediately fire with current state
+  listener(healthState);
+  return () => { healthListeners.delete(listener); };
+}
+
+/** Get current health snapshot (non-reactive). */
+export function getSocketHealth(): SocketHealthState {
+  return { ...healthState };
+}
+
 // ─── Singleton Socket (real mode only) ──────────────────────
 
 let socket: Socket | null = null;
@@ -41,6 +79,7 @@ let socket: Socket | null = null;
 export async function connectSocket(): Promise<Socket | null> {
   if (USE_MOCKS) {
     console.log('[Socket] Mock mode — no server connection.');
+    setHealth({ status: 'connected', lastError: null, reconnectAttempt: 0 });
     return null;
   }
 
@@ -54,26 +93,53 @@ export async function connectSocket(): Promise<Socket | null> {
     socket = null;
   }
 
+  setHealth({ status: 'connecting', lastError: null, reconnectAttempt: 0 });
+
   const token = await getStoredToken();
 
   socket = io(SOCKET_URL, {
     auth: { token },
-    transports: ['polling', 'websocket'],  // Start with polling, upgrade to WS
+    transports: ['polling', 'websocket'],
     reconnection: true,
-    reconnectionAttempts: 10,
+    reconnectionAttempts: 15,
     reconnectionDelay: 1000,
+    reconnectionDelayMax: 30000,  // Exponential backoff caps at 30s
+    randomizationFactor: 0.3,     // Jitter to prevent thundering herd
+    timeout: 15000,
   });
 
   socket.on('connect', () => {
     console.log('[Socket] Connected:', socket?.id);
+    setHealth({ status: 'connected', lastError: null, reconnectAttempt: 0 });
   });
 
   socket.on('disconnect', (reason) => {
     console.log('[Socket] Disconnected:', reason);
+    const isIntentional = reason === 'io client disconnect';
+    setHealth({
+      status: isIntentional ? 'disconnected' : 'reconnecting',
+      lastError: isIntentional ? null : `Disconnected: ${reason}`,
+    });
   });
 
   socket.on('connect_error', (err) => {
     console.error('[Socket] Connection error:', err.message);
+    setHealth({ status: 'reconnecting', lastError: err.message });
+  });
+
+  socket.io.on('reconnect_attempt', (attempt: number) => {
+    console.log(`[Socket] Reconnect attempt ${attempt}/15`);
+    setHealth({ status: 'reconnecting', reconnectAttempt: attempt });
+  });
+
+  socket.io.on('reconnect', () => {
+    console.log('[Socket] Reconnected successfully');
+    setHealth({ status: 'connected', lastError: null, reconnectAttempt: 0 });
+  });
+
+  socket.io.on('reconnect_failed', () => {
+    console.error('[Socket] All reconnect attempts exhausted');
+    setHealth({ status: 'disconnected', lastError: 'Connection lost. Please check your network.' });
   });
 
   return socket;
@@ -83,11 +149,24 @@ export function getSocket(): Socket | null {
   return socket;
 }
 
+/** Force a manual reconnect — use after returning from background or network recovery. */
+export async function reconnectSocket(): Promise<Socket | null> {
+  if (USE_MOCKS) return null;
+  // Tear down the old socket entirely and start fresh
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+  }
+  return connectSocket();
+}
+
 export function disconnectSocket(): void {
   if (socket) {
     socket.disconnect();
     socket = null;
   }
+  setHealth({ status: 'disconnected', lastError: null, reconnectAttempt: 0 });
 }
 
 // ─── Session Events ─────────────────────────────────────────
@@ -336,6 +415,25 @@ export function phantomPower(sessionId: string, trackId: string, userId: string)
   socket?.emit('phantom-power', { sessionId, trackId, userId });
 }
 
+/** Overdrive — force a track to the top of the queue (25 CV) */
+export function overdrive(sessionId: string, trackId: string, userId: string): void {
+  if (USE_MOCKS) {
+    mockEmit('cv:spend', { userId, amount: 25, moveType: 'overdrive' });
+    mockEmit('queue-updated', []);
+    return;
+  }
+  socket?.emit('overdrive', { sessionId, trackId, userId });
+}
+
+/** Phase Cancel — block the next skip in the session (15 CV) */
+export function phaseCancel(sessionId: string, userId: string): void {
+  if (USE_MOCKS) {
+    mockEmit('cv:spend', { userId, amount: 15, moveType: 'phase_cancel' });
+    return;
+  }
+  socket?.emit('phase-cancel', { sessionId, userId });
+}
+
 /** Start a Crossfader Duel between two tracks */
 export function startDuel(
   sessionId: string, trackAId: string, trackBId: string, duration: number,
@@ -367,7 +465,10 @@ export function submitForecast(sessionId: string, userId: string, trackId: strin
 export default {
   connect: connectSocket,
   disconnect: disconnectSocket,
+  reconnect: reconnectSocket,
   getSocket,
+  getSocketHealth,
+  onHealthChange,
   joinSession,
   leaveSession,
   quitSession,
