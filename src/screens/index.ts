@@ -11,3 +11,4 @@ export { JoinSessionScreen } from './JoinSessionScreen';
 export { SessionRoomScreen } from './SessionRoomScreen';
 export { SearchScreen } from './SearchScreen';
 export { LibraryScreen } from './LibraryScreen';
+export { DesignSystemTestScreen } from './DesignSystemTestScreen';

@@ -24,9 +24,10 @@ interface HomeScreenProps {
   onJoinSession: () => void;
   onOpenRoom: (sessionId: string) => void;
   onOpenProfile?: () => void;
+  onOpenDesignTest?: () => void; // DEV — remove before release
 }
 
-export function HomeScreen({ onCreateSession, onJoinSession, onOpenRoom, onOpenProfile }: HomeScreenProps) {
+export function HomeScreen({ onCreateSession, onJoinSession, onOpenRoom, onOpenProfile, onOpenDesignTest }: HomeScreenProps) {
   const { user } = useAuth();
   const [myRooms, setMyRooms] = useState<Session[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,6 +86,16 @@ export function HomeScreen({ onCreateSession, onJoinSession, onOpenRoom, onOpenP
                   Ready to tune in?
                 </Text>
               </View>
+              {/* DEV: Design System test button — remove before release */}
+              {onOpenDesignTest && (
+                <TouchableOpacity
+                  style={[styles.profileBtn, { marginRight: 8 }]}
+                  onPress={onOpenDesignTest}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="color-palette-outline" size={24} color={colors.action.primary} />
+                </TouchableOpacity>
+              )}
               {onOpenProfile && (
                 <TouchableOpacity
                   style={styles.profileBtn}

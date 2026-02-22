@@ -34,6 +34,7 @@ import { JoinSessionScreen } from '../screens/JoinSessionScreen';
 import { SessionRoomScreen } from '../screens/SessionRoomScreen';
 import { FlightCasesScreen } from '../screens/FlightCasesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { DesignSystemTestScreen } from '../screens/DesignSystemTestScreen';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ type MainStackParamList = {
   JoinSession: { joinCode?: string } | undefined;
   SessionRoom: { sessionId: string };
   Profile: undefined;
+  DesignSystemTest: undefined; // DEV — remove before release
 };
 
 type TabParamList = {
@@ -163,6 +165,7 @@ function TabNavigator() {
                 props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
               }
               onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
+              onOpenDesignTest={() => props.navigation.getParent()?.navigate('DesignSystemTest')}
             />
           </ErrorBoundary>
         )}
@@ -317,6 +320,13 @@ function MainNavigator() {
           </ErrorBoundary>
         )}
       </MainStack.Screen>
+
+      {/* DEV ONLY — Design System visual test bed. Remove before release. */}
+      <MainStack.Screen
+        name="DesignSystemTest"
+        component={DesignSystemTestScreen}
+        options={{ animation: 'slide_from_bottom' }}
+      />
     </MainStack.Navigator>
   );
 }
