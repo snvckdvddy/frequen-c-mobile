@@ -5,11 +5,16 @@
  *
  * Display (Chakra Petch) — futuristic, personality. Room names, track titles.
  * Mono (Space Mono) — technical, precise. Timestamps, BPM, CV, dB values.
- * Label (Inter Bold, caps, wide tracking) — engraved hardware labels.
- * Body (Inter Regular) — descriptions, chat, secondary info.
+ * Label (Outfit Bold, caps, wide tracking) — engraved hardware labels.
+ * Body (Outfit Regular/Medium) — descriptions, chat, secondary info.
  *
  * Font files must be loaded via expo-font before use.
  * See: src/design/fonts/ for .ttf files.
+ *
+ * NOTE: Outfit is a variable font (.ttf) loaded as 'Outfit'.
+ * RN doesn't support fontWeight on custom fonts natively —
+ * we load the variable font once and rely on the weight axis.
+ * For guaranteed weight control, we may split into static instances later.
  */
 
 // ─── Font Families ──────────────────────────────────────────
@@ -17,22 +22,19 @@
 export const fontFamily = {
   display: 'ChakraPetch-SemiBold',
   displayBold: 'ChakraPetch-Bold',
-  displayRegular: 'ChakraPetch-Regular',
   mono: 'SpaceMono-Regular',
   monoBold: 'SpaceMono-Bold',
-  label: 'Inter-Bold',
-  body: 'Inter-Regular',
+  label: 'Outfit',           // Used with fontWeight: '700' + uppercase
+  body: 'Outfit',            // Used with fontWeight: '400' or '500'
 } as const;
 
 // Map for expo-font require() calls
 export const fontAssets = {
-  'ChakraPetch-Regular': require('../fonts/ChakraPetch-Regular.ttf'),
   'ChakraPetch-SemiBold': require('../fonts/ChakraPetch-SemiBold.ttf'),
   'ChakraPetch-Bold': require('../fonts/ChakraPetch-Bold.ttf'),
   'SpaceMono-Regular': require('../fonts/SpaceMono-Regular.ttf'),
   'SpaceMono-Bold': require('../fonts/SpaceMono-Bold.ttf'),
-  'Inter-Regular': require('../fonts/Inter-Regular.ttf'),
-  'Inter-Bold': require('../fonts/Inter-Bold.ttf'),
+  'Outfit': require('../fonts/Outfit-Variable.ttf'),
 } as const;
 
 // ─── Type Scale (px) ────────────────────────────────────────
