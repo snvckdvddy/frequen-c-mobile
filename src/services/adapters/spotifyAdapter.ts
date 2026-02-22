@@ -1,6 +1,7 @@
 import { MusicServiceAdapter } from './types';
 import { Track } from '../../types';
 import { apiFetch } from '../fetchClient';
+import { searchItunes } from '../itunesSearch';
 
 class SpotifyAdapter implements MusicServiceAdapter {
     serviceName = 'spotify' as const;
@@ -31,9 +32,30 @@ class SpotifyAdapter implements MusicServiceAdapter {
         // We will ping our proxy to fetch the single track for playback if needed.
         try {
             const res = await apiFetch<{ track: Track }>(`/spotify/track/${trackId}`);
-            return res.track.previewUrl || '';
+            const url = res.track.previewUrl;
+            if (url) return url;
+
+            // Spotify preview unavailable — silently fall back to iTunes 30s preview.
+            // This keeps playback working without the user ever noticing the source swap.
+            return this.fallbackToItunes(res.track.title, res.track.artist);
         } catch (e) {
             console.error('SpotifyAdapter getStreamUrl failed:', e);
+            return '';
+        }
+    }
+
+    /**
+     * Silent iTunes fallback — searches by "title artist" and returns the first
+     * matching preview URL. Returns empty string if no match found.
+     */
+    private async fallbackToItunes(title?: string, artist?: string): Promise<string> {
+        if (!title) return '';
+        try {
+            const query = artist ? `${title} ${artist}` : title;
+            const results = await searchItunes(query, 1);
+            return results[0]?.previewUrl || '';
+        } catch {
+            // Fallback failed silently — no audio is better than a crash
             return '';
         }
     }

@@ -1,28 +1,26 @@
 /**
- * Session Room Screen — The Mix Bus
+ * Session Room Screen — Player-First Layout
  *
- * Central signal processing hub. All audio routes through here.
+ * UX Convergence Approach C (Hybrid):
+ * Full-screen player as core shell, Frequen-C features via progressive disclosure.
  *
- * Layout: Signal Path breadcrumb → Rhythm Channel (controls) →
- *         Filter Sweep search → Melody Channel (queue) → Mini player
+ * Layout: Header → Participant Bar → Album Art Hero → Track Info →
+ *         Progress Bar → Transport → Reaction Bar → Queue Peek + CV Pill
  *
- * Research pillars active here:
- * - Social Choice Architecture (room mode governs queue physics)
- * - Room Mode Physics (waveform mode indicator)
- * - Contribution Visibility (who added what, when)
- * - Control Voltage Economy (votes, boosts, reactions)
+ * Queue is a pull-up bottom sheet, not inline.
+ * CV/Power Moves accessible via CV pill expansion.
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
   TextInput, Alert, Share, Keyboard, Modal, KeyboardAvoidingView, Platform,
+  ScrollView, Dimensions, Image, Animated,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen, RoomModeBadge, WaveformIcon, SignalPathBreadcrumb } from '../components/ui';
-import type { BreadcrumbNode } from '../components/ui/SignalPathBreadcrumb';
+import { Text, SafeScreen, RoomModeBadge } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import api, { sessionApi } from '../services/api';
 import {
@@ -40,7 +38,6 @@ import {
   loadTrack, onProgress, onTrackEnd, stop as stopPlayback,
   togglePlayPause, type PlaybackState,
 } from '../services/playbackEngine';
-import { NowPlayingSheet } from '../components/NowPlayingSheet';
 import {
   ListenerBar, ListenerDrawer, JoinLeaveToast, type ToastMessage,
 } from '../components/ListenerPresence';
@@ -58,7 +55,6 @@ import { QueueTrackCard } from '../components/QueueTrackCard';
 import { LyricsOverlay } from '../components/ui/LyricsOverlay';
 import { DraggableQueue } from '../components/DraggableQueue';
 import { SearchResultItem } from '../components/SearchResultItem';
-import { MiniPlayer, MINI_PLAYER_HEIGHT } from '../components/MiniPlayer';
 import { SuggestionCard } from '../components/SuggestionCard';
 import { PlayedHistory } from '../components/PlayedHistory';
 import { OfflineBanner } from '../components/OfflineBanner';
@@ -66,10 +62,12 @@ import { ConnectionBanner } from '../components/ConnectionBanner';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useAppState } from '../hooks/useAppState';
 import { getGlobalLimiter } from '../utils/rateLimiter';
-import { ADSRFadeIn, StepSequencer, TrackContextMenu, SwipeableRow } from '../components/ui';
+import { ADSRFadeIn, TrackContextMenu, SwipeableRow } from '../components/ui';
 import { QUEUE_ACTIONS, type ContextMenuAction } from '../components/ui/TrackContextMenu';
 import { Skeleton, TrackCardSkeleton } from '../components/ui/Skeleton';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
+import { ParticipantAvatarBar } from '../components/ui/ParticipantAvatarBar';
+import { ReactionBar } from '../components/ui/ReactionBar';
 // Layer 3-4: Social, Game, Economy, Environment
 import { CrossfaderDuel } from '../components/CrossfaderDuel';
 import { FrequencyForecast } from '../components/FrequencyForecast';
@@ -79,15 +77,12 @@ import { TransientEnter } from '../components/TransientEnter';
 import { ReverbTail } from '../components/ReverbTail';
 import { MasterBounce } from '../components/MasterBounce';
 import { useCV } from '../hooks/useCV';
+import { useVoltageSag } from '../hooks/useVoltageSag';
 
-// ─── Signal Type Labels ──────────────────────────────────────
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const ALBUM_ART_SIZE = SCREEN_WIDTH - 48;
 
-const modeLabel: Record<string, string> = {
-  campfire: 'Sine',
-  spotlight: 'Square',
-  openFloor: 'Sawtooth',
-};
-
+// ─── Mode descriptions (for overflow menu tooltip) ───────────
 const modeDesc: Record<string, string> = {
   campfire: 'Round-robin — tracks interleave by contributor',
   spotlight_host: 'You curate — approve or reject suggestions',
@@ -105,15 +100,13 @@ export function SessionRoomScreen() {
   const { setActiveSession, clearActiveSession } = useActiveSession();
   const { isFavorite, toggleFavorite } = useFavoritesContext();
   const { isConnected } = useNetworkStatus();
-  const searchInputRef = useRef<TextInput>(null);
+  const { isVoltageSag, accent, accentGlow } = useVoltageSag();
 
   const [session, setSession] = useState<Session | null>(null);
   const [queue, setQueue] = useState<QueueTrack[]>([]);
   const [suggestedQueue, setSuggestedQueue] = useState<QueueTrack[]>([]);
   const [playedHistory, setPlayedHistory] = useState<QueueTrack[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const [listenerDrawerOpen, setListenerDrawerOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -125,10 +118,15 @@ export function SessionRoomScreen() {
     isLoading: false, error: null,
   });
 
+  // ─── Bottom sheet & overflow state ─────────────────────────
+  const [queueSheetOpen, setQueueSheetOpen] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const [cvExpanded, setCvExpanded] = useState(false);
+  const [searchInSheet, setSearchInSheet] = useState(false);
+
   // ─── App state recovery (background → foreground) ──
   useAppState({
     onForeground: useCallback(() => {
-      // Re-join the session to get fresh state after returning from background
       if (user?.id && sessionId) {
         joinSession(sessionId, user.id, user.username);
       }
@@ -201,11 +199,11 @@ export function SessionRoomScreen() {
   const MAX_PLAYED_HISTORY = 50;
   const { query, setQuery, results, isSearching, clearSearch } = useSearch();
   const { searches: recentSearches, addSearch: saveRecentSearch, removeSearch: removeRecentSearch } = useRecentSearches();
+  const searchInputRef = useRef<TextInput>(null);
 
-  // Shared queue advancement — moves queue[0] to history, advances to next.
-  // Defined early so socket listeners + playback effects can reference it.
+  // Shared queue advancement
   const advanceQueue = useCallback(() => {
-    if (isAdvancingRef.current) return; // prevent double-fire
+    if (isAdvancingRef.current) return;
     isAdvancingRef.current = true;
 
     setQueue((prev) => {
@@ -213,11 +211,9 @@ export function SessionRoomScreen() {
         isAdvancingRef.current = false;
         return prev;
       }
-      // Move finished track to history
       const finished = prev[0];
       if (finished) {
         setPlayedHistory((hist) => [finished, ...hist].slice(0, MAX_PLAYED_HISTORY));
-        // Phase 6: Scrobble if $> 30s
         if (finished.duration > 30 && !!user?.connectedServices?.lastfm?.connected) {
           api.integrations.scrobble(
             finished.title,
@@ -226,21 +222,16 @@ export function SessionRoomScreen() {
           ).catch(() => { });
         }
       }
-
       const next = prev.slice(1);
-      // Notify about the new track (next[0]) if one exists
       if (next.length > 0) {
         notifyTrackChanged(next[0].title, next[0].artist, sessionId).catch(() => { });
       }
-      // Reset guard after a short delay to allow new track to load
       setTimeout(() => { isAdvancingRef.current = false; }, 300);
       return next;
     });
   }, [sessionId]);
 
   // ─── Load session & connect socket ──────────────────────
-  // Real-mode listener cleanup refs — stored here so the cleanup
-  // function can detach them even though they're created async.
   const socketUnsubsRef = useRef<Array<() => void>>([]);
 
   useEffect(() => {
@@ -251,14 +242,12 @@ export function SessionRoomScreen() {
         const { session: s } = await sessionApi.get(sessionId);
         if (!mounted) return;
         setSession(s);
-        // Track active session for Search → Add to Queue
         setActiveSession({
           sessionId: s.id,
           sessionName: s.name,
           roomMode: s.roomMode,
           hostId: s.hostId,
         });
-        // Initialize listeners: include the current user (host or joiner) + session listeners
         const baseListeners: Listener[] = s.listeners || [];
         const selfInList = baseListeners.some((l: Listener) => l.userId === user?.id);
         setListeners(
@@ -273,12 +262,9 @@ export function SessionRoomScreen() {
         }));
         setQueue(initialQueue);
 
-        // Connect socket FIRST, then attach listeners, then join
         await connectSocket();
         if (!mounted) return;
 
-        // ── Real-mode socket listeners ──
-        // MUST be set up AFTER connectSocket() resolves so socket is non-null.
         socketUnsubsRef.current = [
           onSessionEvent('queue-updated', (newQueue) => {
             if (mounted) setQueue(newQueue);
@@ -286,31 +272,23 @@ export function SessionRoomScreen() {
           onSessionEvent('session-updated', (update) => {
             if (mounted) setSession((prev) => prev ? { ...prev, ...update } : null);
           }),
-          // Backend sends full room state on join — use it to hydrate queue + participants + suggestions
           onSessionEvent('room-state' as any, (state: any) => {
             if (!mounted) return;
             if (state.queue) setQueue(state.queue);
             if (state.suggestedQueue) setSuggestedQueue(state.suggestedQueue);
             if (state.participants) setListeners(state.participants);
             if (state.currentTrack && state.queue?.length === 0) {
-              // If there's a current track but queue is empty, put it at front
               setQueue([state.currentTrack]);
             }
           }),
-          // Spotlight mode: server notifies when a non-host adds a pending track
           onSessionEvent('track-pending' as any, (data: any) => {
             if (!mounted || !data?.track) return;
             setSuggestedQueue((prev) => {
-              // Prevent duplicates
               if (prev.some((t) => t.id === data.track.id)) return prev;
               return [...prev, { ...data.track, status: 'pending' as const }];
             });
           }),
-          onSessionEvent('track-changed' as any, (track: any) => {
-            if (!mounted || !track) return;
-            // track-changed fires when a new track becomes current
-            // The queue-updated event will follow with the refreshed queue
-          }),
+          onSessionEvent('track-changed' as any, (_track: any) => {}),
           onSessionEvent('participant-joined' as any, (data: any) => {
             if (!mounted) return;
             setListeners((prev) => {
@@ -323,7 +301,6 @@ export function SessionRoomScreen() {
             if (!mounted) return;
             setListeners((prev) => prev.filter((l) => l.userId !== data.userId));
           }),
-          // Real-mode reaction listener (backend emits 'reaction-received')
           onSessionEvent('reaction-received' as any, (data: any) => {
             if (!mounted) return;
             setQueue((prev) =>
@@ -342,14 +319,8 @@ export function SessionRoomScreen() {
               })
             );
           }),
-          // Real-mode skip listener
-          onSessionEvent('track-changed' as any, (_track: any) => {
-            // When backend advances to next track, it broadcasts queue-updated too,
-            // so we just need queue-updated (already handled above)
-          }),
         ];
 
-        // NOW join the room — backend will emit room-state back
         if (user) {
           joinSession(sessionId, user.id, user.username);
         }
@@ -364,7 +335,6 @@ export function SessionRoomScreen() {
     init();
     return () => {
       mounted = false;
-      // Detach all real-mode socket listeners
       socketUnsubsRef.current.forEach((fn) => fn());
       socketUnsubsRef.current = [];
       if (user) leaveSession(sessionId, user.id);
@@ -379,25 +349,19 @@ export function SessionRoomScreen() {
 
     const unsubs = [
       onSessionEvent('track-added', (track: QueueTrack) => {
-        // Engine decides where the track goes based on room mode.
-        // We use refs-in-closures pattern: read both queues, set both.
         setQueue((prevQ) => {
-          // For Spotlight non-host: track goes to suggested, main queue unchanged
           if (roomMode === 'spotlight' && track.addedById !== hostId) {
             setSuggestedQueue((prevS) => [...prevS, { ...track, status: 'pending' as const }]);
             return prevQ;
           }
-          // For all other cases: run through engine for mode-specific ordering
           const result = addTrackToQueue(prevQ, [], track, roomMode, hostId);
           return result.queue;
         });
       }),
       onSessionEvent('vote-cast', (data) => {
-        // Toggle-aware: engine handles dedup via votedBy map
         setQueue((prev) => applyVote(prev, data.trackId, data.userId, data.direction, roomMode));
       }),
       onSessionEvent('reaction-local', (data) => {
-        // Toggle: if user already has this reaction type → remove it. Otherwise → add it.
         setQueue((prev) =>
           prev.map((t) => {
             if (t.id !== data.trackId) return t;
@@ -415,58 +379,46 @@ export function SessionRoomScreen() {
         );
       }),
       onSessionEvent('track-skipped', (data) => {
-        // Only advance if this skip came from another user
-        // (our own skip is handled locally in handleSkip → advanceQueue)
         if (data?.userId !== user?.id) {
           advanceQueue();
         }
       }),
-      // Spotlight mode: host approved a suggested track
       onSessionEvent('track-approved', (data) => {
         setSuggestedQueue((prev) => prev.filter((t) => t.id !== data.trackId));
         if (data.track) {
           setQueue((prev) => [...prev, { ...data.track, status: 'approved' }]);
         }
       }),
-      // Spotlight mode: host rejected a suggested track
       onSessionEvent('track-rejected', (data) => {
         setSuggestedQueue((prev) => prev.filter((t) => t.id !== data.trackId));
       }),
       onSessionEvent('mode-changed', (data) => {
         setSession((prev) => prev ? { ...prev, roomMode: data.roomMode as RoomMode } : prev);
-        // Server auto-approves pending tracks and re-broadcasts queue on mode switch.
-        // If leaving Spotlight, flush the local suggested queue (server sends pending-updated too).
         if (data.roomMode !== 'spotlight') {
           setSuggestedQueue([]);
         }
-        // Mode transition toast + haptic
-        const label = modeLabel[data.roomMode] || data.roomMode;
         const toast: ToastMessage = {
           id: `mode_${Date.now()}`,
-          text: `Waveform → ${label}`,
+          text: `Mode → ${data.roomMode}`,
           type: 'mode',
         };
         setToasts((prev) => [...prev, toast]);
         setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 3000);
         tapMedium();
       }),
-      // Full replacement of suggested/pending queue (sent by server after approve/reject/mode-change)
       onSessionEvent('pending-updated', (pendingQueue) => {
         setSuggestedQueue(pendingQueue);
       }),
-      // Host ended the session — show Master Bounce receipt instead of alert
       onSessionEvent('session-ended', () => {
         stopPlayback();
         clearActiveSession();
         setBounceVisible(true);
       }),
       // ─── Layer 3-4 Socket Events ──────────────────────────
-      // Resonance event (server-triggered synchronized moment)
       onSessionEvent('resonance', (data) => {
         setResonanceState({ active: true, type: data.type, message: data.message, cvBonus: data.cvBonus });
         if (data.cvBonus > 0) cv.earn(data.cvBonus, 'resonance');
       }),
-      // Crossfader Duel
       onSessionEvent('duel:start', (data) => {
         setDuelState({
           active: true, trackA: data.trackA, trackB: data.trackB,
@@ -482,10 +434,9 @@ export function SessionRoomScreen() {
           },
         }));
       }),
-      onSessionEvent('duel:end', (data) => {
+      onSessionEvent('duel:end', (_data) => {
         setDuelState((prev) => ({ ...prev, active: false }));
       }),
-      // Frequency Forecast
       onSessionEvent('forecast:start', (data) => {
         setForecastState({
           active: true, candidates: data.candidates,
@@ -506,19 +457,16 @@ export function SessionRoomScreen() {
         }));
         if (correct) cv.earn(forecastState.reward, 'forecast_correct');
       }),
-      // Transient enter (user walk-on)
       onSessionEvent('transient:enter', (data) => {
-        if (data.userId === user?.id) return; // don't show own walk-on
+        if (data.userId === user?.id) return;
         setTransientUser({ active: true, username: data.username });
       }),
-      // Reverb tail (ghost departure)
       onSessionEvent('reverb-tail:ghost', (data) => {
         setReverbTails((prev) => [...prev, {
           userId: data.userId, username: data.username,
           duration: data.duration, active: true,
         }]);
       }),
-      // CV economy sync
       onSessionEvent('cv:balance', (data) => {
         if (data.userId === user?.id) cv.syncBalance(data.balance);
       }),
@@ -537,18 +485,15 @@ export function SessionRoomScreen() {
           if (prev.some((l) => l.userId === participant.userId)) return prev;
           return [...prev, participant];
         });
-        // Show toast
         const toast: ToastMessage = {
           id: `join_${participant.userId}_${Date.now()}`,
           text: `${participant.username} joined`,
           type: 'join',
         };
         setToasts((prev) => [...prev, toast]);
-        // Auto-clear toast after 3s
         setTimeout(() => {
           setToasts((prev) => prev.filter((t) => t.id !== toast.id));
         }, 3000);
-        // Push notification (shown even when foregrounded via notification handler)
         if (participant.userId !== user?.id && session?.name) {
           notifyParticipantJoined(participant.username, session.name, sessionId).catch(() => { });
         }
@@ -582,8 +527,6 @@ export function SessionRoomScreen() {
         userId: 'usr_sim_' + Date.now(),
         username: ['zara', 'finn', 'rio', 'ivy', 'sage'][Math.floor(Math.random() * 5)],
       };
-      // Emit through mock bus so the listener handler picks it up
-      onSessionEvent('participant-joined', () => { })(); // noop, just to ensure type
       setListeners((prev) => {
         if (prev.some((l) => l.username === mockJoiner.username)) return prev;
         return [...prev, mockJoiner];
@@ -600,14 +543,11 @@ export function SessionRoomScreen() {
   }, [session?.id]);
 
   // ─── Playback engine ────────────────────────────────────
-
-  // Subscribe to progress updates
   useEffect(() => {
     const unsub = onProgress((s) => setPlayback(s));
     return () => { unsub(); stopPlayback(); };
   }, []);
 
-  // Auto-load track when current track changes
   const currentTrackRef = useRef<string | null>(null);
   useEffect(() => {
     const nowPlaying = queue[0] || null;
@@ -620,7 +560,6 @@ export function SessionRoomScreen() {
     }
   }, [queue]);
 
-  // Auto-advance when track ends — also tell backend to remove the finished track
   useEffect(() => {
     const unsub = onTrackEnd(() => {
       advanceQueue();
@@ -644,19 +583,15 @@ export function SessionRoomScreen() {
     };
     addToQueue(sessionId, queueTrack);
     notifySuccess();
-    // Save this search as recent (only if there's a query)
     if (query.trim()) saveRecentSearch(query.trim());
-    // Don't close search — let user add multiple tracks
   }, [user, session, sessionId, query, saveRecentSearch]);
 
   const handleVote = useCallback((trackId: string, direction: 1 | -1) => {
     if (!user) return;
     if (!getGlobalLimiter().canDo('vote')) return;
     tapMedium();
-    // Optimistic update: apply vote locally for instant UI feedback
     const mode = session?.roomMode || 'campfire';
     setQueue((prev) => applyVote(prev, trackId, user.id, direction, mode));
-    // Then emit to server — queue-updated from backend will reconcile
     voteTrack(sessionId, trackId, user.id, direction);
   }, [user, sessionId, session?.roomMode]);
 
@@ -672,7 +607,6 @@ export function SessionRoomScreen() {
     togglePlayPause();
   }, []);
 
-  // Wrapper so favorites use the source track ID, not the queue entry ID
   const handleToggleFavorite = useCallback((track: Track) => {
     const favoriteTrack = { ...track, id: (track as any).sourceId || track.id };
     toggleFavorite(favoriteTrack);
@@ -681,14 +615,12 @@ export function SessionRoomScreen() {
   const handleSkip = useCallback(() => {
     if (!user || !session) return;
     if (!getGlobalLimiter().canDo('skip')) return;
-    // Engine checks if this user is allowed to skip in this mode
     const { skipped } = skipCurrentTrack(queue, user.id, session.hostId, session.roomMode);
     if (!skipped) {
       Alert.alert('Host only', 'Only the host can skip tracks in Spotlight mode.');
       return;
     }
     tapHeavy();
-    // Stop current playback immediately to prevent auto-advance race
     stopPlayback();
     advanceQueue();
     skipTrack(sessionId, user.id);
@@ -697,11 +629,9 @@ export function SessionRoomScreen() {
   const handleApproveTrack = useCallback((trackId: string) => {
     if (!session) return;
     tapMedium();
-    // Run engine to move track from suggested → main queue
     const result = approveTrackEngine(queue, suggestedQueue, trackId);
     setQueue(result.queue);
     setSuggestedQueue(result.suggestedQueue);
-    // Emit so other clients stay in sync
     const approvedTrack = result.queue[result.queue.length - 1];
     approveTrackEvent(sessionId, trackId, approvedTrack);
   }, [session, sessionId, queue, suggestedQueue]);
@@ -796,10 +726,7 @@ export function SessionRoomScreen() {
     );
   }, [user, session, sessionId, cv]);
 
-  // ─── Reorder (long-press) ──────────────────────────────
-  const [reorderTrackId, setReorderTrackId] = useState<string | null>(null);
-
-  // ─── Context menu (§5.1: long-press → context sheet) ──
+  // ─── Context menu ──────────────────────────────────────
   const [contextTrack, setContextTrack] = useState<QueueTrack | null>(null);
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
 
@@ -831,30 +758,18 @@ export function SessionRoomScreen() {
     }
   }, [handleToggleFavorite, handleOverdrive, handlePhantomPower]);
 
-  const handleMoveUp = useCallback((trackId: string) => {
-    tapLight();
-    setQueue((prev) => moveTrackEngine(prev, trackId, 'up'));
-  }, []);
-
-  const handleMoveDown = useCallback((trackId: string) => {
-    tapLight();
-    setQueue((prev) => moveTrackEngine(prev, trackId, 'down'));
-  }, []);
-
   // ─── Room Mode Switching (host only) ───────────────────
   const handleChangeMode = useCallback(() => {
     if (!session || !user || user.id !== session.hostId) return;
     const modes: RoomMode[] = ['campfire', 'spotlight', 'openFloor'];
-    const modeNames = ['Campfire — Round-robin turns', 'Spotlight — Host curates', 'Open Floor — Votes decide'];
+    const modeNames = ['🔥 Campfire — Round-robin', '🎤 Spotlight — Host curates', '⚡ Open Floor — Votes decide'];
     const currentIdx = modes.indexOf(session.roomMode);
     const buttons = modes.map((mode, i) => ({
       text: `${i === currentIdx ? '● ' : ''}${modeNames[i]}`,
       onPress: () => {
         if (mode === session.roomMode) return;
         tapMedium();
-        // Update local session state
         setSession((prev) => prev ? { ...prev, roomMode: mode } : prev);
-        // Emit to other clients
         changeModeEvent(sessionId, mode);
       },
     }));
@@ -865,10 +780,7 @@ export function SessionRoomScreen() {
   const handleShare = useCallback(() => {
     if (!session) return;
     Alert.alert('Share Room', 'How do you want to share?', [
-      {
-        text: 'Show QR Code',
-        onPress: () => setShowQR(true),
-      },
+      { text: 'Show QR Code', onPress: () => setShowQR(true) },
       {
         text: 'Share Link',
         onPress: () =>
@@ -888,19 +800,12 @@ export function SessionRoomScreen() {
     Alert.alert('Copied!', `Room code "${session.joinCode}" copied to clipboard.`);
   }, [session]);
 
-  const handleCancelSearch = useCallback(() => {
-    clearSearch();
-    setSearchFocused(false);
-    Keyboard.dismiss();
-  }, [clearSearch]);
-
   // ─── Leave / End Session ───────────────────────────────
   const handleLeaveRoom = useCallback(() => {
     if (!user || !session) return;
     const userIsHost = user.id === session.hostId;
 
     if (userIsHost) {
-      // Host ending the session
       Alert.alert(
         'End Session',
         'This will close the room for everyone. Are you sure?',
@@ -919,7 +824,6 @@ export function SessionRoomScreen() {
         ],
       );
     } else {
-      // Participant leaving
       Alert.alert(
         'Leave Room',
         `Leave "${session.name}"?`,
@@ -940,390 +844,629 @@ export function SessionRoomScreen() {
     }
   }, [user, session, sessionId, navigation, clearActiveSession]);
 
+  // ─── Search within queue sheet ─────────────────────────
+  const handleCancelSearch = useCallback(() => {
+    clearSearch();
+    setSearchInSheet(false);
+    Keyboard.dismiss();
+  }, [clearSearch]);
+
   // ─── Loading state ────────────────────────────────────
   if (loading || !session) {
     return (
       <SafeScreen>
         <View style={styles.skeletonContainer}>
-          {/* Header skeleton */}
           <View style={styles.skeletonHeader}>
             <Skeleton width={28} height={28} borderRadius={14} />
             <View style={{ flex: 1, marginLeft: spacing.sm }}>
               <Skeleton fill height={18} style={{ maxWidth: 180 }} />
-              <Skeleton fill height={12} style={{ marginTop: 6, maxWidth: 100 }} />
             </View>
             <Skeleton width={60} height={24} borderRadius={12} />
           </View>
-
-          {/* Search bar skeleton */}
-          <Skeleton fill height={40} borderRadius={spacing.radius.md} style={{ marginBottom: spacing.md }} />
-
-          {/* Now playing skeleton */}
-          <View style={styles.skeletonNowPlaying}>
-            <Skeleton width={56} height={56} borderRadius={spacing.radius.sm} />
-            <View style={{ flex: 1, marginLeft: spacing.sm }}>
-              <Skeleton fill height={16} style={{ maxWidth: 200 }} />
-              <Skeleton fill height={12} style={{ marginTop: 6, maxWidth: 140 }} />
-            </View>
+          <View style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
+            <Skeleton width={ALBUM_ART_SIZE} height={ALBUM_ART_SIZE} borderRadius={spacing.radius.sm} />
           </View>
-
-          {/* Queue skeletons */}
-          <Skeleton fill height={14} style={{ maxWidth: 80, marginBottom: spacing.sm }} />
-          <TrackCardSkeleton />
-          <TrackCardSkeleton />
-          <TrackCardSkeleton />
-          <TrackCardSkeleton />
+          <View style={{ alignItems: 'center', gap: 8, paddingBottom: spacing.lg }}>
+            <Skeleton width={200} height={22} />
+            <Skeleton width={140} height={16} />
+          </View>
+          <Skeleton fill height={2} style={{ marginHorizontal: spacing.screenPadding }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 40, paddingVertical: spacing.md }}>
+            <Skeleton width={32} height={32} borderRadius={16} />
+            <Skeleton width={56} height={56} borderRadius={28} />
+            <Skeleton width={32} height={32} borderRadius={16} />
+          </View>
         </View>
       </SafeScreen>
     );
   }
 
-  // Current track = always queue[0]. Backend deletes finished tracks
-  // and broadcastQueue keeps this in sync across all clients.
+  // ─── Derived values ────────────────────────────────────
   const currentTrack: QueueTrack | null = queue[0] || null;
-
-  const listenerCount = listeners.length || session.listeners?.length || 0;
-  const modeName = modeLabel[session.roomMode] || 'Campfire';
-  const showSearchResults = searchFocused && query.length > 0;
-  const showSearchPanel = searchFocused; // includes empty-query state for recent searches
+  const nextTrack: QueueTrack | null = queue[1] || null;
   const isHost = user?.id === session.hostId;
   const isSpotlight = session.roomMode === 'spotlight';
   const canSkip = session.roomMode !== 'spotlight' || isHost;
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // ─── RENDER: Player-First Layout ──────────────────────────
+  // ═══════════════════════════════════════════════════════════
 
   return (
     <SafeScreen>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
       >
-
         {/* ─── Connection Status ──────────────────────── */}
         <OfflineBanner visible={!isConnected} />
         <ConnectionBanner />
 
-        {/* ─── Signal Path Breadcrumb ─────────────────────── */}
-        <SignalPathBreadcrumb
-          nodes={[
-            { id: 'home', label: 'HOME', onPress: () => navigation.goBack() },
-            { id: 'room', label: session.name.toUpperCase() },
-          ]}
+        {/* ═══ HEADER (§3.1) ═════════════════════════════ */}
+        <View style={styles.header}>
+          {/* ← Back */}
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.text.primary} />
+          </TouchableOpacity>
+
+          {/* Room Name */}
+          <Text
+            variant="labelLarge"
+            color={colors.text.primary}
+            numberOfLines={1}
+            style={styles.headerTitle}
+          >
+            {session.name}
+          </Text>
+
+          {/* Mode Badge (tap = mode switch for host) */}
+          <TouchableOpacity
+            onPress={isHost ? handleChangeMode : undefined}
+            activeOpacity={isHost ? 0.6 : 1}
+          >
+            <RoomModeBadge mode={session.roomMode as RoomMode} variant="full" />
+          </TouchableOpacity>
+
+          {/* ⋯ Overflow */}
+          <TouchableOpacity
+            onPress={() => setOverflowOpen(true)}
+            style={styles.overflowBtn}
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color={colors.text.secondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ═══ PARTICIPANT BAR (§3.2) ════════════════════ */}
+        <ParticipantAvatarBar
+          listeners={listeners}
+          maxVisible={4}
+          showInvite
+          onInvitePress={handleShare}
+          onAvatarPress={() => setListenerDrawerOpen(true)}
         />
 
-        {/* ─── Rhythm Channel (Controls Header) ──────────── */}
-        <View style={styles.header}>
-          {/* Left: waveform + room name */}
-          <TouchableOpacity onPress={isHost ? handleChangeMode : undefined} activeOpacity={isHost ? 0.6 : 1}>
-            <WaveformIcon mode={session.roomMode as RoomMode} size={18} />
-          </TouchableOpacity>
+        {/* ═══ SCROLLABLE PLAYER CONTENT ═════════════════ */}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.playerContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ─── Album Art Hero (§3.3) ────────────────── */}
+          <View style={styles.albumArtContainer}>
+            {currentTrack?.albumArt || currentTrack?.artwork ? (
+              <Image
+                source={{ uri: currentTrack.albumArt || currentTrack.artwork }}
+                style={styles.albumArt}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.albumArt, styles.albumArtPlaceholder]}>
+                <Ionicons
+                  name="musical-notes"
+                  size={64}
+                  color={colors.text.muted}
+                />
+                {!currentTrack && (
+                  <Text variant="body" color={colors.text.muted} style={{ marginTop: spacing.sm }}>
+                    No track playing
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
 
-          <View style={styles.headerCenter}>
-            <View style={styles.headerTitleRow}>
-              <Text variant="labelLarge" color={colors.text.primary} numberOfLines={1} style={{ flex: 1 }}>
-                {session.name}
-              </Text>
-              <ListenerBar
-                listeners={listeners}
-                hostId={session.hostId}
-                onPress={() => setListenerDrawerOpen(true)}
+          {/* ─── Track Info (§3.4) ────────────────────── */}
+          <View style={styles.trackInfo}>
+            <Text
+              variant="h3"
+              color={colors.text.primary}
+              numberOfLines={1}
+              align="center"
+              style={styles.trackTitle}
+            >
+              {currentTrack?.title || 'Add a track to start'}
+            </Text>
+            <Text
+              variant="body"
+              color={colors.text.secondary}
+              numberOfLines={1}
+              align="center"
+            >
+              {currentTrack
+                ? `${currentTrack.artist}${currentTrack.addedBy ? ` · Added by @${currentTrack.addedBy.username}` : ''}`
+                : 'Search to add tracks to the queue'}
+            </Text>
+          </View>
+
+          {/* ─── Progress Bar (§3.5) ──────────────────── */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${(playback.progress || 0) * 100}%`,
+                    backgroundColor: accent,
+                  },
+                ]}
               />
             </View>
-
-            {/* Join code pill — tappable */}
-            {session.joinCode ? (
-              <TouchableOpacity style={styles.codePill} onPress={handleCopyCode} activeOpacity={0.7}>
-                <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 8, letterSpacing: 1.5 }}>CODE</Text>
-                <Text variant="label" color={colors.action.primary} style={styles.codeValue}>
-                  {session.joinCode}
-                </Text>
-                <Ionicons name="copy-outline" size={11} color={colors.text.muted} />
-              </TouchableOpacity>
-            ) : null}
+            <View style={styles.progressLabels}>
+              <Text variant="labelSmall" color={colors.text.muted}>
+                {formatTime(playback.elapsed || 0)}
+              </Text>
+              <Text variant="labelSmall" color={colors.text.muted}>
+                {formatTime(playback.duration || 0)}
+              </Text>
+            </View>
           </View>
 
-          {/* Right: lyrics + chat + share + leave */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            {currentTrack && (
-              <TouchableOpacity onPress={() => setLyricsVisible(true)} style={styles.headerAction}>
-                <Ionicons name="musical-notes-outline" size={16} color={colors.chrome.text} />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => setChatOpen(true)} style={styles.headerAction}>
-              <Ionicons name="chatbubble-outline" size={16} color={colors.chrome.text} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleShare} style={styles.headerAction}>
-              <Ionicons name="share-outline" size={16} color={colors.chrome.text} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleLeaveRoom} style={styles.headerAction}>
+          {/* ─── Transport Controls (§3.6) ─────────────── */}
+          <View style={styles.transport}>
+            {/* Previous */}
+            <TouchableOpacity
+              onPress={handleSkip}
+              disabled={!canSkip || !currentTrack}
+              style={styles.transportSecondary}
+            >
               <Ionicons
-                name={isHost ? 'close-circle-outline' : 'exit-outline'}
-                size={16}
-                color={colors.action.destructive}
+                name="play-skip-back"
+                size={24}
+                color={canSkip && currentTrack ? colors.text.primary : colors.text.muted}
+              />
+            </TouchableOpacity>
+
+            {/* Play / Pause */}
+            <TouchableOpacity
+              onPress={handlePlayPause}
+              style={[styles.playPauseBtn, { backgroundColor: accent }]}
+              disabled={!currentTrack}
+              activeOpacity={0.8}
+            >
+              {playback.isLoading ? (
+                <ActivityIndicator color={colors.bg.primary} size="small" />
+              ) : (
+                <Ionicons
+                  name={playback.isPlaying ? 'pause' : 'play'}
+                  size={28}
+                  color={colors.bg.primary}
+                  style={!playback.isPlaying ? { marginLeft: 3 } : undefined}
+                />
+              )}
+            </TouchableOpacity>
+
+            {/* Next / Skip */}
+            <TouchableOpacity
+              onPress={handleSkip}
+              disabled={!canSkip || !currentTrack}
+              style={styles.transportSecondary}
+            >
+              <Ionicons
+                name="play-skip-forward"
+                size={24}
+                color={canSkip && currentTrack ? colors.text.primary : colors.text.muted}
               />
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* ─── CV Economy Bar ─────────────────────────────── */}
-        <View style={styles.cvBar}>
-          <View style={styles.cvBalanceChip}>
-            <Ionicons name="flash" size={12} color={colors.action.primary} />
-            <Text variant="labelSmall" color={colors.action.primary} style={{ fontWeight: '600' }}>
-              {cv.balance} CV
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[
-              styles.cvActionChip,
-              !cv.canUse('phase_cancel') && styles.cvActionDisabled,
-            ]}
-            onPress={handlePhaseCancel}
-            activeOpacity={0.6}
-            disabled={!cv.canUse('phase_cancel')}
-          >
-            <Ionicons name="shield-outline" size={12} color={cv.canUse('phase_cancel') ? colors.text.primary : colors.text.muted} />
-            <Text
-              variant="labelSmall"
-              color={cv.canUse('phase_cancel') ? colors.text.primary : colors.text.muted}
-            >
-              Phase Cancel · 15
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ─── Filter Sweep (Search) ────────────────────── */}
-        <View style={styles.searchBarRow}>
-          <TextInput
-            ref={searchInputRef}
-            style={styles.searchInput}
-            placeholder="Search for tracks..."
-            placeholderTextColor={colors.text.muted}
-            value={query}
-            onChangeText={setQuery}
-            onFocus={() => setSearchFocused(true)}
-            returnKeyType="search"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchFocused && (
-            <TouchableOpacity onPress={handleCancelSearch} style={styles.cancelBtn}>
-              <Text variant="label" color={colors.text.muted}>Cancel</Text>
-            </TouchableOpacity>
+          {/* ─── Reaction Bar (§3.7) ──────────────────── */}
+          {currentTrack && (
+            <ReactionBar
+              onReact={(type) => handleReaction(currentTrack.id, type)}
+              disabled={!currentTrack}
+            />
           )}
-        </View>
 
-        {/* ─── Search Panel (Results + Recent Searches) ──── */}
-        {showSearchPanel && (
-          <View style={styles.searchOverlay}>
-            {showSearchResults ? (
-              <>
-                {isSearching && (
-                  <ActivityIndicator color={colors.action.primary} style={{ marginVertical: spacing.sm }} />
-                )}
-                <FlatList
-                  data={results}
-                  keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => <SearchResultItem track={item} onAdd={handleAddTrack} />}
-                  keyboardShouldPersistTaps="handled"
-                  style={styles.searchResultsList}
-                  initialNumToRender={8}
-                  maxToRenderPerBatch={5}
-                  windowSize={7}
-                />
-              </>
-            ) : (
-              /* Recent searches when focused but no query */
-              <View style={styles.recentSearches}>
-                {recentSearches.length > 0 ? (
-                  <>
-                    <Text variant="labelSmall" color={colors.text.muted} style={styles.recentTitle}>
-                      Recent Searches
-                    </Text>
-                    {recentSearches.slice(0, 6).map((s) => (
-                      <TouchableOpacity
-                        key={s.query + s.timestamp}
-                        style={styles.recentItem}
-                        onPress={() => {
-                          setQuery(s.query);
-                          // useSearch will auto-debounce and fetch
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="time-outline" size={14} color={colors.text.muted} style={{ marginRight: 8 }} />
-                        <Text variant="body" color={colors.text.secondary} style={{ flex: 1 }} numberOfLines={1}>
-                          {s.query}
-                        </Text>
-                        <TouchableOpacity
-                          onPress={() => removeRecentSearch(s.query)}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Ionicons name="close" size={14} color={colors.text.muted} />
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    ))}
-                  </>
-                ) : (
-                  <Text variant="body" color={colors.text.muted} align="center" style={{ paddingTop: spacing.xl }}>
-                    Search for tracks to add to the queue
-                  </Text>
-                )}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ─── Queue (Main Content) ─────────────────────── */}
-        {!showSearchPanel && (
-          <DraggableQueue<QueueTrack>
-            data={queue}
-            keyExtractor={(item, i) => item.id + '_' + i}
-            onReorder={(reordered) => setQueue(reordered)}
-            lockedIndices={[0]}
-            dragEnabled={isHost}
-            renderItem={({ item, index, isDragging }) => (
-              <ADSRFadeIn index={index} staggerMs={60}>
-                <SwipeableRow
-                  onRemove={() => setQueue((prev) => prev.filter((t) => t.id !== item.id))}
-                  enabled={index > 0 && !isDragging}
-                >
-                  <QueueTrackCard
-                    track={item}
-                    isNowPlaying={index === 0}
-                    onVote={handleVote}
-                    userId={user?.id}
-                    roomMode={session.roomMode as RoomMode}
-                    isHost={isHost}
-                    isFavorite={isFavorite(item.sourceId || item.id)}
-                    onToggleFavorite={handleToggleFavorite}
-                    showReorder={reorderTrackId === item.id}
-                    onMoveUp={index > 1 ? handleMoveUp : undefined}
-                    onMoveDown={index > 0 && index < queue.length - 1 ? handleMoveDown : undefined}
-                    onLongPress={() => handleLongPress(item)}
-                    showDragHandle={isHost && index > 0}
-                    isDragging={isDragging}
-                  />
-                </SwipeableRow>
-              </ADSRFadeIn>
-            )}
-            contentContainerStyle={[
-              styles.queueList,
-              { paddingBottom: currentTrack ? MINI_PLAYER_HEIGHT + spacing.md : spacing['3xl'] },
-            ]}
-            ListHeaderComponent={
-              <View>
-                {/* Spotlight: Suggestions panel (host only) */}
-                {isSpotlight && isHost && suggestedQueue.length > 0 && (
-                  <View style={styles.suggestionsPanel}>
-                    <View style={styles.suggestionsPanelHeader}>
-                      <Text variant="label" color={colors.text.secondary}>
-                        Suggestions ({suggestedQueue.length})
-                      </Text>
-                    </View>
-                    {suggestedQueue.map((track) => (
-                      <SuggestionCard
-                        key={track.id}
-                        track={track}
-                        onApprove={handleApproveTrack}
-                        onReject={handleRejectTrack}
-                      />
-                    ))}
-                  </View>
-                )}
-
-                {/* Spotlight: Non-host sees pending count */}
-                {isSpotlight && !isHost && suggestedQueue.length > 0 && (
-                  <View style={styles.pendingBanner}>
-                    <Text variant="bodySmall" color={colors.text.muted} align="center">
-                      {suggestedQueue.length} suggestion{suggestedQueue.length !== 1 ? 's' : ''} pending host approval
-                    </Text>
-                  </View>
-                )}
-
-                {/* Waveform mode indicator */}
-                <View style={styles.modeIndicator}>
-                  <WaveformIcon mode={session.roomMode as RoomMode} size={14} />
-                  <Text variant="labelSmall" color={colors.chrome.text} style={{ marginLeft: 6, flex: 1 }}>
-                    {session.roomMode === 'campfire'
-                      ? modeDesc.campfire
-                      : session.roomMode === 'spotlight'
-                        ? (isHost ? modeDesc.spotlight_host : modeDesc.spotlight_guest)
-                        : modeDesc.openFloor}
-                  </Text>
-                </View>
-
-                {/* Step Sequencer — visual queue grid */}
-                {queue.length > 0 && (
-                  <StepSequencer
-                    queue={queue}
-                    currentTrackId={currentTrack?.id}
-                    roomMode={session.roomMode as RoomMode}
-                    maxSteps={16}
-                    onStepPress={(track, index) => {
-                      // Scroll to the tapped track in the list below
-                      tapLight();
-                    }}
-                  />
-                )}
-
-                <View style={styles.queueHeader}>
-                  <Text variant="label" color={colors.text.secondary} style={{ letterSpacing: 1.5, fontSize: 10 }}>
-                    UP NEXT
-                  </Text>
-                  <Text variant="labelSmall" color={colors.text.muted}>
-                    {queue.length} track{queue.length !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-              </View>
-            }
-            ListEmptyComponent={
+          {/* ─── Queue Peek + CV Pill (§3.8) ──────────── */}
+          <View style={styles.queuePeekSection}>
+            {/* Label row */}
+            <View style={styles.queuePeekHeader}>
               <TouchableOpacity
-                style={styles.emptyQueue}
-                onPress={() => { setSearchFocused(true); }}
-                activeOpacity={0.7}
+                onPress={() => setQueueSheetOpen(true)}
+                style={styles.upNextLabel}
               >
-                <WaveformIcon mode={session.roomMode as RoomMode} size={32} />
-                <Text variant="body" color={colors.text.muted} align="center" style={{ marginTop: spacing.sm }}>
-                  Queue is empty
+                <Text
+                  variant="label"
+                  color={colors.text.secondary}
+                  style={{ letterSpacing: 1.5, fontSize: 10 }}
+                >
+                  UP NEXT
                 </Text>
-                <Text variant="labelSmall" color={colors.action.primary} align="center" style={{ marginTop: spacing.xs }}>
-                  Search to add tracks
+                <Text variant="labelSmall" color={colors.text.muted}>
+                  {queue.length > 1 ? `${queue.length - 1} track${queue.length - 1 !== 1 ? 's' : ''}` : ''}
                 </Text>
               </TouchableOpacity>
-            }
-            ListFooterComponent={
-              <PlayedHistory history={playedHistory} onRequeue={handleAddTrack} />
-            }
-          />
-        )}
 
-        {/* ─── Mini Player (Fixed Bottom) ───────────────── */}
-        {currentTrack && (
-          <MiniPlayer
-            track={currentTrack}
-            playback={playback}
-            onSkip={handleSkip}
-            onPlayPause={handlePlayPause}
-            onPress={() => setNowPlayingOpen(true)}
-            canSkip={canSkip}
-          />
-        )}
+              {/* CV Pill */}
+              <TouchableOpacity
+                style={[styles.cvPill, { borderColor: accent }]}
+                onPress={() => setCvExpanded(!cvExpanded)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="flash" size={12} color={accent} />
+                <Text variant="labelSmall" color={accent} style={{ fontWeight: '600' }}>
+                  {cv.balance} CV
+                </Text>
+                <Ionicons
+                  name={cvExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={12}
+                  color={accent}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* CV Expansion — Power Moves */}
+            {cvExpanded && (
+              <View style={styles.cvExpansion}>
+                <TouchableOpacity
+                  style={[styles.powerMoveBtn, !cv.canUse('phantom_power') && styles.powerMoveDisabled]}
+                  onPress={() => nextTrack && handlePhantomPower(nextTrack.id)}
+                  disabled={!cv.canUse('phantom_power') || !nextTrack}
+                >
+                  <Ionicons name="flash-outline" size={14} color={cv.canUse('phantom_power') ? colors.text.primary : colors.text.muted} />
+                  <Text variant="labelSmall" color={cv.canUse('phantom_power') ? colors.text.primary : colors.text.muted}>
+                    Phantom Power · 5 CV
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.powerMoveBtn, !cv.canUse('phase_cancel') && styles.powerMoveDisabled]}
+                  onPress={handlePhaseCancel}
+                  disabled={!cv.canUse('phase_cancel')}
+                >
+                  <Ionicons name="shield-outline" size={14} color={cv.canUse('phase_cancel') ? colors.text.primary : colors.text.muted} />
+                  <Text variant="labelSmall" color={cv.canUse('phase_cancel') ? colors.text.primary : colors.text.muted}>
+                    Phase Cancel · 15 CV
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.powerMoveBtn, !cv.canUse('overdrive') && styles.powerMoveDisabled]}
+                  onPress={() => nextTrack && handleOverdrive(nextTrack.id)}
+                  disabled={!cv.canUse('overdrive') || !nextTrack}
+                >
+                  <Ionicons name="rocket-outline" size={14} color={cv.canUse('overdrive') ? colors.action.destructive : colors.text.muted} />
+                  <Text variant="labelSmall" color={cv.canUse('overdrive') ? colors.action.destructive : colors.text.muted}>
+                    Overdrive · 25 CV
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Next track peek card */}
+            {nextTrack ? (
+              <TouchableOpacity
+                style={styles.peekCard}
+                onPress={() => setQueueSheetOpen(true)}
+                onLongPress={() => handleLongPress(nextTrack)}
+                activeOpacity={0.7}
+              >
+                {(nextTrack.albumArt || nextTrack.artwork) ? (
+                  <Image
+                    source={{ uri: nextTrack.albumArt || nextTrack.artwork }}
+                    style={styles.peekArt}
+                  />
+                ) : (
+                  <View style={[styles.peekArt, styles.peekArtPlaceholder]}>
+                    <Ionicons name="musical-note" size={18} color={colors.text.muted} />
+                  </View>
+                )}
+                <View style={styles.peekText}>
+                  <Text variant="body" color={colors.text.primary} numberOfLines={1}>
+                    {nextTrack.title}
+                  </Text>
+                  <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
+                    {nextTrack.artist}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => handleLongPress(nextTrack)}>
+                  <Ionicons name="ellipsis-horizontal" size={18} color={colors.text.muted} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.peekCardEmpty}
+                onPress={() => { setQueueSheetOpen(true); setSearchInSheet(true); }}
+              >
+                <Ionicons name="add-circle-outline" size={20} color={accent} />
+                <Text variant="body" color={colors.text.muted}>
+                  Add a track to the queue
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Pull-up hint */}
+            {queue.length > 2 && (
+              <TouchableOpacity onPress={() => setQueueSheetOpen(true)} style={styles.pullUpHint}>
+                <Text variant="labelSmall" color={colors.text.muted}>
+                  Pull up for full queue
+                </Text>
+                <Ionicons name="chevron-up" size={14} color={colors.text.muted} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Spotlight: Suggestions banner (non-host) */}
+          {isSpotlight && !isHost && suggestedQueue.length > 0 && (
+            <View style={styles.pendingBanner}>
+              <Text variant="bodySmall" color={colors.text.muted} align="center">
+                {suggestedQueue.length} suggestion{suggestedQueue.length !== 1 ? 's' : ''} pending host approval
+              </Text>
+            </View>
+          )}
+        </ScrollView>
 
         {/* ─── Join/Leave Toast ─────────────────────────── */}
         <JoinLeaveToast messages={toasts} />
 
-        {/* ─── Now Playing Expanded Sheet ─────────────────── */}
-        <NowPlayingSheet
-          visible={nowPlayingOpen}
-          track={currentTrack}
-          playback={playback}
-          onClose={() => setNowPlayingOpen(false)}
-          onSkip={handleSkip}
-          onReact={handleReaction}
-          canSkip={canSkip}
-          roomName={session.name}
-        />
+        {/* ═══ QUEUE BOTTOM SHEET (§3.9) ═════════════════ */}
+        <Modal
+          visible={queueSheetOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
+        >
+          <View style={styles.sheetBackdrop}>
+            <TouchableOpacity
+              style={styles.sheetBackdropTouch}
+              onPress={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
+              activeOpacity={1}
+            />
+            <View style={styles.sheetContainer}>
+              {/* Drag handle */}
+              <View style={styles.sheetHandle} />
 
-        {/* ─── Track Context Menu (§5.1 long-press) ─────── */}
+              {/* Sheet header */}
+              <View style={styles.sheetHeader}>
+                <Text variant="labelLarge" color={colors.text.primary}>
+                  Queue
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.addTrackBtn, { borderColor: accent }]}
+                    onPress={() => setSearchInSheet(!searchInSheet)}
+                  >
+                    <Ionicons name="add" size={16} color={accent} />
+                    <Text variant="label" color={accent} style={{ fontSize: 12 }}>
+                      Add track
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}>
+                    <Ionicons name="close" size={24} color={colors.text.muted} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Search (inside sheet) */}
+              {searchInSheet && (
+                <View style={styles.sheetSearchRow}>
+                  <TextInput
+                    ref={searchInputRef}
+                    style={styles.sheetSearchInput}
+                    placeholder="Search for tracks..."
+                    placeholderTextColor={colors.text.muted}
+                    value={query}
+                    onChangeText={setQuery}
+                    autoFocus
+                    returnKeyType="search"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity onPress={handleCancelSearch}>
+                    <Text variant="label" color={colors.text.muted}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Search results */}
+              {searchInSheet && query.length > 0 ? (
+                <View style={{ flex: 1 }}>
+                  {isSearching && (
+                    <ActivityIndicator color={accent} style={{ marginVertical: spacing.sm }} />
+                  )}
+                  <FlatList
+                    data={results}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => <SearchResultItem track={item} onAdd={handleAddTrack} />}
+                    keyboardShouldPersistTaps="handled"
+                    style={{ flex: 1 }}
+                    initialNumToRender={8}
+                    maxToRenderPerBatch={5}
+                    windowSize={7}
+                  />
+                </View>
+              ) : searchInSheet && recentSearches.length > 0 ? (
+                <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
+                  <Text variant="labelSmall" color={colors.text.muted} style={{ marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Recent Searches
+                  </Text>
+                  {recentSearches.slice(0, 6).map((s) => (
+                    <TouchableOpacity
+                      key={s.query + s.timestamp}
+                      style={styles.recentItem}
+                      onPress={() => setQuery(s.query)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="time-outline" size={14} color={colors.text.muted} style={{ marginRight: 8 }} />
+                      <Text variant="body" color={colors.text.secondary} style={{ flex: 1 }} numberOfLines={1}>
+                        {s.query}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => removeRecentSearch(s.query)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="close" size={14} color={colors.text.muted} />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                /* Queue list */
+                <FlatList<QueueTrack>
+                  data={queue}
+                  keyExtractor={(item, i) => item.id + '_' + i}
+                  renderItem={({ item, index }) => (
+                    <ADSRFadeIn index={index} staggerMs={40}>
+                      <SwipeableRow
+                        onRemove={() => setQueue((prev) => prev.filter((t) => t.id !== item.id))}
+                        enabled={index > 0}
+                      >
+                        <QueueTrackCard
+                          track={item}
+                          isNowPlaying={index === 0}
+                          onVote={handleVote}
+                          userId={user?.id}
+                          roomMode={session.roomMode as RoomMode}
+                          isHost={isHost}
+                          isFavorite={isFavorite(item.sourceId || item.id)}
+                          onToggleFavorite={handleToggleFavorite}
+                          onLongPress={() => handleLongPress(item)}
+                          showDragHandle={isHost && index > 0}
+                        />
+                      </SwipeableRow>
+                    </ADSRFadeIn>
+                  )}
+                  contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xl }}
+                  ListHeaderComponent={
+                    <>
+                      {/* Spotlight: Suggestions panel (host only) */}
+                      {isSpotlight && isHost && suggestedQueue.length > 0 && (
+                        <View style={styles.suggestionsPanel}>
+                          <Text variant="label" color={colors.text.secondary} style={{ marginBottom: spacing.sm }}>
+                            Suggestions ({suggestedQueue.length})
+                          </Text>
+                          {suggestedQueue.map((track) => (
+                            <SuggestionCard
+                              key={track.id}
+                              track={track}
+                              onApprove={handleApproveTrack}
+                              onReject={handleRejectTrack}
+                            />
+                          ))}
+                        </View>
+                      )}
+                    </>
+                  }
+                  ListEmptyComponent={
+                    <View style={styles.sheetEmpty}>
+                      <Ionicons name="musical-notes" size={32} color={colors.text.muted} />
+                      <Text variant="body" color={colors.text.muted} style={{ marginTop: spacing.sm }}>
+                        Queue is empty
+                      </Text>
+                      <TouchableOpacity
+                        style={{ marginTop: spacing.sm }}
+                        onPress={() => setSearchInSheet(true)}
+                      >
+                        <Text variant="label" color={accent}>
+                          Search to add tracks
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  }
+                  ListFooterComponent={
+                    <PlayedHistory history={playedHistory} onRequeue={handleAddTrack} />
+                  }
+                />
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* ═══ OVERFLOW BOTTOM SHEET ═════════════════════ */}
+        <Modal
+          visible={overflowOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setOverflowOpen(false)}
+        >
+          <View style={styles.sheetBackdrop}>
+            <TouchableOpacity
+              style={styles.sheetBackdropTouch}
+              onPress={() => setOverflowOpen(false)}
+              activeOpacity={1}
+            />
+            <View style={[styles.sheetContainer, { maxHeight: '50%' }]}>
+              <View style={styles.sheetHandle} />
+              <View style={{ padding: spacing.md, gap: 4 }}>
+                {/* Share */}
+                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); handleShare(); }}>
+                  <Ionicons name="share-outline" size={20} color={colors.text.primary} />
+                  <Text variant="body" color={colors.text.primary}>Share Room</Text>
+                </TouchableOpacity>
+                {/* Copy Code */}
+                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); handleCopyCode(); }}>
+                  <Ionicons name="copy-outline" size={20} color={colors.text.primary} />
+                  <Text variant="body" color={colors.text.primary}>Copy Room Code</Text>
+                  {session.joinCode && (
+                    <Text variant="labelSmall" color={colors.text.muted} style={{ marginLeft: 'auto' }}>
+                      {session.joinCode}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                {/* Chat */}
+                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); setChatOpen(true); }}>
+                  <Ionicons name="chatbubble-outline" size={20} color={colors.text.primary} />
+                  <Text variant="body" color={colors.text.primary}>Chat</Text>
+                </TouchableOpacity>
+                {/* Lyrics */}
+                {currentTrack && (
+                  <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); setLyricsVisible(true); }}>
+                    <Ionicons name="musical-notes-outline" size={20} color={colors.text.primary} />
+                    <Text variant="body" color={colors.text.primary}>Lyrics</Text>
+                  </TouchableOpacity>
+                )}
+                {/* QR Code */}
+                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); setShowQR(true); }}>
+                  <Ionicons name="qr-code-outline" size={20} color={colors.text.primary} />
+                  <Text variant="body" color={colors.text.primary}>Show QR Code</Text>
+                </TouchableOpacity>
+                {/* Divider */}
+                <View style={styles.overflowDivider} />
+                {/* Leave / End */}
+                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); handleLeaveRoom(); }}>
+                  <Ionicons
+                    name={isHost ? 'close-circle-outline' : 'exit-outline'}
+                    size={20}
+                    color={colors.action.destructive}
+                  />
+                  <Text variant="body" color={colors.action.destructive}>
+                    {isHost ? 'End Session' : 'Leave Room'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ─── Track Context Menu ─────────────────────── */}
         <TrackContextMenu
           visible={contextMenuVisible}
           track={contextTrack}
@@ -1348,6 +1491,28 @@ export function SessionRoomScreen() {
           visible={chatOpen}
           onClose={() => setChatOpen(false)}
         />
+
+        {/* ─── QR Code Modal ─────────────────────────────── */}
+        <Modal
+          visible={showQR}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowQR(false)}
+        >
+          <View style={styles.qrOverlay}>
+            <View style={styles.qrModal}>
+              <Text variant="h3" color={colors.text.primary} align="center">
+                {session?.name}
+              </Text>
+              {session?.joinCode && (
+                <QRCodeDisplay joinCode={session.joinCode} />
+              )}
+              <TouchableOpacity onPress={() => setShowQR(false)} style={styles.qrClose}>
+                <Text variant="label" color={colors.text.muted}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* ─── Layer 3: Crossfader Duel (overlay) ──────── */}
         {duelState.active && duelState.trackA && duelState.trackB && (
@@ -1378,7 +1543,7 @@ export function SessionRoomScreen() {
           </View>
         )}
 
-        {/* ─── Layer 3: Resonance Event (full-screen) ──── */}
+        {/* ─── Layer 3: Resonance Event ────────────────── */}
         <ResonanceEvent
           type={resonanceState.type}
           message={resonanceState.message}
@@ -1388,14 +1553,14 @@ export function SessionRoomScreen() {
           onComplete={() => setResonanceState((prev) => ({ ...prev, active: false }))}
         />
 
-        {/* ─── Layer 4: Transient Enter (walk-on) ──────── */}
+        {/* ─── Layer 4: Transient Enter ────────────────── */}
         <TransientEnter
           username={transientUser.username}
           active={transientUser.active}
           onComplete={() => setTransientUser({ active: false, username: '' })}
         />
 
-        {/* ─── Layer 4: Reverb Tails (ghost departures) ── */}
+        {/* ─── Layer 4: Reverb Tails ────────────────────── */}
         {reverbTails.map((tail) => (
           <ReverbTail
             key={tail.userId}
@@ -1409,28 +1574,6 @@ export function SessionRoomScreen() {
         ))}
 
       </KeyboardAvoidingView>
-
-      {/* QR Code Modal */}
-      <Modal
-        visible={showQR}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowQR(false)}
-      >
-        <View style={styles.qrOverlay}>
-          <View style={styles.qrModal}>
-            <Text variant="h3" color={colors.text.primary} align="center">
-              {session?.name}
-            </Text>
-            {session?.joinCode && (
-              <QRCodeDisplay joinCode={session.joinCode} />
-            )}
-            <TouchableOpacity onPress={() => setShowQR(false)} style={styles.qrClose}>
-              <Text variant="label" color={colors.text.muted}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* ─── Master Bounce Receipt (session end) ──────── */}
       {bounceVisible && (
@@ -1451,7 +1594,7 @@ export function SessionRoomScreen() {
         />
       )}
 
-      {/* ─── Layer 6: Lyrics ───────────────────────────── */}
+      {/* ─── Lyrics Overlay ──────────────────────────── */}
       <LyricsOverlay
         track={currentTrack || undefined}
         visible={lyricsVisible}
@@ -1461,12 +1604,12 @@ export function SessionRoomScreen() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
+// ─── STYLES ─────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-  },
+  // Skeleton
   skeletonContainer: {
     flex: 1, padding: spacing.md,
   },
@@ -1475,68 +1618,135 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md, paddingBottom: spacing.sm,
     borderBottomWidth: 1, borderBottomColor: colors.border.subtle,
   },
-  skeletonNowPlaying: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: spacing.sm, marginBottom: spacing.md,
-    borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
-    borderWidth: 1, borderColor: colors.border.subtle,
-  },
 
-  // Rhythm Channel (controls header)
+  // ─── Header (§3.1) ───────────────────────────────────
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: spacing.screenPadding,
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.chrome.border,
+    gap: 8,
   },
-  headerCenter: {
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
     flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
   },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  codePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: spacing.xs,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    backgroundColor: colors.chrome.surface,
-    borderWidth: 1,
-    borderColor: colors.chrome.border,
-  },
-  codeValue: {
-    letterSpacing: 2,
-  },
-  headerAction: {
-    width: 30,
-    height: 30,
-    borderRadius: 6,
-    backgroundColor: colors.chrome.surface,
-    borderWidth: 1,
-    borderColor: colors.chrome.border,
+  overflowBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.bg.elevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  // CV Economy Bar
-  cvBar: {
+  // ─── Player Content ───────────────────────────────────
+  playerContent: {
+    alignItems: 'center',
+    paddingBottom: spacing['2xl'],
+  },
+
+  // ─── Album Art (§3.3) ─────────────────────────────────
+  albumArtContainer: {
+    width: ALBUM_ART_SIZE,
+    height: ALBUM_ART_SIZE,
+    borderRadius: spacing.radius.sm,
+    overflow: 'hidden',
+    marginTop: spacing.md,
+    backgroundColor: colors.bg.elevated,
+  },
+  albumArt: {
+    width: '100%',
+    height: '100%',
+  },
+  albumArtPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg.elevated,
+  },
+
+  // ─── Track Info (§3.4) ────────────────────────────────
+  trackInfo: {
+    width: '100%',
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    gap: 4,
+  },
+  trackTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+
+  // ─── Progress Bar (§3.5) ──────────────────────────────
+  progressContainer: {
+    width: '100%',
+    paddingHorizontal: spacing.screenPadding,
+    paddingBottom: spacing.xs,
+  },
+  progressTrack: {
+    height: 3,
+    backgroundColor: colors.border.default,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  progressLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+
+  // ─── Transport (§3.6) ─────────────────────────────────
+  transport: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 40,
+    paddingVertical: spacing.sm,
+  },
+  transportSecondary: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playPauseBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ─── Queue Peek (§3.8) ────────────────────────────────
+  queuePeekSection: {
+    width: '100%',
     paddingHorizontal: spacing.screenPadding,
-    paddingVertical: 6,
+    paddingTop: spacing.md,
+  },
+  queuePeekHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  upNextLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  cvBalanceChip: {
+  cvPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -1545,88 +1755,151 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 229, 255, 0.08)',
     borderRadius: 100,
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.15)',
   },
-  cvActionChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: colors.bg.surface,
-    borderRadius: 100,
+  cvExpansion: {
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: spacing.radius.md,
+    backgroundColor: colors.bg.elevated,
     borderWidth: 1,
     borderColor: colors.border.subtle,
+    gap: 4,
   },
-  cvActionDisabled: {
-    opacity: 0.4,
-  },
-
-  // Filter Sweep (search bar)
-  searchBarRow: {
+  powerMoveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.screenPadding,
-    paddingVertical: spacing.sm,
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  powerMoveDisabled: {
+    opacity: 0.4,
+  },
+  peekCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.sm,
+    borderRadius: spacing.radius.md,
+    backgroundColor: colors.bg.elevated,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
     gap: spacing.sm,
   },
-  searchInput: {
+  peekArt: {
+    width: 48,
+    height: 48,
+    borderRadius: 6,
+  },
+  peekArtPlaceholder: {
+    backgroundColor: colors.bg.input,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  peekText: {
+    flex: 1,
+    gap: 2,
+  },
+  peekCardEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+    borderRadius: spacing.radius.md,
+    backgroundColor: colors.bg.elevated,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderStyle: 'dashed',
+    gap: 8,
+  },
+  pullUpHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: spacing.sm,
+    gap: 4,
+  },
+
+  // ─── Pending banner ───────────────────────────────────
+  pendingBanner: {
+    width: '100%',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.screenPadding,
+    marginTop: spacing.sm,
+  },
+
+  // ─── Queue Sheet (§3.9) ───────────────────────────────
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheetBackdropTouch: {
+    flex: 1,
+  },
+  sheetContainer: {
+    maxHeight: '85%',
+    backgroundColor: colors.bg.surface,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border.default,
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  addTrackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: spacing.radius.full,
+    borderWidth: 1,
+    gap: 4,
+  },
+  sheetSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  sheetSearchInput: {
     flex: 1,
     height: 38,
-    backgroundColor: colors.bg.surface,
+    backgroundColor: colors.bg.input,
     borderRadius: 6,
     paddingHorizontal: 12,
     color: colors.text.primary,
     fontSize: 13,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: colors.border.default,
   },
-  cancelBtn: {
-    paddingVertical: spacing.xs,
-  },
-
-  // Search overlay
-  searchOverlay: {
-    flex: 1,
-    paddingHorizontal: spacing.screenPadding,
-  },
-  searchResultsList: {
-    flex: 1,
-  },
-  recentSearches: {
-    paddingTop: spacing.sm,
-  },
-  recentTitle: {
-    marginBottom: spacing.sm,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 1,
+  sheetEmpty: {
+    alignItems: 'center',
+    paddingVertical: spacing['2xl'],
   },
   recentItem: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.subtle,
   },
 
-  // Queue
-  queueHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: spacing.sm,
-  },
-  queueList: {
-    paddingHorizontal: spacing.screenPadding,
-  },
-  emptyQueue: {
-    paddingVertical: spacing['2xl'],
-    alignItems: 'center',
-  },
-
-
-
-  // Spotlight suggestions panel
+  // ─── Suggestions (Spotlight) ──────────────────────────
   suggestionsPanel: {
     marginBottom: spacing.md,
     padding: spacing.sm,
@@ -1635,31 +1908,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.chrome.border,
   },
-  suggestionsPanelHeader: {
-    marginBottom: spacing.sm,
-  },
-  pendingBanner: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
-  },
 
-  // Waveform mode indicator
-  modeIndicator: {
+  // ─── Overflow Sheet ───────────────────────────────────
+  overflowRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    marginBottom: spacing.sm,
-    borderRadius: 6,
-    backgroundColor: colors.chrome.surface,
-    borderWidth: 1,
-    borderColor: colors.chrome.border,
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 8,
+  },
+  overflowDivider: {
+    height: 1,
+    backgroundColor: colors.border.subtle,
+    marginVertical: 4,
   },
 
-  // QR Modal
+  // ─── QR Modal ─────────────────────────────────────────
   qrOverlay: {
     flex: 1,
     backgroundColor: colors.bg.overlay,
