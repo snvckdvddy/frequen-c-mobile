@@ -19,6 +19,7 @@ import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
 import { sessionApi, authApi } from '../services/api';
+import { config } from '../config';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import type { Session } from '../types';
@@ -339,7 +340,7 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
 
   const handleConnectService = (service: string) => {
     if (service === 'Spotify') {
-      if (!process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID) {
+      if (!config.SPOTIFY_CLIENT_ID) {
         Alert.alert(
           'Spotify Not Configured',
           'Set EXPO_PUBLIC_SPOTIFY_CLIENT_ID in your .env file.\n\nCreate a free Spotify Developer App at developer.spotify.com to get your Client ID.'
@@ -350,7 +351,7 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
       return;
     }
     if (service === 'Last.fm') {
-      if (!process.env.EXPO_PUBLIC_LASTFM_API_KEY) {
+      if (!config.LASTFM_API_KEY) {
         Alert.alert(
           'Last.fm Not Configured',
           'Set EXPO_PUBLIC_LASTFM_API_KEY in your .env file.\n\nGet a free API key at last.fm/api/account/create'
