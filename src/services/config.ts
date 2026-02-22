@@ -18,11 +18,7 @@ export const USE_MOCKS = false;
 const LOCAL_IP = '192.168.1.254'; // Caleb's Ethernet adapter
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// Backend base URLs — __DEV__ is set by Metro bundler
-export const API_BASE_URL = __DEV__
-  ? `http://${LOCAL_IP}:5000/api`   // Physical device → host machine over WiFi
-  : 'https://api.frequen-c.app/api';
+// Backend base URLs — Hardcoded to local IP for testing APKs
+export const API_BASE_URL = `http://${LOCAL_IP}:5000/api`;
 
-export const SOCKET_URL = __DEV__
-  ? `http://${LOCAL_IP}:5000`       // Physical device → host machine over WiFi
-  : 'https://api.frequen-c.app';
+export const SOCKET_URL = `http://${LOCAL_IP}:5000`;
