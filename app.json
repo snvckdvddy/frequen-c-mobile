@@ -42,6 +42,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0F"
       },
+      "usesCleartextTraffic": true,
       "package": "com.frequenc.app",
       "versionCode": 1,
       "edgeToEdgeEnabled": true,
@@ -74,7 +75,9 @@
           "sounds": []
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font",
+      "expo-asset"
     ],
     "extra": {
       "eas": {
