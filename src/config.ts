@@ -17,6 +17,12 @@ export const config = {
     process.env.EXPO_PUBLIC_LASTFM_API_KEY ||
     '4cdc4d6459ac72ee723a9d9792d2884c',
 
+  // ─── Tidal ────────────────────────────────────────────────
+  TIDAL_CLIENT_ID: 'zvU13xkVZYA7JNR2',
+
+  // ─── SoundCloud ───────────────────────────────────────────
+  SOUNDCLOUD_CLIENT_ID: 'A6P1OlzNLYo7LrMcTA2TaGWVzM6RHgbw',
+
   // ─── Backend ───────────────────────────────────────────────
   LOCAL_IP: process.env.EXPO_PUBLIC_LOCAL_IP || '192.168.1.254',
   API_PORT: '5000',

@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [tidalRequest, tidalResponse, promptTidalAsync] = useAuthRequest(
     {
       responseType: ResponseType.Code,
-      clientId: 'zvU13xkVZYA7JNR2',
+      clientId: config.TIDAL_CLIENT_ID,
       usePKCE: true,
       redirectUri: makeRedirectUri({ scheme: 'frequenc' }),
     },
@@ -300,7 +300,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const connectSoundcloud = useCallback(async () => {
     if (!state.user) return;
-    const clientId = 'A6P1OlzNLYo7LrMcTA2TaGWVzM6RHgbw';
+    const clientId = config.SOUNDCLOUD_CLIENT_ID;
     const redirectUri = 'http://localhost:5000/api/auth/soundcloud/callback';
     const stateParam = state.user.id;
     const authUrl = `https://api.soundcloud.com/connect?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${stateParam}`;
