@@ -86,6 +86,7 @@ import { useCV } from '../hooks/useCV';
 import { useVoltageSag } from '../hooks/useVoltageSag';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ALBUM_ART_SIZE = SCREEN_WIDTH - 48;
 
 // ─── Behavior summary helpers ────────────────────────────────
@@ -137,6 +138,7 @@ export function SessionRoomScreen() {
   const [cvExpanded, setCvExpanded] = useState(false);
   const [searchInSheet, setSearchInSheet] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const searchInSheetRef = useRef(false);
 
   useEffect(() => {
@@ -144,8 +146,14 @@ export function SessionRoomScreen() {
   }, [searchInSheet]);
 
   useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardVisible(true);
+      setKeyboardHeight(event.endCoordinates?.height || 0);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+      setKeyboardHeight(0);
+    });
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -1136,6 +1144,15 @@ export function SessionRoomScreen() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  const keyboardSafeSheetStyle =
+    Platform.OS === 'android' && searchInSheet && keyboardVisible
+      ? {
+          height: Math.max(340, SCREEN_HEIGHT - keyboardHeight - 16),
+          maxHeight: SCREEN_HEIGHT - 16,
+          marginBottom: keyboardHeight,
+        }
+      : undefined;
+
   // ═══════════════════════════════════════════════════════════
   // ─── RENDER: Player-First Layout ──────────────────────────
   // ═══════════════════════════════════════════════════════════
@@ -1402,7 +1419,7 @@ export function SessionRoomScreen() {
               <VoidSurface
                 style={[
                   styles.sheetContainer,
-                  Platform.OS === 'android' && keyboardVisible && searchInSheet && styles.sheetContainerKeyboard,
+                  keyboardSafeSheetStyle,
                 ]}
                 grain={false}
               >
@@ -2145,10 +2162,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: 'rgba(192, 223, 255, 0.12)',
-  },
-  sheetContainerKeyboard: {
-    height: '68%',
-    maxHeight: '68%',
   },
   sheetHandle: {
     width: 40,
