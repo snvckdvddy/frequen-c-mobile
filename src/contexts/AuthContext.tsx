@@ -179,24 +179,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check for existing token on mount
   useEffect(() => {
     async function bootstrap() {
-      // DEV BYPASS: Instantly log in with a mock test user so we can test the app
-      if (__DEV__) {
-        dispatch({
-          type: 'SET_USER',
-          payload: {
-            user: {
-              id: 'user_1772242953184_fidhjphqc',
-              username: 'testbot',
-              email: 'testbot@freq.local',
-              connectedServices: {},
-              createdAt: new Date().toISOString()
-            },
-            token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXJfMTc3MjI0Mjk1MzE4NF9maWRoanBocWMiLCJ1c2VybmFtZSI6InRlc3Rib3QiLCJlbWFpbCI6InRlc3Rib3RAZnJlcS5sb2NhbCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzcyMjQ0MTI1LCJleHAiOjE3NzI4NDg5MjV9.fB8CL_5Ud1Hj8eYp8cl2CjLz5oi2ZniJx_aN-FsrzaE'
-          }
-        });
-        return;
-      }
-
       try {
         const token = await getStoredToken();
         if (token) {

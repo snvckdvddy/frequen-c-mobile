@@ -4,7 +4,7 @@
  * Wraps ErrorBoundary → AuthProvider → AppNavigator.
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StyleSheet, StatusBar, View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -15,16 +15,10 @@ import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme/colors';
 import { ToastProvider } from './src/components/ui';
-import { registerForPushNotifications } from './src/services/notifications';
 import { useDesignFonts } from './src/design/loadFonts';
 
 export default function App() {
   const [fontsLoaded, fontError] = useDesignFonts();
-
-  useEffect(() => {
-    // Register for push notifications on app launch
-    registerForPushNotifications().catch(console.error);
-  }, []);
 
   // Hold on splash/loading state until custom fonts are ready
   if (!fontsLoaded && !fontError) {

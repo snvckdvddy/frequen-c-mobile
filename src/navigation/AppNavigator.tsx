@@ -11,7 +11,7 @@
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, LinkingOptions, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -77,11 +77,11 @@ const Tab = createBottomTabNavigator<TabParamList>();
  * Create Tab Button — Gemini V7 elevated center CTA
  * Rounded square (not circle), orange/red background matching Gemini screenshots.
  */
-function CreateTabButton({ onPress }: { onPress: () => void }) {
+function CreateTabButton({ onPress }: { onPress?: BottomTabBarButtonProps['onPress'] }) {
   return (
     <TouchableOpacity
       style={createBtnStyles.container}
-      onPress={onPress}
+      onPress={(event) => onPress?.(event)}
       activeOpacity={0.8}
       accessibilityRole="button"
       accessibilityLabel="Create a new session"
@@ -209,10 +209,7 @@ function TabNavigator() {
           tabBarIcon: () => null,
           tabBarButton: (props) => (
             <CreateTabButton
-              onPress={() => {
-                // Navigate to CreateSession modal via parent stack
-                // We need to access the parent navigator
-              }}
+              onPress={props.onPress || (() => {})}
             />
           ),
         }}

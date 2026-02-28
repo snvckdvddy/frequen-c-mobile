@@ -14,16 +14,8 @@ const TOKEN_KEY = 'frequenc_auth_token';
 
 export async function getStoredToken(): Promise<string | null> {
   try {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY);
-    if (!token && __DEV__) {
-      // Dev bypass token matching the one in AuthContext so API requests pass
-      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXJfMTc3MjI0Mjk1MzE4NF9maWRoanBocWMiLCJ1c2VybmFtZSI6InRlc3Rib3QiLCJlbWFpbCI6InRlc3Rib3RAZnJlcS5sb2NhbCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzcyMjQ0MTI1LCJleHAiOjE3NzI4NDg5MjV9.fB8CL_5Ud1Hj8eYp8cl2CjLz5oi2ZniJx_aN-FsrzaE';
-    }
-    return token;
+    return await SecureStore.getItemAsync(TOKEN_KEY);
   } catch {
-    if (__DEV__) {
-      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXJfMTc3MjI0Mjk1MzE4NF9maWRoanBocWMiLCJ1c2VybmFtZSI6InRlc3Rib3QiLCJlbWFpbCI6InRlc3Rib3RAZnJlcS5sb2NhbCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzcyMjQ0MTI1LCJleHAiOjE3NzI4NDg5MjV9.fB8CL_5Ud1Hj8eYp8cl2CjLz5oi2ZniJx_aN-FsrzaE';
-    }
     return null;
   }
 }

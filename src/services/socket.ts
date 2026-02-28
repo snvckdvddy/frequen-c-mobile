@@ -455,7 +455,7 @@ export function phantomPower(sessionId: string, trackId: string, userId: string)
   if (USE_MOCKS) {
     mockEmit('cv:spend', { userId, amount: 5, moveType: 'phantom_power' });
     // Simulate the boost being applied
-    mockEmit('queue-updated', []); // In real mode, server would send updated queue
+    mockEmit('queue:updated', []); // In real mode, server would send updated queue
     return;
   }
   socket?.emit('phantom-power', { sessionId, trackId, userId });
@@ -465,7 +465,7 @@ export function phantomPower(sessionId: string, trackId: string, userId: string)
 export function overdrive(sessionId: string, trackId: string, userId: string): void {
   if (USE_MOCKS) {
     mockEmit('cv:spend', { userId, amount: 25, moveType: 'overdrive' });
-    mockEmit('queue-updated', []);
+    mockEmit('queue:updated', []);
     return;
   }
   socket?.emit('overdrive', { sessionId, trackId, userId });

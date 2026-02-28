@@ -2,24 +2,26 @@
  * App Configuration
  *
  * Central place for environment-specific settings.
- * Flip USE_MOCKS to false once the backend is running.
+ * Supports either explicit base URLs or local LAN fallback.
  */
 
-// ━━━ TOGGLE THIS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// true  → fake responses, no backend needed
-// false → real API calls to the Node/Express server
-export const USE_MOCKS = false;
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const readEnv = (value: string | undefined): string | undefined => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
 
-// ━━━ SET YOUR LOCAL IP HERE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Override via EXPO_PUBLIC_LOCAL_IP env var, or edit the fallback below.
-// Run `ipconfig` on Windows and find your WiFi adapter's IPv4 Address.
-// Both your phone and computer must be on the same WiFi network.
-const LOCAL_IP = process.env.EXPO_PUBLIC_LOCAL_IP || '192.168.1.3'; // Dev fallback — update to your LAN IP if connection fails
-const API_PORT = process.env.EXPO_PUBLIC_API_PORT || '5000';
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const API_BASE_OVERRIDE = readEnv(process.env.EXPO_PUBLIC_API_BASE_URL);
+const SOCKET_BASE_OVERRIDE = readEnv(process.env.EXPO_PUBLIC_SOCKET_URL);
+
+const LOCAL_IP = readEnv(process.env.EXPO_PUBLIC_LOCAL_IP) || '192.168.1.3';
+const API_PORT = readEnv(process.env.EXPO_PUBLIC_API_PORT) || '5000';
+const LOCAL_SOCKET_URL = `http://${LOCAL_IP}:${API_PORT}`;
+const LOCAL_API_URL = `${LOCAL_SOCKET_URL}/api`;
+
+// true  -> fake responses, no backend needed
+// false -> real API calls to the configured backend
+export const USE_MOCKS = (process.env.EXPO_PUBLIC_USE_MOCKS || 'false') === 'true';
 
 // Backend base URLs
-export const API_BASE_URL = `https://freq-backend-tunnel.loca.lt/api`;
-
-export const SOCKET_URL = `https://freq-backend-tunnel.loca.lt`;
+export const API_BASE_URL = API_BASE_OVERRIDE || LOCAL_API_URL;
+export const SOCKET_URL = SOCKET_BASE_OVERRIDE || LOCAL_SOCKET_URL;

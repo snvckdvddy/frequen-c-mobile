@@ -30,6 +30,9 @@ export const fontFamily = {
 
 // Map for expo-font require() calls
 export const fontAssets = {
+  // Temporary aliases until regular/medium font files are added.
+  'ChakraPetch-Regular': require('../fonts/ChakraPetch-SemiBold.ttf'),
+  'ChakraPetch-Medium': require('../fonts/ChakraPetch-SemiBold.ttf'),
   'ChakraPetch-SemiBold': require('../fonts/ChakraPetch-SemiBold.ttf'),
   'ChakraPetch-Bold': require('../fonts/ChakraPetch-Bold.ttf'),
   'SpaceMono-Regular': require('../fonts/SpaceMono-Regular.ttf'),
