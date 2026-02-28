@@ -16,6 +16,7 @@ import { makeRedirectUri, useAuthRequest, ResponseType } from 'expo-auth-session
 import { registerForPushNotifications } from '../services/notifications';
 
 WebBrowser.maybeCompleteAuthSession();
+const BYPASS_AUTH = (process.env.EXPO_PUBLIC_BYPASS_AUTH || 'false') === 'true';
 
 // Spotify Discovery
 const discovery = {
@@ -179,6 +180,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check for existing token on mount
   useEffect(() => {
     async function bootstrap() {
+      if (BYPASS_AUTH) {
+        const bypassUser: User = {
+          id: 'user_bypass_local',
+          username: 'testbot',
+          email: 'testbot@freq.local',
+          connectedServices: {},
+          createdAt: new Date().toISOString(),
+        };
+        const bypassToken = 'bypass-testing-token';
+        await storeToken(bypassToken);
+        dispatch({ type: 'SET_USER', payload: { user: bypassUser, token: bypassToken } });
+        return;
+      }
+
       try {
         const token = await getStoredToken();
         if (token) {

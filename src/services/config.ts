@@ -17,10 +17,12 @@ const LOCAL_IP = readEnv(process.env.EXPO_PUBLIC_LOCAL_IP) || '192.168.1.3';
 const API_PORT = readEnv(process.env.EXPO_PUBLIC_API_PORT) || '5000';
 const LOCAL_SOCKET_URL = `http://${LOCAL_IP}:${API_PORT}`;
 const LOCAL_API_URL = `${LOCAL_SOCKET_URL}/api`;
+const BYPASS_AUTH = (process.env.EXPO_PUBLIC_BYPASS_AUTH || 'false') === 'true';
 
 // true  -> fake responses, no backend needed
 // false -> real API calls to the configured backend
-export const USE_MOCKS = (process.env.EXPO_PUBLIC_USE_MOCKS || 'false') === 'true';
+export const USE_MOCKS =
+  (process.env.EXPO_PUBLIC_USE_MOCKS || 'false') === 'true' || BYPASS_AUTH;
 
 // Backend base URLs
 export const API_BASE_URL = API_BASE_OVERRIDE || LOCAL_API_URL;
