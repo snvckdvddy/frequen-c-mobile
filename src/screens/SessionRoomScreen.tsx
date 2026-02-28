@@ -14,7 +14,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  TextInput, Alert, Share, Keyboard, Modal,
+  TextInput, Alert, Share, Keyboard, Modal, Platform,
   ScrollView, Dimensions, Image, Animated, PanResponder,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -136,11 +136,21 @@ export function SessionRoomScreen() {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [cvExpanded, setCvExpanded] = useState(false);
   const [searchInSheet, setSearchInSheet] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const searchInSheetRef = useRef(false);
 
   useEffect(() => {
     searchInSheetRef.current = searchInSheet;
   }, [searchInSheet]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // ─── App state recovery (background → foreground) ──
   useAppState({
@@ -1380,6 +1390,7 @@ export function SessionRoomScreen() {
             visible={queueSheetOpen}
             animationType="slide"
             transparent
+            statusBarTranslucent
             onRequestClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
           >
             <View style={styles.sheetBackdrop}>
@@ -1388,7 +1399,13 @@ export function SessionRoomScreen() {
                 onPress={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
                 activeOpacity={1}
               />
-              <VoidSurface style={styles.sheetContainer} grain={false}>
+              <VoidSurface
+                style={[
+                  styles.sheetContainer,
+                  Platform.OS === 'android' && keyboardVisible && searchInSheet && styles.sheetContainerKeyboard,
+                ]}
+                grain={false}
+              >
                 {/* Drag handle and Header wrapper with PanResponder */}
                 <View {...sheetPanResponder.panHandlers}>
                   <View style={styles.sheetHandle} />
@@ -1450,6 +1467,13 @@ export function SessionRoomScreen() {
                       initialNumToRender={8}
                       maxToRenderPerBatch={5}
                       windowSize={7}
+                      ListEmptyComponent={
+                        !isSearching ? (
+                          <View style={styles.sheetEmpty}>
+                            <Text variant="body" color={palette.slate}>No tracks found</Text>
+                          </View>
+                        ) : null
+                      }
                     />
                   </View>
                 ) : searchInSheet && recentSearches.length > 0 ? (
@@ -2113,12 +2137,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheetContainer: {
-    height: Dimensions.get('window').height * 0.92,
+    height: '92%',
+    maxHeight: '92%',
+    minHeight: 360,
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
     overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: 'rgba(192, 223, 255, 0.12)',
+  },
+  sheetContainerKeyboard: {
+    height: '68%',
+    maxHeight: '68%',
   },
   sheetHandle: {
     width: 40,
