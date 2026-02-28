@@ -14,7 +14,7 @@ import React from 'react';
 import { View, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 
 interface TrackListItemProps {
@@ -74,7 +74,7 @@ export function TrackListItem({
       {/* Drag handle (curator only) */}
       {showDragHandle && (
         <View style={styles.dragHandle} accessibilityLabel="Drag to reorder" accessibilityRole="adjustable">
-          <Ionicons name="menu" size={16} color={colors.text.muted} />
+          <Ionicons name="menu" size={16} color={palette.slate} />
         </View>
       )}
 
@@ -83,7 +83,7 @@ export function TrackListItem({
         <Image source={{ uri: albumArt }} style={styles.art} />
       ) : (
         <View style={[styles.art, styles.artPlaceholder]}>
-          <Ionicons name="musical-note" size={20} color={colors.text.muted} />
+          <Ionicons name="musical-note" size={20} color={palette.slate} />
         </View>
       )}
 
@@ -91,16 +91,16 @@ export function TrackListItem({
       <View style={styles.info}>
         <Text
           variant="body"
-          color={isNowPlaying ? colors.action.primary : colors.text.primary}
+          color={isNowPlaying ? palette.orange : palette.frost}
           numberOfLines={1}
         >
           {title}
         </Text>
-        <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
+        <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
           {artist}{duration ? ` · ${formatDuration(duration)}` : ''}
         </Text>
         {addedBy && (
-          <Text variant="labelSmall" color={colors.text.muted} numberOfLines={1}
+          <Text variant="labelSmall" color={palette.slate} numberOfLines={1}
                 style={{ textTransform: 'none', letterSpacing: 0 }}>
             Added by @{addedBy}
           </Text>
@@ -118,7 +118,7 @@ export function TrackListItem({
           accessibilityRole="button"
           accessibilityLabel={`More options for ${title}`}
         >
-          <Ionicons name="ellipsis-horizontal" size={20} color={colors.text.secondary} />
+          <Ionicons name="ellipsis-horizontal" size={20} color={palette.silver} />
         </TouchableOpacity>
       ) : null}
     </TouchableOpacity>
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   nowPlaying: {
-    backgroundColor: colors.raw.iceGlow,
+    backgroundColor: 'rgba(100, 255, 218, 0.1)',
   },
   dragHandle: {
     width: 24,
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 6,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
   },
   artPlaceholder: {
     alignItems: 'center',

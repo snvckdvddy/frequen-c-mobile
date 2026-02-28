@@ -1,28 +1,41 @@
 /**
- * Profile Screen — Rack Panel Identity
+ * Profile Screen — Hardware Settings Panel (Gemini V7)
  *
- * Your signal identity within Frequen-C.
- * Rack-mount layout: header strip → voltage meter → stat modules →
- * service jacks → preferences → disconnect
- *
- * Zero emoji. Chrome borders. Monochrome stats.
+ * Structure (slide-over modal):
+ *   [person icon]                    [×]  ← Avatar + close button
+ *   Caleb R.                              ← Username
+ *   ─────────────────────────────────────
+ *   ⓘ READ THE MANUAL          [toggle]  ← Tooltips toggle
+ *     Toggle tooltips to understand...
+ *   ─────────────────────────────────────
+ *   🔊 MONITOR OUT              (jack)   ← Anonymous lurk mode
+ *     Patch in Dummy Cable to lurk...
+ *   ─────────────────────────────────────
+ *   ⚡ SOCIAL BATTERY                     ← Slider: LOW → UNITY → HOT
+ *   ─────────────────────────────────────
+ *   🔇 NOISE GATE                        ← Slider: OPEN → GATE → PANIC
+ *   ─────────────────────────────────────
+ *   ▶ WALK-ON TRANSIENT                   ← Dropdown: sound selection
+ *   ─────────────────────────────────────
+ *   PATCH CABLES (service connections)
+ *   DISCONNECT / DELETE ACCOUNT
  */
 
-import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, RefreshControl, Image, Linking,
+  Alert, RefreshControl, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, Button, SafeScreen, VoltageMeter, EmptyState, ErrorState, RoomCardSkeleton } from '../components/ui';
+import { useNavigation } from '@react-navigation/native';
+import { Text, Button, SafeScreen } from '../components/ui';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { useAuth } from '../contexts/AuthContext';
-import { useFavoritesContext } from '../contexts/FavoritesContext';
-import { sessionApi, authApi } from '../services/api';
+import { authApi } from '../services/api';
 import { config } from '../config';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
-import type { Session } from '../types';
+import { VoidSurface } from '../design/components';
+import { palette } from '../design/tokens/materials';
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -34,68 +47,20 @@ function formatListenTime(minutes: number | undefined): string {
   return `${h}h ${m}m`;
 }
 
-// ─── Rack Module (Stat Card) ─────────────────────────────────
+// ─── Hardware Setting Card ──────────────────────────────────
 
-function RackModule({ label, value }: { label: string; value: string | number }) {
-  return (
-    <View style={rackStyles.module}>
-      <Text variant="h2" color={colors.text.primary}>
-        {value}
-      </Text>
-      <Text variant="labelSmall" color={colors.chrome.text} style={rackStyles.label}>
-        {label}
-      </Text>
-    </View>
-  );
+function HardwareCard({ children }: { children: React.ReactNode }) {
+  return <View style={hwStyles.card}>{children}</View>;
 }
 
-const rackStyles = StyleSheet.create({
-  module: {
-    flex: 1,
-    backgroundColor: colors.bg.elevated,
-    borderRadius: 8,
-    padding: 14,
+const hwStyles = StyleSheet.create({
+  card: {
+    backgroundColor: palette.midnight,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
-    alignItems: 'center',
-  },
-  label: {
-    marginTop: 4,
-    fontSize: 8,
-    letterSpacing: 1.5,
-  },
-});
-
-// ─── Section Strip ──────────────────────────────────────────
-
-function SectionStrip({ label }: { label: string }) {
-  return (
-    <View style={stripStyles.container}>
-      <View style={stripStyles.line} />
-      <Text variant="labelSmall" color={colors.chrome.text} style={stripStyles.text}>
-        {label}
-      </Text>
-      <View style={stripStyles.line} />
-    </View>
-  );
-}
-
-const stripStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.xl,
-    marginBottom: spacing.md,
-    gap: 10,
-  },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.chrome.border,
-  },
-  text: {
-    fontSize: 9,
-    letterSpacing: 2,
+    borderColor: palette.chromeBorder,
+    padding: 18,
+    marginBottom: 12,
   },
 });
 
@@ -104,48 +69,41 @@ const stripStyles = StyleSheet.create({
 function ServiceJack({
   name, connected, username, serviceKey, onConnect,
 }: {
-  name: string;
-  connected: boolean;
-  username?: string;
-  serviceKey: string;
-  onConnect: () => void;
+  name: string; connected: boolean; username?: string;
+  serviceKey: string; onConnect: () => void;
 }) {
   return (
-    <View style={jackStyles.row}>
-      <View style={jackStyles.left}>
-        <View style={[jackStyles.jack, connected && jackStyles.jackActive]}>
-          <ServiceIcon service={serviceKey} size={20} connected={connected} />
+    <View style={sjStyles.row}>
+      <View style={sjStyles.left}>
+        <View style={[sjStyles.jack, connected && sjStyles.jackActive]}>
+          <ServiceIcon service={serviceKey} size={18} connected={connected} />
         </View>
         <View>
-          <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>
-            {name}
-          </Text>
-          <Text variant="labelSmall" color={connected ? colors.text.secondary : colors.text.muted} style={{ fontSize: 10 }}>
+          <Text style={sjStyles.name}>{name}</Text>
+          <Text style={sjStyles.status}>
             {connected ? (username ? `@${username}` : 'Patched') : 'Unpatched'}
           </Text>
         </View>
       </View>
       {!connected ? (
-        <TouchableOpacity onPress={onConnect} style={jackStyles.connectBtn} accessibilityRole="button" accessibilityLabel={`Connect ${name}`}>
-          <Text variant="labelSmall" color={colors.action.primary} style={{ fontSize: 9, letterSpacing: 1 }}>
-            PATCH
-          </Text>
+        <TouchableOpacity onPress={onConnect} style={sjStyles.patchBtn}>
+          <Text style={sjStyles.patchBtnText}>PATCH</Text>
         </TouchableOpacity>
       ) : (
-        <View style={jackStyles.activeDot} />
+        <View style={sjStyles.activeDot} />
       )}
     </View>
   );
 }
 
-const jackStyles = StyleSheet.create({
+const sjStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.chrome.border,
+    borderBottomColor: palette.chromeBorder,
   },
   left: {
     flexDirection: 'row',
@@ -156,71 +114,46 @@ const jackStyles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.chrome.surface,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
   jackActive: {
-    borderColor: colors.action.primary,
-    backgroundColor: colors.highlight.iceFaint,
+    borderColor: palette.ice,
+    backgroundColor: 'rgba(0, 229, 255, 0.06)',
   },
-  connectBtn: {
+  name: {
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 13,
+    color: palette.frost,
+  },
+  status: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 9,
+    color: palette.slate,
+    letterSpacing: 1,
+  },
+  patchBtn: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingVertical: 5,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
-    backgroundColor: colors.chrome.surface,
+    borderColor: palette.chromeBorder,
+    backgroundColor: palette.steel,
+  },
+  patchBtnText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 9,
+    color: palette.orange,
+    letterSpacing: 1,
   },
   activeDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.action.primary,
-  },
-});
-
-// ─── Recent Session Card ────────────────────────────────────
-
-function SessionHistoryCard({ session, onPress }: { session: Session; onPress: () => void }) {
-  const listenerCount = session.listeners?.length || 0;
-  return (
-    <TouchableOpacity style={histStyles.card} onPress={onPress} activeOpacity={0.7}>
-      <View style={histStyles.header}>
-        <Text variant="label" color={colors.text.primary} numberOfLines={1} style={{ flex: 1, fontSize: 12 }}>
-          {session.name}
-        </Text>
-        {session.isLive && <View style={histStyles.liveDot} />}
-      </View>
-      <Text variant="labelSmall" color={colors.text.muted} style={{ fontSize: 10 }}>
-        {listenerCount} connected · {session.genre || 'Mixed'}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-const histStyles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.bg.elevated,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.chrome.border,
-    padding: 12,
-    marginBottom: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 2,
-  },
-  liveDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.ice,
   },
 });
 
@@ -231,52 +164,48 @@ interface ProfileScreenProps {
 }
 
 export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
+  const navigation = useNavigation<any>();
   const { user, logout, deleteAccount, connectSpotify, connectLastfm } = useAuth();
-  const { favorites, removeFavorite } = useFavoritesContext();
-  const [recentRooms, setRecentRooms] = useState<Session[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [noiseGate, setNoiseGate] = useState<'off' | 'low' | 'medium' | 'high'>(
-    user?.noiseGate || 'medium'
+  const [readManual, setReadManual] = useState(false);
+  const [monitorOut, setMonitorOut] = useState(false);
+  // Hydrate from server preferences (user.preferences comes from /auth/me)
+  const prefs = (user as any)?.preferences;
+  const [socialBattery, setSocialBattery] = useState<'low' | 'unity' | 'hot'>(
+    prefs?.socialBattery || 'unity'
   );
-
-  const fetchRecentRooms = useCallback(async () => {
-    try {
-      setError(null);
-      const { sessions } = await sessionApi.myRooms();
-      setRecentRooms(sessions);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load recent rooms';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchRecentRooms();
-  }, [fetchRecentRooms]);
+  const noiseGateMap: Record<string, 'open' | 'gate' | 'panic'> = { off: 'open', medium: 'gate', high: 'panic' };
+  const [noiseGate, setNoiseGate] = useState<'open' | 'gate' | 'panic'>(
+    noiseGateMap[prefs?.noiseGate || user?.noiseGate || 'medium'] || 'gate'
+  );
+  const [walkOnTransient, setWalkOnTransient] = useState(
+    prefs?.walkOnTransient === 'none' ? 'None'
+      : prefs?.walkOnTransient ? prefs.walkOnTransient
+      : '808 Kick'
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchRecentRooms();
-    setRefreshing(false);
-  }, [fetchRecentRooms]);
-
-  const stats = useMemo(() => ({
-    sessionsHosted: user?.sessionsHosted || 0,
-    tracksAdded: user?.tracksAdded || 0,
-    totalListeningTime: formatListenTime(user?.totalListeningTime),
-    voltageBalance: user?.voltageBalance || 0,
-  }), [user]);
+    try {
+      const { user: freshUser } = await authApi.me();
+      // Re-hydrate local state from server preferences
+      const p = (freshUser as any)?.preferences;
+      if (p) {
+        const ngMap: Record<string, 'open' | 'gate' | 'panic'> = { off: 'open', medium: 'gate', high: 'panic' };
+        if (p.noiseGate) setNoiseGate(ngMap[p.noiseGate] || 'gate');
+        if (p.socialBattery) setSocialBattery(p.socialBattery);
+        if (p.walkOnTransient) setWalkOnTransient(p.walkOnTransient === 'none' ? 'None' : p.walkOnTransient);
+      }
+    } catch { /* swallow */ } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   // Deterministic avatar hue from username
   const avatarHue = useMemo(() => {
     const name = user?.username || '?';
     return name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
   }, [user?.username]);
-  const avatarBg = `hsl(${avatarHue}, 15%, 18%)`;
 
   const handleLogout = useCallback(() => {
     Alert.alert(
@@ -299,7 +228,6 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
           text: 'Delete Forever',
           style: 'destructive',
           onPress: () => {
-            // Double confirm — this is irreversible
             Alert.alert(
               'Are you sure?',
               'All sessions, favorites, and listening history will be permanently deleted.',
@@ -313,30 +241,6 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
       ]
     );
   }, [deleteAccount]);
-
-  const noiseGateLabels: Record<string, string> = {
-    off: 'OFF', low: 'LOW', medium: 'MEDIUM', high: 'HIGH',
-  };
-
-  const handleNoiseGateChange = useCallback(() => {
-    const levels: Array<'off' | 'low' | 'medium' | 'high'> = ['off', 'low', 'medium', 'high'];
-    const labels = ['Off — No notifications', 'Low — Critical only', 'Medium — Default', 'High — Everything', 'Cancel'];
-
-    Alert.alert(
-      'Noise Gate',
-      'Set your notification threshold',
-      [
-        ...levels.map((level, i) => ({
-          text: labels[i],
-          onPress: () => {
-            setNoiseGate(level);
-            authApi.setNoiseGate(level).catch(console.error);
-          },
-        })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ]
-    );
-  }, []);
 
   const handleConnectService = (service: string) => {
     if (service === 'Spotify') {
@@ -364,249 +268,272 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
     Alert.alert('Coming Soon', `${service} patch cable is coming in a future update.`);
   };
 
-  // Show loading state with skeletons
-  if (isLoading) {
-    return (
-      <SafeScreen>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.action.primary} />
-          }
-        >
-          <SectionStrip label="RECENT SIGNALS" />
-          <RoomCardSkeleton />
-          <RoomCardSkeleton />
-          <RoomCardSkeleton />
-        </ScrollView>
-      </SafeScreen>
-    );
-  }
+  const cycleSocialBattery = () => {
+    const levels: Array<'low' | 'unity' | 'hot'> = ['low', 'unity', 'hot'];
+    const idx = levels.indexOf(socialBattery);
+    const next = levels[(idx + 1) % levels.length];
+    setSocialBattery(next);
+    authApi.setPreferences({ socialBattery: next }).catch(console.error);
+  };
 
-  // Show error state with retry
-  if (error) {
-    return (
-      <SafeScreen>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.action.primary} />
-          }
-        >
-          <ErrorState message={error} onRetry={fetchRecentRooms} />
-        </ScrollView>
-      </SafeScreen>
-    );
-  }
+  const cycleNoiseGate = () => {
+    const levels: Array<'open' | 'gate' | 'panic'> = ['open', 'gate', 'panic'];
+    const idx = levels.indexOf(noiseGate);
+    const next = levels[(idx + 1) % levels.length];
+    setNoiseGate(next);
+    // Map to API values
+    const apiMap = { open: 'off' as const, gate: 'medium' as const, panic: 'high' as const };
+    authApi.setNoiseGate(apiMap[next]).catch(console.error);
+  };
+
+  const cycleWalkOn = () => {
+    const sounds = ['808 Kick', 'Vinyl Crackle', 'Synth Stab', 'Door Chime', 'None'];
+    const idx = sounds.indexOf(walkOnTransient);
+    const next = sounds[(idx + 1) % sounds.length];
+    setWalkOnTransient(next);
+    authApi.setPreferences({ walkOnTransient: next === 'None' ? 'none' : next }).catch(console.error);
+  };
 
   return (
     <SafeScreen>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.action.primary} />
-        }
-      >
-        {/* ─── Identity Header ─────────────────────────── */}
-        <View style={styles.identityHeader}>
-          <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
-            <Text variant="displayLarge" color={colors.text.primary} style={{ fontWeight: '200' }}>
-              {(user?.username || '?').charAt(0).toUpperCase()}
-            </Text>
+      <VoidSurface style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.orange} />
+          }
+        >
+          {/* ═══ Header — Avatar + Close ═══════════════════ */}
+          <View style={styles.headerRow}>
+            <View style={styles.avatarCircle}>
+              <Ionicons name="person-outline" size={28} color={palette.silver} />
+            </View>
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={20} color={palette.silver} />
+            </TouchableOpacity>
           </View>
-          <View style={styles.identityInfo}>
-            <Text variant="h2" color={colors.text.primary}>
-              {user?.username || 'Anonymous'}
-            </Text>
-            <Text variant="bodySmall" color={colors.text.muted} style={{ fontSize: 11 }}>
-              {user?.email || ''}
-            </Text>
-            {user?.connectedServices?.spotify?.connected && (
-              <Text variant="labelSmall" color={colors.chrome.text} style={{ marginTop: 2, fontSize: 9, letterSpacing: 1 }}>
-                SPOTIFY: @{user.connectedServices.spotify.username || 'connected'}
-              </Text>
-            )}
-          </View>
-        </View>
 
-        {/* ─── Voltage Meter ──────────────────────────── */}
-        <View style={styles.voltageSection}>
-          <VoltageMeter balance={stats.voltageBalance} max={200} variant="full" />
-        </View>
-
-        {/* ─── Rack Modules (Stats) ──────────────────── */}
-        <SectionStrip label="SIGNAL STATS" />
-        <View style={styles.statsRow}>
-          <RackModule label="SESSIONS" value={stats.sessionsHosted} />
-          <RackModule label="TRACKS" value={stats.tracksAdded} />
-          <RackModule label="LISTEN TIME" value={stats.totalListeningTime} />
-        </View>
-
-        {/* ─── Saved Tracks ──────────────────────────── */}
-        {favorites.length > 0 && (
-          <>
-            <SectionStrip label={`LIKED TRACKS (${favorites.length})`} />
-            {favorites.slice(0, 8).map(({ track }) => (
-              <View key={track.id} style={styles.favoriteRow}>
-                {track.albumArt ? (
-                  <Image source={{ uri: track.albumArt }} style={styles.favoriteArt} />
-                ) : (
-                  <View style={[styles.favoriteArt, { alignItems: 'center', justifyContent: 'center' }]}>
-                    <Text variant="labelSmall" color={colors.text.muted}>
-                      {track.artist.charAt(0)}
-                    </Text>
-                  </View>
-                )}
-                <View style={{ flex: 1, marginRight: spacing.sm }}>
-                  <Text variant="label" color={colors.text.primary} numberOfLines={1} style={{ fontSize: 12 }}>
-                    {track.title}
-                  </Text>
-                  <Text variant="labelSmall" color={colors.text.muted} numberOfLines={1} style={{ fontSize: 10 }}>
-                    {track.artist}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => {
-                    Alert.alert('Remove?', `Remove "${track.title}" from saved?`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Remove', style: 'destructive', onPress: () => removeFavorite(track.id) },
-                    ]);
-                  }}
-                >
-                  <Ionicons name="close" size={14} color={colors.text.muted} />
-                </TouchableOpacity>
-              </View>
-            ))}
-            {favorites.length > 8 && (
-              <Text variant="labelSmall" color={colors.text.muted} style={{ marginTop: 4, fontSize: 9 }}>
-                +{favorites.length - 8} more
-              </Text>
-            )}
-          </>
-        )}
-
-        {/* ─── Recent Sessions ───────────────────────── */}
-        <SectionStrip label="RECENT SIGNALS" />
-        {recentRooms.length > 0 ? (
-          <>
-            {recentRooms.map((room) => (
-              <SessionHistoryCard
-                key={room.id}
-                session={room}
-                onPress={() => onOpenRoom?.(room.id)}
-              />
-            ))}
-          </>
-        ) : (
-          <EmptyState
-            icon="radio-outline"
-            title="No recent rooms"
-            subtitle="Join or create a session to get started"
-          />
-        )}
-
-        {/* ─── Service Jacks ─────────────────────────── */}
-        <SectionStrip label="PATCH CABLES" />
-        <View style={styles.servicesPanel}>
-          <ServiceJack
-            name="Spotify"
-            connected={!!user?.connectedServices?.spotify?.connected}
-            username={user?.connectedServices?.spotify?.username}
-            serviceKey="spotify"
-            onConnect={() => handleConnectService('Spotify')}
-          />
-          <ServiceJack
-            name="Apple Music"
-            connected={!!user?.connectedServices?.appleMusic?.connected}
-            serviceKey="apple-music"
-            onConnect={() => handleConnectService('Apple Music')}
-          />
-          <ServiceJack
-            name="SoundCloud"
-            connected={!!user?.connectedServices?.soundcloud?.connected}
-            username={user?.connectedServices?.soundcloud?.username}
-            serviceKey="soundcloud"
-            onConnect={() => handleConnectService('SoundCloud')}
-          />
-          <ServiceJack
-            name="YouTube Music"
-            connected={!!user?.connectedServices?.youtube?.connected}
-            serviceKey="youtube-music"
-            onConnect={() => handleConnectService('YouTube Music')}
-          />
-          <ServiceJack
-            name="Tidal"
-            connected={!!user?.connectedServices?.tidal?.connected}
-            serviceKey="tidal"
-            onConnect={() => handleConnectService('Tidal')}
-          />
-          <ServiceJack
-            name="Last.fm"
-            connected={!!user?.connectedServices?.lastfm?.connected}
-            username={user?.connectedServices?.lastfm?.username}
-            serviceKey="lastfm"
-            onConnect={() => handleConnectService('Last.fm')}
-          />
-        </View>
-
-        {/* ─── Preferences ────────────────────────────── */}
-        <SectionStrip label="CONFIGURATION" />
-        <View style={styles.prefsPanel}>
-          <TouchableOpacity style={styles.prefRow} onPress={handleNoiseGateChange}>
-            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Noise Gate</Text>
-            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>
-              {noiseGateLabels[noiseGate] || 'MEDIUM'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.prefRow}>
-            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Default Waveform</Text>
-            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>SINE</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.prefRow}
-            onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() =>
-              Alert.alert('Error', 'Could not open Privacy Policy')
-            )}
-          >
-            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Privacy Policy</Text>
-            <Ionicons name="open-outline" size={12} color={colors.chrome.text} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.prefRow}
-            onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() =>
-              Alert.alert('Error', 'Could not open Terms of Service')
-            )}
-          >
-            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>Terms of Service</Text>
-            <Ionicons name="open-outline" size={12} color={colors.chrome.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.prefRow, { borderBottomWidth: 0 }]}>
-            <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>About</Text>
-            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1 }}>v1.0.0-alpha</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ─── Disconnect ─────────────────────────────── */}
-        <Button
-          title="Disconnect"
-          onPress={handleLogout}
-          variant="ghost"
-          size="md"
-          style={styles.disconnectBtn}
-        />
-
-        {/* ─── Delete Account ────────────────────────── */}
-        <TouchableOpacity onPress={handleDeleteAccount} style={styles.deleteAccountBtn}>
-          <Text variant="labelSmall" color="#FF4444" align="center" style={{ fontSize: 11, letterSpacing: 1 }}>
-            DELETE ACCOUNT
+          <Text style={styles.username}>
+            {user?.username
+              ? `${user.username.charAt(0).toUpperCase()}${user.username.slice(1)}.`
+              : 'Anonymous'}
           </Text>
-        </TouchableOpacity>
+          {user?.email && (
+            <Text style={styles.email}>{user.email}</Text>
+          )}
 
-        {/* Build tag */}
-        <Text variant="labelSmall" color={colors.text.muted} align="center" style={styles.buildTag}>
-          FREQUEN-C · DESN 374-040
-        </Text>
-      </ScrollView>
+          {/* ═══ READ THE MANUAL ══════════════════════════ */}
+          <HardwareCard>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="information-circle-outline" size={16} color={palette.ice} />
+                <Text style={styles.settingLabel}>READ THE MANUAL</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.toggle, readManual && styles.toggleActive]}
+                onPress={() => setReadManual(!readManual)}
+              >
+                <View style={[styles.toggleKnob, readManual && styles.toggleKnobActive]} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.settingDesc}>
+              Toggle tooltips to understand hardware features.
+            </Text>
+          </HardwareCard>
+
+          {/* ═══ MONITOR OUT ══════════════════════════════ */}
+          <HardwareCard>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="headset-outline" size={16} color={palette.silver} />
+                <Text style={styles.settingLabel}>MONITOR OUT</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.monitorJack}
+                onPress={() => setMonitorOut(!monitorOut)}
+              >
+                <View style={[
+                  styles.monitorJackHole,
+                  monitorOut && { borderColor: palette.ice, backgroundColor: 'rgba(0, 229, 255, 0.10)' },
+                ]} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.settingDesc}>
+              Patch in Dummy Cable to lurk anonymously.
+            </Text>
+          </HardwareCard>
+
+          {/* ═══ SOCIAL BATTERY ════════════════════════════ */}
+          <HardwareCard>
+            <View style={styles.settingLeft}>
+              <Ionicons name="flash-outline" size={16} color={palette.orange} />
+              <Text style={styles.settingLabel}>SOCIAL BATTERY</Text>
+            </View>
+            <TouchableOpacity onPress={cycleSocialBattery} activeOpacity={0.7}>
+              <View style={styles.sliderTrack}>
+                <View style={[
+                  styles.sliderFill,
+                  {
+                    width: socialBattery === 'low' ? '15%' : socialBattery === 'unity' ? '50%' : '85%',
+                  },
+                ]} />
+                <View style={[
+                  styles.sliderThumb,
+                  {
+                    left: socialBattery === 'low' ? '15%' : socialBattery === 'unity' ? '50%' : '85%',
+                  },
+                ]} />
+              </View>
+              <View style={styles.sliderLabels}>
+                <Text style={[styles.sliderLabel, socialBattery === 'low' && styles.sliderLabelActive]}>
+                  LOW
+                </Text>
+                <Text style={[styles.sliderLabel, styles.sliderLabelCenter, socialBattery === 'unity' && styles.sliderLabelActive]}>
+                  UNITY
+                </Text>
+                <Text style={[styles.sliderLabel, socialBattery === 'hot' && styles.sliderLabelActive]}>
+                  HOT
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </HardwareCard>
+
+          {/* ═══ NOISE GATE ═══════════════════════════════ */}
+          <HardwareCard>
+            <View style={styles.settingLeft}>
+              <Ionicons name="volume-mute-outline" size={16} color={palette.silver} />
+              <Text style={styles.settingLabel}>NOISE GATE</Text>
+            </View>
+            <TouchableOpacity onPress={cycleNoiseGate} activeOpacity={0.7}>
+              <View style={styles.sliderTrack}>
+                <View style={[
+                  styles.sliderFill,
+                  {
+                    width: noiseGate === 'open' ? '15%' : noiseGate === 'gate' ? '50%' : '85%',
+                  },
+                ]} />
+                <View style={[
+                  styles.sliderThumb,
+                  {
+                    left: noiseGate === 'open' ? '15%' : noiseGate === 'gate' ? '50%' : '85%',
+                  },
+                ]} />
+              </View>
+              <View style={styles.sliderLabels}>
+                <Text style={[styles.sliderLabel, noiseGate === 'open' && styles.sliderLabelActive]}>
+                  OPEN
+                </Text>
+                <Text style={[styles.sliderLabel, styles.sliderLabelCenter, noiseGate === 'gate' && styles.sliderLabelActive]}>
+                  GATE
+                </Text>
+                <Text style={[styles.sliderLabel, noiseGate === 'panic' && styles.sliderLabelActive]}>
+                  PANIC
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </HardwareCard>
+
+          {/* ═══ WALK-ON TRANSIENT ════════════════════════ */}
+          <HardwareCard>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="play-outline" size={16} color={palette.silver} />
+                <Text style={styles.settingLabel}>WALK-ON TRANSIENT</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.dropdown} onPress={cycleWalkOn} activeOpacity={0.7}>
+              <Text style={styles.dropdownText}>{walkOnTransient}</Text>
+              <Ionicons name="chevron-down" size={14} color={palette.slate} />
+            </TouchableOpacity>
+          </HardwareCard>
+
+          {/* ═══ PATCH CABLES (Services) ══════════════════ */}
+          <Text style={styles.sectionLabel}>PATCH CABLES</Text>
+          <View style={styles.servicesPanel}>
+            <ServiceJack
+              name="Spotify"
+              connected={!!user?.connectedServices?.spotify?.connected}
+              username={user?.connectedServices?.spotify?.username}
+              serviceKey="spotify"
+              onConnect={() => handleConnectService('Spotify')}
+            />
+            <ServiceJack
+              name="Apple Music"
+              connected={!!user?.connectedServices?.appleMusic?.connected}
+              serviceKey="apple-music"
+              onConnect={() => handleConnectService('Apple Music')}
+            />
+            <ServiceJack
+              name="SoundCloud"
+              connected={!!user?.connectedServices?.soundcloud?.connected}
+              username={user?.connectedServices?.soundcloud?.username}
+              serviceKey="soundcloud"
+              onConnect={() => handleConnectService('SoundCloud')}
+            />
+            <ServiceJack
+              name="Last.fm"
+              connected={!!user?.connectedServices?.lastfm?.connected}
+              username={user?.connectedServices?.lastfm?.username}
+              serviceKey="lastfm"
+              onConnect={() => handleConnectService('Last.fm')}
+            />
+          </View>
+
+          {/* ═══ LEGAL ═══════════════════════════════════ */}
+          <Text style={styles.sectionLabel}>CONFIGURATION</Text>
+          <View style={styles.legalPanel}>
+            <TouchableOpacity
+              style={styles.legalRow}
+              onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() =>
+                Alert.alert('Error', 'Could not open Privacy Policy')
+              )}
+            >
+              <Text style={styles.legalText}>Privacy Policy</Text>
+              <Ionicons name="open-outline" size={12} color={palette.slate} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.legalRow}
+              onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() =>
+                Alert.alert('Error', 'Could not open Terms of Service')
+              )}
+            >
+              <Text style={styles.legalText}>Terms of Service</Text>
+              <Ionicons name="open-outline" size={12} color={palette.slate} />
+            </TouchableOpacity>
+            <View style={[styles.legalRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.legalText}>About</Text>
+              <Text style={styles.legalValue}>v1.0.0-alpha</Text>
+            </View>
+          </View>
+
+          {/* ═══ DISCONNECT ══════════════════════════════ */}
+          <TouchableOpacity
+            style={styles.disconnectBtn}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.disconnectText}>DISCONNECT</Text>
+          </TouchableOpacity>
+
+          {/* ═══ DELETE ACCOUNT ═══════════════════════════ */}
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.deleteText}>DELETE ACCOUNT</Text>
+          </TouchableOpacity>
+
+          {/* Build tag */}
+          <Text style={styles.buildTag}>FREQUEN-C · DESN 374-040</Text>
+
+          <View style={{ height: 60 }} />
+        </ScrollView>
+      </VoidSurface>
     </SafeScreen>
   );
 }
@@ -620,96 +547,266 @@ const styles = StyleSheet.create({
     paddingBottom: spacing['3xl'],
   },
 
-  // Identity header
-  identityHeader: {
+  // Header
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: spacing.lg,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  identityInfo: {
-    flex: 1,
-  },
-
-  // Voltage
-  voltageSection: {
-    marginBottom: spacing.sm,
-  },
-
-  // Stats
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-
-  // Favorites
-  favoriteRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.chrome.border,
-  },
-  favoriteArt: {
+  closeBtn: {
     width: 36,
     height: 36,
-    borderRadius: 4,
-    backgroundColor: colors.bg.elevated,
-    marginRight: 10,
+    borderRadius: 18,
+    backgroundColor: palette.midnight,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  username: {
+    fontFamily: 'ChakraPetch-Bold',
+    fontSize: 28,
+    color: palette.frost,
+    marginBottom: 2,
+  },
+  email: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 11,
+    color: palette.slate,
+    letterSpacing: 0.5,
+    marginBottom: spacing.xl,
+  },
+
+  // Settings
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  settingLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 11,
+    color: palette.frost,
+    letterSpacing: 1.5,
+  },
+  settingDesc: {
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 12,
+    color: palette.slate,
+    lineHeight: 18,
+  },
+
+  // Toggle switch
+  toggle: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: palette.steel,
+    padding: 2,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
+  },
+  toggleActive: {
+    backgroundColor: palette.ice,
+    borderColor: palette.ice,
+  },
+  toggleKnob: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: palette.slate,
+  },
+  toggleKnobActive: {
+    backgroundColor: palette.frost,
+    alignSelf: 'flex-end',
+  },
+
+  // Monitor jack
+  monitorJack: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: palette.midnight,
+    borderWidth: 2,
+    borderColor: palette.chromeBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monitorJackHole: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: palette.slate,
+    backgroundColor: 'transparent',
+  },
+
+  // Slider
+  sliderTrack: {
+    height: 4,
+    backgroundColor: palette.steel,
+    borderRadius: 2,
+    marginTop: 12,
+    marginBottom: 8,
+    position: 'relative',
+  },
+  sliderFill: {
+    height: 4,
+    backgroundColor: palette.chromeBorder,
+    borderRadius: 2,
+  },
+  sliderThumb: {
+    position: 'absolute',
+    top: -6,
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    backgroundColor: palette.silver,
+    marginLeft: -8,
+  },
+  sliderLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sliderLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.slate,
+    letterSpacing: 1,
+  },
+  sliderLabelCenter: {
+    fontFamily: 'SpaceMono-Regular',
+    fontWeight: '700',
+  },
+  sliderLabelActive: {
+    color: palette.frost,
+    fontWeight: '700',
+  },
+
+  // Dropdown
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: palette.steel,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  dropdownText: {
+    fontFamily: 'ChakraPetch-SemiBold',
+    fontSize: 14,
+    color: palette.frost,
+  },
+
+  // Section labels
+  sectionLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 11,
+    color: palette.slate,
+    letterSpacing: 2,
+    marginTop: spacing.lg,
+    marginBottom: 10,
   },
 
   // Services panel
   servicesPanel: {
-    backgroundColor: colors.bg.elevated,
-    borderRadius: 8,
-    paddingHorizontal: 14,
+    backgroundColor: palette.midnight,
+    borderRadius: 12,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
+    marginBottom: 4,
   },
 
-  // Preferences
-  prefsPanel: {
-    backgroundColor: colors.bg.elevated,
-    borderRadius: 8,
-    paddingHorizontal: 14,
+  // Legal panel
+  legalPanel: {
+    backgroundColor: palette.midnight,
+    borderRadius: 12,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
   },
-  prefRow: {
+  legalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.chrome.border,
+    borderBottomColor: palette.chromeBorder,
+  },
+  legalText: {
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 13,
+    color: palette.frost,
+  },
+  legalValue: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.slate,
+    letterSpacing: 1,
   },
 
-  // Footer
+  // Action buttons
   disconnectBtn: {
     alignSelf: 'center',
     marginTop: spacing.xl,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
   },
-  deleteAccountBtn: {
+  disconnectText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 12,
+    color: palette.silver,
+    letterSpacing: 2,
+  },
+  deleteBtn: {
     alignSelf: 'center',
     marginTop: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
     opacity: 0.6,
   },
+  deleteText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 11,
+    color: palette.red,
+    letterSpacing: 1,
+  },
   buildTag: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 9,
+    color: palette.slate,
+    textAlign: 'center',
     marginTop: spacing.lg,
     opacity: 0.3,
     letterSpacing: 2,
-    fontSize: 9,
   },
 });
 

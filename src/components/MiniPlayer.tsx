@@ -12,10 +12,11 @@ import React, { useRef, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Animated, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { formatTime, type PlaybackState } from '../services/playbackEngine';
 import type { QueueTrack } from '../types';
+// ─── Design System: Rack × Chrome visual language ──────────
+import { palette } from '../design/tokens/materials';
 
 export const MINI_PLAYER_HEIGHT = 56;
 
@@ -89,20 +90,20 @@ export function MiniPlayer({
             <Image source={{ uri: track.albumArt }} style={styles.art} />
           ) : (
             <View style={[styles.art, styles.artPlaceholder]}>
-              <Ionicons name="musical-note" size={16} color={colors.text.muted} />
+              <Ionicons name="musical-note" size={16} color={palette.slate} />
             </View>
           )}
 
           <View style={styles.info}>
             <View style={styles.titleRow}>
               {playback.isLoading && (
-                <ActivityIndicator size="small" color={colors.action.primary} />
+                <ActivityIndicator size="small" color={palette.ice} />
               )}
-              <Text variant="label" color={colors.text.primary} numberOfLines={1} style={{ flex: 1 }}>
+              <Text variant="label" color={palette.frost} numberOfLines={1} style={{ flex: 1, fontFamily: 'ChakraPetch-Medium' }}>
                 {track.title}
               </Text>
             </View>
-            <Text variant="labelSmall" color={colors.text.secondary} numberOfLines={1}
+            <Text variant="labelSmall" color={palette.silver} numberOfLines={1}
                   style={{ textTransform: 'none', letterSpacing: 0 }}>
               {track.artist}{!playback.isLoading && playback.elapsed > 0 ? ` · ${formatTime(playback.elapsed)}` : ''}
             </Text>
@@ -116,7 +117,7 @@ export function MiniPlayer({
               <Ionicons
                 name={playback.isPlaying ? 'pause' : 'play'}
                 size={18}
-                color={colors.action.primaryText}
+                color={palette.void}
               />
             </TouchableOpacity>
           )}
@@ -129,7 +130,7 @@ export function MiniPlayer({
               accessibilityRole="button"
               accessibilityLabel="Skip to next track"
             >
-              <Ionicons name="play-skip-forward" size={18} color={colors.text.secondary} />
+              <Ionicons name="play-skip-forward" size={18} color={palette.silver} />
             </TouchableOpacity>
           )}
         </View>
@@ -145,17 +146,17 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: MINI_PLAYER_HEIGHT,
-    backgroundColor: colors.bg.elevated,       // Steel #161B28 — Convergence §1.4
+    backgroundColor: palette.midnight,              // Dark rack surface
     borderTopWidth: 1,
-    borderTopColor: colors.border.default,     // Dark steel divider
+    borderTopColor: 'rgba(192, 223, 255, 0.08)',    // Chrome divider line
   },
   progressTrack: {
     height: 2,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: 'rgba(192, 223, 255, 0.06)',
   },
   progressFill: {
     height: 2,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.ice,
   },
   progressGlow: {
     position: 'absolute',
@@ -163,8 +164,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.ice,
     marginLeft: -4,
+    // Ice emission glow
+    shadowColor: palette.ice,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
   },
   content: {
     flex: 1,
@@ -180,10 +186,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   art: {
-    width: 40,                                 // Convergence §1.4 — 40×40 art
+    width: 40,
     height: 40,
-    borderRadius: 6,
-    backgroundColor: colors.bg.input,          // Gunmetal placeholder bg
+    borderRadius: 4,                                // Rack-aesthetic flat radius
+    backgroundColor: 'rgba(192, 223, 255, 0.06)',
+    // Chrome frame
+    borderWidth: 1,
+    borderColor: 'rgba(192, 223, 255, 0.12)',
   },
   artPlaceholder: {
     alignItems: 'center',
@@ -207,9 +216,15 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.ice,
     alignItems: 'center',
     justifyContent: 'center',
+    // Ice glow
+    shadowColor: palette.ice,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
   },
   skipBtn: {
     width: 32,

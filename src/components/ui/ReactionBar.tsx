@@ -15,7 +15,7 @@
 import React, { useCallback, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 
 type ReactionType = 'fire' | 'heart' | 'clap' | 'laugh' | 'skull';
 
@@ -101,7 +101,7 @@ function ReactionButton({
           <Text style={{ fontSize: 22 }}>{emoji}</Text>
         </Animated.View>
         {count !== undefined && count > 0 && (
-          <Text variant="label" color={colors.text.secondary} style={{ fontSize: 10 }}>
+          <Text variant="label" color={palette.silver} style={{ fontSize: 10 }}>
             {count}
           </Text>
         )}

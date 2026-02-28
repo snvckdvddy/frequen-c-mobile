@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Text, Button } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 
 interface QRScannerProps {
@@ -57,7 +57,7 @@ export function QRScanner({ onCodeScanned, onClose }: QRScannerProps) {
   if (!permission) {
     return (
       <View style={styles.container}>
-        <Text variant="body" color={colors.text.muted} align="center">
+        <Text variant="body" color={palette.slate} align="center">
           Requesting camera access...
         </Text>
       </View>
@@ -68,7 +68,7 @@ export function QRScanner({ onCodeScanned, onClose }: QRScannerProps) {
   if (!permission.granted) {
     return (
       <View style={styles.container}>
-        <Text variant="body" color={colors.text.secondary} align="center" style={styles.msg}>
+        <Text variant="body" color={palette.silver} align="center" style={styles.msg}>
           Camera access is needed to scan QR codes.
         </Text>
         <Button title="Grant Permission" onPress={requestPermission} size="md" />
@@ -88,7 +88,7 @@ export function QRScanner({ onCodeScanned, onClose }: QRScannerProps) {
       {/* Overlay with viewfinder cutout */}
       <View style={styles.overlay}>
         <View style={styles.viewfinder} />
-        <Text variant="label" color={colors.text.primary} align="center" style={styles.hint}>
+        <Text variant="label" color={palette.frost} align="center" style={styles.hint}>
           Point at a Frequen-C QR code
         </Text>
       </View>
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.xl,
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.midnight,
   },
   msg: {
     marginBottom: spacing.lg,
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     width: VIEWFINDER_SIZE,
     height: VIEWFINDER_SIZE,
     borderWidth: 2,
-    borderColor: colors.action.primary,
+    borderColor: palette.orange,
     borderRadius: spacing.radius.lg,
     backgroundColor: 'transparent',
   },

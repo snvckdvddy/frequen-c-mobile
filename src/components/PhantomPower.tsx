@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Text } from './ui/Text';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { tapHeavy, notifySuccess } from '../utils/haptics';
 
@@ -175,8 +175,8 @@ export function PhantomPower({
         <Svg width={24} height={24} viewBox="0 0 24 24">
           <Path
             d={BOLT_PATH}
-            fill={colors.cv.positive}
-            stroke={colors.cv.positive}
+            fill={palette.green}
+            stroke={palette.green}
             strokeWidth={0.5}
           />
         </Svg>
@@ -184,11 +184,11 @@ export function PhantomPower({
 
       {/* +48V label */}
       <Animated.View style={[styles.labelRow, { opacity: textOpacity }]}>
-        <Text variant="labelSmall" color={colors.cv.positive} style={styles.voltageLabel}>
+        <Text variant="labelSmall" color={palette.green} style={styles.voltageLabel}>
           +48V PHANTOM POWER
         </Text>
         {username && (
-          <Text variant="labelSmall" color={colors.text.muted} style={styles.attribution}>
+          <Text variant="labelSmall" color={palette.slate} style={styles.attribution}>
             {username} boosted {trackName || 'this track'}
           </Text>
         )}
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     borderWidth: 1,
-    borderColor: colors.cv.positive,
+    borderColor: palette.green,
     borderRadius: 8,
     overflow: 'hidden',
     justifyContent: 'center',
@@ -218,14 +218,14 @@ const styles = StyleSheet.create({
   },
   glowBg: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.cv.positive,
+    backgroundColor: palette.green,
   },
   surgeLine: {
     position: 'absolute',
     top: 0,
     left: 0,
     height: 2,
-    backgroundColor: colors.cv.positive,
+    backgroundColor: palette.green,
   },
   boltContainer: {
     width: 40,
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: colors.cv.positive,
+    backgroundColor: palette.green,
     opacity: 0.6,
   },
   railBottom: {
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: colors.cv.positive,
+    backgroundColor: palette.green,
     opacity: 0.6,
   },
 });

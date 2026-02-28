@@ -13,7 +13,7 @@ import {
   TextStyle,
 } from 'react-native';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
@@ -33,24 +33,24 @@ interface ButtonProps {
 
 const variantStyles: Record<ButtonVariant, { bg: string; text: string; border: string }> = {
   primary: {
-    bg: colors.action.primary,        // Icy cyan background
-    text: colors.action.primaryText,   // Dark text on cyan — convergence strategy §4.3
+    bg: palette.orange,        // Orange background
+    text: palette.void,   // Dark text on orange — convergence strategy §4.3
     border: 'transparent',
   },
   secondary: {
     bg: 'transparent',
-    text: colors.action.primary,
-    border: colors.action.primary,
+    text: palette.orange,
+    border: palette.orange,
   },
   ghost: {
     bg: 'transparent',
-    text: colors.text.primary,         // Frost white for ghost — more visible than silver
+    text: palette.frost,         // Frost white for ghost — more visible than silver
     border: 'transparent',
   },
   destructive: {
     bg: 'transparent',                 // Transparent bg, not filled — convergence strategy §4.3
-    text: colors.action.destructive,   // Hot pink text
-    border: colors.action.destructive, // Hot pink border
+    text: palette.red,   // Red text
+    border: palette.red, // Red border
   },
 };
 

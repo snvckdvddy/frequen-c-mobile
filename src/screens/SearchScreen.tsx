@@ -23,7 +23,7 @@ import { useFavoritesContext } from '../contexts/FavoritesContext';
 import { useActiveSession } from '../contexts/ActiveSessionContext';
 import { useRecentSearches } from '../hooks/useRecentSearches';
 import { searchApi } from '../services/api';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import type { Track, Session, MockUser, SearchSegment } from '../types';
 
@@ -51,7 +51,7 @@ function SegmentChip({
     >
       <Text
         variant="labelSmall"
-        color={active ? colors.text.primary : colors.text.muted}
+        color={active ? palette.frost : palette.slate}
       >
         {label}{count !== undefined ? ` (${count})` : ''}
       </Text>
@@ -81,13 +81,13 @@ function FavoriteCard({
       accessibilityHint="Long press to remove from favorites"
     >
       <View style={styles.favoriteArt}>
-        <Text variant="label" color={colors.text.muted} style={{ fontSize: 20 }}>
+        <Text variant="label" color={palette.slate} style={{ fontSize: 20 }}>
           {track.artist.charAt(0)}
         </Text>
       </View>
       <Text
         variant="labelSmall"
-        color={colors.text.primary}
+        color={palette.frost}
         numberOfLines={1}
         style={styles.favoriteTitle}
       >
@@ -95,7 +95,7 @@ function FavoriteCard({
       </Text>
       <Text
         variant="labelSmall"
-        color={colors.text.muted}
+        color={palette.slate}
         numberOfLines={1}
       >
         {track.artist}
@@ -238,7 +238,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
       {/* Favorites Section */}
       {favorites.length > 0 && (
         <View style={styles.section}>
-          <Text variant="label" color={colors.text.primary} style={styles.sectionTitle}>
+          <Text variant="label" color={palette.frost} style={styles.sectionTitle}>
             Saved Tracks ({favorites.length})
           </Text>
           <FlatList
@@ -263,7 +263,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
 
       {favorites.length === 0 && (
         <View style={styles.emptyFavorites}>
-          <Text variant="body" color={colors.text.muted} align="center">
+          <Text variant="body" color={palette.slate} align="center">
             Tracks you save will show up here.
           </Text>
         </View>
@@ -273,11 +273,11 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
       {searches.length > 0 && (
         <View style={styles.section}>
           <View style={styles.recentHeader}>
-            <Text variant="label" color={colors.text.primary}>
+            <Text variant="label" color={palette.frost}>
               Recent Searches
             </Text>
             <TouchableOpacity onPress={clearAll} accessibilityRole="button" accessibilityLabel="Clear all recent searches">
-              <Text variant="labelSmall" color={colors.text.muted}>Clear All</Text>
+              <Text variant="labelSmall" color={palette.slate}>Clear All</Text>
             </TouchableOpacity>
           </View>
           {searches.map((s) => (
@@ -289,7 +289,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
               accessibilityRole="button"
               accessibilityLabel={`Search for ${s.query}`}
             >
-              <Text variant="body" color={colors.text.secondary} style={{ flex: 1 }}>
+              <Text variant="body" color={palette.silver} style={{ flex: 1 }}>
                 {s.query}
               </Text>
               <TouchableOpacity
@@ -298,7 +298,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
                 accessibilityRole="button"
                 accessibilityLabel={`Remove ${s.query} from recent searches`}
               >
-                <Text variant="labelSmall" color={colors.text.muted}>✕</Text>
+                <Text variant="labelSmall" color={palette.slate}>✕</Text>
               </TouchableOpacity>
             </TouchableOpacity>
           ))}
@@ -370,7 +370,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
           windowSize={7}
           ListEmptyComponent={
             query.trim() ? (
-              <Text variant="body" color={colors.text.muted} align="center" style={{ paddingTop: spacing.xl }}>
+              <Text variant="body" color={palette.slate} align="center" style={{ paddingTop: spacing.xl }}>
                 No tracks found
               </Text>
             ) : null
@@ -393,7 +393,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
           windowSize={7}
           ListEmptyComponent={
             query.trim() ? (
-              <Text variant="body" color={colors.text.muted} align="center" style={{ paddingTop: spacing.xl }}>
+              <Text variant="body" color={palette.slate} align="center" style={{ paddingTop: spacing.xl }}>
                 No rooms found
               </Text>
             ) : null
@@ -414,7 +414,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
           windowSize={7}
           ListEmptyComponent={
             query.trim() ? (
-              <Text variant="body" color={colors.text.muted} align="center" style={{ paddingTop: spacing.xl }}>
+              <Text variant="body" color={palette.slate} align="center" style={{ paddingTop: spacing.xl }}>
                 No people found
               </Text>
             ) : null
@@ -433,7 +433,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
             ref={searchInputRef}
             style={styles.searchInput}
             placeholder="Search tracks, rooms, people..."
-            placeholderTextColor={colors.text.muted}
+            placeholderTextColor={palette.slate}
             value={query}
             onChangeText={handleQueryChange}
             onFocus={() => setIsActive(true)}
@@ -443,7 +443,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
           />
           {isActive && (
             <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn} accessibilityRole="button" accessibilityLabel="Cancel search">
-              <Text variant="label" color={colors.text.muted}>Cancel</Text>
+              <Text variant="label" color={palette.slate}>Cancel</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -452,10 +452,10 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
         {activeSession && (
           <View style={styles.sessionBanner}>
             <View style={styles.sessionDot} />
-            <Text variant="labelSmall" color={colors.text.secondary} style={{ flex: 1 }}>
+            <Text variant="labelSmall" color={palette.silver} style={{ flex: 1 }}>
               In {activeSession.sessionName}
             </Text>
-            <Text variant="labelSmall" color={colors.text.muted}>
+            <Text variant="labelSmall" color={palette.slate}>
               Tracks you add go straight to the queue
             </Text>
           </View>
@@ -495,10 +495,10 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: 44,
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     borderRadius: spacing.radius.md,
     paddingHorizontal: spacing.inputPadding,
-    color: colors.text.primary,
+    color: palette.frost,
     fontSize: 15,
   },
   cancelBtn: {
@@ -516,10 +516,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
   },
   chipActive: {
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.orange,
   },
 
   // Idle state
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xs,
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    borderBottomColor: palette.chromeBorder,
   },
 
   // Session banner
@@ -581,16 +581,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.screenPadding,
     paddingVertical: spacing.xs,
-    backgroundColor: colors.highlight.iceFaint,
+    backgroundColor: 'rgba(100, 200, 255, 0.08)',
     borderBottomWidth: 1,
-    borderBottomColor: colors.highlight.iceSubtle,
+    borderBottomColor: 'rgba(100, 200, 255, 0.15)',
     gap: spacing.xs,
   },
   sessionDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.orange,
   },
 
   // Active state

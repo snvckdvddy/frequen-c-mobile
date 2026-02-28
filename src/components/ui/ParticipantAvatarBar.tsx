@@ -12,7 +12,7 @@ import React from 'react';
 import { View, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import type { Listener } from '../../types';
 
@@ -58,7 +58,7 @@ export function ParticipantAvatarBar({
               <Image source={{ uri: listener.avatarUrl }} style={styles.avatarImage} />
             ) : (
               <View style={[styles.avatarImage, styles.avatarPlaceholder]}>
-                <Text variant="label" color={colors.text.primary} style={{ fontSize: 11 }}>
+                <Text variant="label" color={palette.frost} style={{ fontSize: 11 }}>
                   {listener.username.charAt(0).toUpperCase()}
                 </Text>
               </View>
@@ -67,7 +67,7 @@ export function ParticipantAvatarBar({
         ))}
         {overflow > 0 && (
           <View style={[styles.avatar, styles.overflowBadge, { marginLeft: -AVATAR_OVERLAP }]}>
-            <Text variant="label" color={colors.text.primary} style={{ fontSize: 10 }}>
+            <Text variant="label" color={palette.frost} style={{ fontSize: 10 }}>
               +{overflow}
             </Text>
           </View>
@@ -75,7 +75,7 @@ export function ParticipantAvatarBar({
       </View>
 
       {/* Listener count */}
-      <Text variant="bodySmall" color={colors.text.secondary}>
+      <Text variant="bodySmall" color={palette.silver}>
         {totalCount} listening
       </Text>
 
@@ -85,8 +85,8 @@ export function ParticipantAvatarBar({
       {/* Invite button */}
       {showInvite && (
         <TouchableOpacity style={styles.inviteBtn} onPress={onInvitePress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Invite people to session">
-          <Ionicons name="person-add-outline" size={14} color={colors.action.primary} />
-          <Text variant="label" color={colors.action.primary} style={{ fontSize: 12 }}>
+          <Ionicons name="person-add-outline" size={14} color={palette.orange} />
+          <Text variant="label" color={palette.orange} style={{ fontSize: 12 }}>
             Invite
           </Text>
         </TouchableOpacity>
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
     borderWidth: 2,
-    borderColor: colors.bg.primary,
+    borderColor: palette.midnight,
   },
   avatarImage: {
     width: AVATAR_SIZE - 4,
@@ -120,12 +120,12 @@ const styles = StyleSheet.create({
     borderRadius: (AVATAR_SIZE - 4) / 2,
   },
   avatarPlaceholder: {
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   overflowBadge: {
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 0,
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: spacing.radius.full,
     borderWidth: 1,
-    borderColor: colors.action.primary,
+    borderColor: palette.orange,
     gap: 4,
   },
 });

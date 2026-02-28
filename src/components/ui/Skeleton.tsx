@@ -11,7 +11,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet, ViewStyle } from 'react-native';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 
 interface SkeletonProps {
@@ -108,7 +108,7 @@ export function SessionCardSkeleton() {
 
 const styles = StyleSheet.create({
   skeleton: {
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
   },
 });
 
@@ -118,9 +118,9 @@ const skeletonCardStyles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.sm,
     borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
     marginBottom: spacing.sm,
   },
   info: {
@@ -130,9 +130,9 @@ const skeletonCardStyles = StyleSheet.create({
   sessionCard: {
     flexDirection: 'row',
     borderRadius: spacing.radius.lg,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
     marginBottom: spacing.md,
     overflow: 'hidden',
   },
@@ -153,9 +153,9 @@ const skeletonCardStyles = StyleSheet.create({
   roomCard: {
     height: 160,
     borderRadius: spacing.radius.lg,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
     padding: spacing.cardPadding,
     justifyContent: 'space-between',
   },

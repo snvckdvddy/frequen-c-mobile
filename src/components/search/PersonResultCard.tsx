@@ -8,7 +8,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from '../ui';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import type { MockUser } from '../../types';
 
@@ -43,10 +43,10 @@ export function PersonResultCard({ user }: PersonResultCardProps) {
 
       {/* User info */}
       <View style={styles.info}>
-        <Text variant="label" color={colors.text.primary}>
+        <Text variant="label" color={palette.frost}>
           {user.username}
         </Text>
-        <Text variant="labelSmall" color={colors.text.muted}>
+        <Text variant="labelSmall" color={palette.slate}>
           {user.sessionsCount} sessions · {user.tracksAdded} tracks added
         </Text>
       </View>
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    borderBottomColor: palette.chromeBorder,
   },
   avatar: {
     width: 44,

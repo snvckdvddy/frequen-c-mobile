@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, Button, Input, ADSRTransition } from '../components/ui';
 import { QRScanner } from '../components/QRScanner';
 import { sessionApi } from '../services/api';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 
 export function JoinSessionScreen() {
@@ -55,14 +55,14 @@ export function JoinSessionScreen() {
       <View style={styles.content}>
         {/* Close button */}
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-          <Ionicons name="close" size={22} color={colors.text.muted} />
+          <Ionicons name="close" size={22} color={palette.slate} />
         </TouchableOpacity>
 
         {/* Header */}
-        <Text variant="h1" color={colors.text.primary}>
+        <Text variant="h1" color={palette.frost}>
           Connect to Signal
         </Text>
-        <Text variant="bodySmall" color={colors.text.secondary} style={styles.subtitle}>
+        <Text variant="bodySmall" color={palette.silver} style={styles.subtitle}>
           Enter the join code or scan to patch in.
         </Text>
 
@@ -90,8 +90,8 @@ export function JoinSessionScreen() {
 
         {/* QR Scanner */}
         <TouchableOpacity style={styles.qrButton} onPress={() => setShowScanner(true)} accessibilityRole="button" accessibilityLabel="Scan QR code to join a room">
-          <Ionicons name="qr-code-outline" size={20} color={colors.action.primary} />
-          <Text variant="label" color={colors.action.primary} style={{ fontSize: 12 }}>
+          <Ionicons name="qr-code-outline" size={20} color={palette.orange} />
+          <Text variant="label" color={palette.orange} style={{ fontSize: 12 }}>
             Scan QR Code
           </Text>
         </TouchableOpacity>
@@ -104,7 +104,7 @@ export function JoinSessionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.midnight,
   },
   content: {
     flex: 1,
@@ -117,9 +117,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -138,8 +138,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
-    backgroundColor: colors.chrome.surface,
+    borderColor: palette.chromeBorder,
+    backgroundColor: palette.steel,
     gap: 8,
   },
 });

@@ -8,7 +8,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 
 // ─── Toast Queue (global) ───────────────────────────────────
@@ -49,10 +49,10 @@ function ToastItem({ toast, onDone }: { toast: ToastData; onDone: (id: string) =
   const opacity = useRef(new Animated.Value(0)).current;
 
   const typeColors: Record<ToastType, string> = {
-    success: colors.action.primary,
-    info: colors.text.secondary,
+    success: palette.orange,
+    info: palette.silver,
     warning: '#F5A623',
-    error: colors.action.destructive,
+    error: palette.red,
   };
 
   const borderColor = typeColors[toast.type];
@@ -88,7 +88,7 @@ function ToastItem({ toast, onDone }: { toast: ToastData; onDone: (id: string) =
       ]}
     >
       {toast.icon && <Text style={{ fontSize: 16 }}>{toast.icon}</Text>}
-      <Text variant="label" color={colors.text.primary} numberOfLines={2} style={{ flex: 1 }}>
+      <Text variant="label" color={palette.frost} numberOfLines={2} style={{ flex: 1 }}>
         {toast.message}
       </Text>
     </Animated.View>
@@ -105,7 +105,7 @@ const toastStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderLeftWidth: 3,
     // Shadow
     shadowColor: '#000',

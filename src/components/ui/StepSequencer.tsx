@@ -20,7 +20,7 @@ import {
   View, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing,
 } from 'react-native';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import type { QueueTrack, RoomMode } from '../../types';
 
@@ -36,9 +36,9 @@ interface StepSequencerProps {
 
 // Step color per room mode
 const modeStepColor: Record<RoomMode, string> = {
-  campfire: colors.signal.sine,
-  spotlight: colors.signal.square,
-  openFloor: colors.signal.saw,
+  campfire: palette.signalSine,
+  spotlight: palette.signalSquare,
+  openFloor: palette.signalSaw,
 };
 
 const modeStepGlow: Record<RoomMode, string> = {
@@ -115,10 +115,10 @@ export function StepSequencer({
       {/* Sequencer label */}
       {!compact && (
         <View style={seqStyles.labelRow}>
-          <Text variant="labelSmall" color={colors.chrome.text} style={seqStyles.label}>
+          <Text variant="labelSmall" color={palette.slate} style={seqStyles.label}>
             STEP SEQUENCER
           </Text>
-          <Text variant="labelSmall" color={colors.text.muted} style={seqStyles.counter}>
+          <Text variant="labelSmall" color={palette.slate} style={seqStyles.counter}>
             {queue.length}/{maxSteps}
           </Text>
         </View>
@@ -149,8 +149,8 @@ export function StepSequencer({
                   borderRadius: compact ? 4 : 6,
                 },
                 isFilled && {
-                  backgroundColor: isActive ? glowColor : colors.bg.elevated,
-                  borderColor: isActive ? stepColor : colors.chrome.border,
+                  backgroundColor: isActive ? glowColor : palette.midnight,
+                  borderColor: isActive ? stepColor : palette.chromeBorder,
                 },
                 !isFilled && stepStyles.emptyStep,
               ]}
@@ -165,7 +165,7 @@ export function StepSequencer({
               {!isActive && isFilled && (
                 <Text
                   variant="labelSmall"
-                  color={colors.text.muted}
+                  color={palette.slate}
                   style={stepStyles.stepNum}
                 >
                   {i + 1}
@@ -231,7 +231,7 @@ const seqStyles = StyleSheet.create({
   },
   positionBar: {
     height: 2,
-    backgroundColor: colors.chrome.surface,
+    backgroundColor: palette.steel,
     marginHorizontal: spacing.screenPadding,
     marginTop: spacing.sm,
     borderRadius: 1,
@@ -247,7 +247,7 @@ const seqStyles = StyleSheet.create({
 const stepStyles = StyleSheet.create({
   step: {
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

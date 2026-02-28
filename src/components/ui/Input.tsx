@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { TextInput, View, StyleSheet, TextInputProps, ViewStyle } from 'react-native';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 
@@ -28,7 +28,7 @@ export function Input({
   return (
     <View style={[styles.container, containerStyle]}>
       {label && (
-        <Text variant="label" color={colors.text.secondary} style={styles.label}>
+        <Text variant="label" color={palette.silver} style={styles.label}>
           {label}
         </Text>
       )}
@@ -42,7 +42,7 @@ export function Input({
           error && styles.inputError,
           style,
         ]}
-        placeholderTextColor={colors.text.muted}
+        placeholderTextColor={palette.slate}
         onFocus={(e) => {
           setFocused(true);
           props.onFocus?.(e);
@@ -54,7 +54,7 @@ export function Input({
         {...props}
       />
       {error && (
-        <Text variant="bodySmall" color={colors.action.destructive} style={styles.error}>
+        <Text variant="bodySmall" color={palette.red} style={styles.error}>
           {error}
         </Text>
       )}
@@ -72,21 +72,21 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 48,                              // Convergence §4 — 48pt input height
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     borderRadius: spacing.radius.md,
     paddingHorizontal: spacing.inputPadding,
-    color: colors.text.primary,
+    color: palette.frost,
     fontSize: typography.size.base,
     fontFamily: typography.fontFamily,
     borderWidth: 1,                            // Convergence §4 — 1pt border
-    borderColor: colors.border.default,        // Dark steel #2D3548 — not cyan glow
+    borderColor: palette.chromeBorder,        // Dark steel #2D3548 — not cyan glow
   },
   inputFocused: {
-    borderColor: colors.action.primary,
-    backgroundColor: colors.bg.elevated,
+    borderColor: palette.orange,
+    backgroundColor: palette.midnight,
   },
   inputError: {
-    borderColor: colors.action.destructive,
+    borderColor: palette.red,
   },
   error: {
     marginTop: spacing.xs,

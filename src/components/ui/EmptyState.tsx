@@ -18,7 +18,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 
 interface EmptyStateProps {
@@ -47,19 +47,19 @@ export function EmptyState({
   return (
     <View style={styles.container}>
       <View style={styles.iconWrap}>
-        <Ionicons name={icon as any} size={iconSize} color={colors.text.muted} />
+        <Ionicons name={icon as any} size={iconSize} color={palette.slate} />
       </View>
-      <Text variant="body" color={colors.text.primary} align="center" style={styles.title}>
+      <Text variant="body" color={palette.frost} align="center" style={styles.title}>
         {title}
       </Text>
       {subtitle && (
-        <Text variant="labelSmall" color={colors.text.muted} align="center" style={styles.subtitle}>
+        <Text variant="labelSmall" color={palette.slate} align="center" style={styles.subtitle}>
           {subtitle}
         </Text>
       )}
       {actionLabel && onAction && (
         <TouchableOpacity style={styles.actionBtn} onPress={onAction} activeOpacity={0.7}>
-          <Text variant="label" color={colors.action.primary} style={styles.actionText}>
+          <Text variant="label" color={palette.orange} style={styles.actionText}>
             {actionLabel}
           </Text>
         </TouchableOpacity>
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     borderRadius: spacing.radius.full,
     borderWidth: 1,
-    borderColor: colors.action.primary,
+    borderColor: palette.orange,
   },
   actionText: {
     fontSize: 12,

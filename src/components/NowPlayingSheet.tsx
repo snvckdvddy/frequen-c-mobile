@@ -18,13 +18,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { Text, ReactionBar } from './ui';
 import { FloatingReaction } from './ui/FloatingReaction';
 import { DynamicGradientBg } from './DynamicGradientBg';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import {
   togglePlayPause, seekTo, formatTime,
   type PlaybackState,
 } from '../services/playbackEngine';
 import type { QueueTrack } from '../types';
+// ─── Design System: Rack × Chrome visual language ──────────
+import { LEDReadout } from '../design/components';
+import { palette } from '../design/tokens/materials';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const ART_SIZE = SCREEN_W - spacing.screenPadding * 2;        // Convergence §1.5 — deviceWidth - 48pt
@@ -160,23 +162,21 @@ export function NowPlayingSheet({
         {/* Dynamic gradient background — §2.4 */}
         <DynamicGradientBg imageUri={track?.albumArt} />
 
-        {/* Header — §1.5: Collapse chevron + Room name + Overflow */}
+        {/* Header — Rack chrome bar */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.headerBtn} activeOpacity={0.6} accessibilityRole="button" accessibilityLabel="Close player">
-            <Ionicons name="chevron-down" size={24} color={colors.text.secondary} />
+            <Ionicons name="chevron-down" size={24} color={palette.silver} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             {roomName ? (
-              <Text variant="labelSmall" color={colors.text.muted} numberOfLines={1} align="center">
-                {roomName}
-              </Text>
+              <LEDReadout value={roomName.toUpperCase()} variant="ice" size="sm" />
             ) : (
               <View style={styles.handle} />
             )}
           </View>
           {onOverflowPress ? (
             <TouchableOpacity onPress={onOverflowPress} style={styles.headerBtn} activeOpacity={0.6} accessibilityRole="button" accessibilityLabel="More options">
-              <Ionicons name="ellipsis-horizontal" size={20} color={colors.text.secondary} />
+              <Ionicons name="ellipsis-horizontal" size={20} color={palette.silver} />
             </TouchableOpacity>
           ) : (
             <View style={styles.headerBtn} />
@@ -190,7 +190,7 @@ export function NowPlayingSheet({
               <Image source={{ uri: track.albumArt }} style={styles.artImage} />
             ) : (
               <View style={styles.artPlaceholder}>
-                <Ionicons name="musical-notes" size={64} color={colors.text.muted} style={{ opacity: 0.4 }} />
+                <Ionicons name="musical-notes" size={64} color={palette.slate} style={{ opacity: 0.4 }} />
               </View>
             )}
           </Pressable>
@@ -208,14 +208,14 @@ export function NowPlayingSheet({
 
         {/* Track Info */}
         <View style={styles.trackInfo}>
-          <Text variant="h2" color={colors.text.primary} numberOfLines={1} align="center">
+          <Text variant="h2" color={palette.frost} numberOfLines={1} align="center" style={{ fontFamily: 'ChakraPetch-Bold' }}>
             {track.title}
           </Text>
-          <Text variant="body" color={colors.text.secondary} numberOfLines={1} align="center">
+          <Text variant="body" color={palette.silver} numberOfLines={1} align="center">
             {track.artist}{track.album ? ` — ${track.album}` : ''}
           </Text>
           {track.addedBy && (
-            <Text variant="labelSmall" color={colors.text.muted} align="center" style={{ marginTop: 4 }}>
+            <Text variant="labelSmall" color={palette.slate} align="center" style={{ marginTop: 4 }}>
               Added by {track.addedBy.username}
             </Text>
           )}
@@ -246,20 +246,16 @@ export function NowPlayingSheet({
             />
           </TouchableOpacity>
           <View style={styles.timeRow}>
-            <Text variant="labelSmall" color={colors.text.muted}>
-              {formatTime(playback.elapsed)}
-            </Text>
-            <Text variant="labelSmall" color={colors.text.muted}>
-              -{formatTime(Math.max(0, playback.duration - playback.elapsed))}
-            </Text>
+            <LEDReadout value={formatTime(playback.elapsed)} variant="ice" size="sm" />
+            <LEDReadout value={`-${formatTime(Math.max(0, playback.duration - playback.elapsed))}`} variant="ice" size="sm" />
           </View>
         </View>
 
-        {/* Transport Controls — Ionicons, no emoji */}
+        {/* Transport Controls — Chrome hardware buttons */}
         <View style={styles.transport}>
           {/* Restart / Previous */}
           <TouchableOpacity style={styles.transportBtn} onPress={() => seekTo(0)} activeOpacity={0.6} accessibilityRole="button" accessibilityLabel="Restart track">
-            <Ionicons name="play-skip-back" size={28} color={colors.text.secondary} />
+            <Ionicons name="play-skip-back" size={28} color={palette.silver} />
           </TouchableOpacity>
 
           {/* Play/Pause — large circle, ice fill */}
@@ -273,7 +269,7 @@ export function NowPlayingSheet({
             <Ionicons
               name={playback.isPlaying ? 'pause' : 'play'}
               size={32}
-              color={colors.action.primaryText}
+              color={palette.void}
               style={!playback.isPlaying ? { marginLeft: 3 } : undefined}
             />
           </TouchableOpacity>
@@ -291,7 +287,7 @@ export function NowPlayingSheet({
             <Ionicons
               name="play-skip-forward"
               size={28}
-              color={canSkip ? colors.text.secondary : colors.text.muted}
+              color={canSkip ? palette.silver : palette.slate}
             />
           </TouchableOpacity>
         </View>
@@ -303,7 +299,7 @@ export function NowPlayingSheet({
 
         {/* Queue context hint */}
         <View style={styles.queueHint}>
-          <Text variant="labelSmall" color={colors.text.muted} align="center">
+          <Text variant="labelSmall" color={palette.slate} align="center">
             Swipe down to return to queue
           </Text>
         </View>
@@ -315,7 +311,7 @@ export function NowPlayingSheet({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.void,
     paddingTop: 60,
   },
   header: {
@@ -323,6 +319,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
+    // Chrome divider bottom
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(192, 223, 255, 0.06)',
   },
   headerBtn: {
     width: 44,
@@ -339,7 +338,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.text.muted,
+    backgroundColor: palette.slate,
     opacity: 0.5,
   },
 
@@ -351,17 +350,20 @@ const styles = StyleSheet.create({
   artImage: {
     width: ART_SIZE,
     height: ART_SIZE,
-    borderRadius: spacing.radius.sm,              // Convergence §1.5 — 8pt radius
+    borderRadius: 4,                               // Rack-aesthetic flat radius
+    // Chrome frame
+    borderWidth: 1,
+    borderColor: 'rgba(192, 223, 255, 0.15)',
   },
   artPlaceholder: {
     width: ART_SIZE,
     height: ART_SIZE,
-    borderRadius: spacing.radius.sm,              // Match art radius
-    backgroundColor: colors.bg.elevated,
+    borderRadius: 4,
+    backgroundColor: palette.midnight,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: 'rgba(192, 223, 255, 0.10)',
   },
 
   // Track info
@@ -370,7 +372,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
 
-  // Scrubber
+  // Scrubber — hardware groove
   scrubberSection: {
     paddingHorizontal: spacing.screenPadding,
     marginBottom: spacing.xl,
@@ -385,23 +387,28 @@ const styles = StyleSheet.create({
     right: 0,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: 'rgba(192, 223, 255, 0.08)',
   },
   scrubberFill: {
     position: 'absolute',
     left: 0,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.ice,
   },
   scrubberThumb: {
     position: 'absolute',
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.ice,
     marginLeft: -6,
     top: 6,
+    // Ice glow on thumb
+    shadowColor: palette.ice,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
   },
   timeRow: {
     flexDirection: 'row',
@@ -424,18 +431,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   playPauseBtn: {
-    width: 56,                                     // Convergence §1.5 — 56pt circle
+    width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.ice,
     alignItems: 'center',
     justifyContent: 'center',
     // Ice glow shadow
-    shadowColor: colors.action.primary,
+    shadowColor: palette.ice,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
     elevation: 8,
+    // Chrome rim
+    borderWidth: 1,
+    borderColor: 'rgba(192, 223, 255, 0.30)',
   },
 
   // Reaction bar section

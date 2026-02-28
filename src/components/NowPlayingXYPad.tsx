@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import Svg, { Line, Circle } from 'react-native-svg';
 import { Text } from './ui/Text';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { tapLight } from '../utils/haptics';
 
@@ -156,7 +156,7 @@ export function NowPlayingXYPad({
             y1={0}
             x2={pos * (dimensions.width || 1)}
             y2={dimensions.height || 1}
-            stroke={colors.chrome.border}
+            stroke={palette.chromeBorder}
             strokeWidth={0.5}
           />
         ))}
@@ -168,7 +168,7 @@ export function NowPlayingXYPad({
             y1={pos * (dimensions.height || 1)}
             x2={dimensions.width || 1}
             y2={pos * (dimensions.height || 1)}
-            stroke={colors.chrome.border}
+            stroke={palette.chromeBorder}
             strokeWidth={0.5}
           />
         ))}
@@ -181,7 +181,7 @@ export function NowPlayingXYPad({
               y1={0}
               x2={cursorX}
               y2={dimensions.height}
-              stroke={colors.action.primary}
+              stroke={palette.orange}
               strokeWidth={0.8}
               opacity={0.5}
             />
@@ -190,7 +190,7 @@ export function NowPlayingXYPad({
               y1={cursorY}
               x2={dimensions.width}
               y2={cursorY}
-              stroke={colors.action.primary}
+              stroke={palette.orange}
               strokeWidth={0.8}
               opacity={0.5}
             />
@@ -198,14 +198,14 @@ export function NowPlayingXYPad({
               cx={cursorX}
               cy={cursorY}
               r={6}
-              fill={colors.action.primary}
+              fill={palette.orange}
               opacity={0.8}
             />
             <Circle
               cx={cursorX}
               cy={cursorY}
               r={16}
-              stroke={colors.action.primary}
+              stroke={palette.orange}
               strokeWidth={1}
               fill="none"
               opacity={0.3}
@@ -216,19 +216,19 @@ export function NowPlayingXYPad({
 
       {/* Coordinate readout */}
       <Animated.View style={[styles.readout, { opacity: cursorOpacity }]}>
-        <Text variant="labelSmall" color={colors.chrome.text} style={styles.readoutText}>
+        <Text variant="labelSmall" color={palette.frost} style={styles.readoutText}>
           {formatTime(seekTime)} / {formatTime(duration)}
         </Text>
       </Animated.View>
 
       {/* Axis labels */}
       <View style={styles.xLabel}>
-        <Text variant="labelSmall" color={colors.text.muted} style={styles.axisText}>
+        <Text variant="labelSmall" color={palette.slate} style={styles.axisText}>
           SEEK
         </Text>
       </View>
       <View style={styles.yLabel}>
-        <Text variant="labelSmall" color={colors.text.muted} style={styles.axisText}>
+        <Text variant="labelSmall" color={palette.slate} style={styles.axisText}>
           INTENSITY
         </Text>
       </View>
@@ -250,9 +250,9 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     height: 120,
-    backgroundColor: colors.chrome.surface,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     borderRadius: 8,
     overflow: 'hidden',
     position: 'relative',
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(6, 8, 15, 0.7)',
     borderRadius: 3,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
   },
   readoutText: {
     fontSize: 9,
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 2,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.orange,
     opacity: 0.4,
   },
 });

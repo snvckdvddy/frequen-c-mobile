@@ -9,7 +9,7 @@
 
 import { io, Socket } from 'socket.io-client';
 import { getStoredToken } from './api';
-import type { QueueTrack, Participant, Session, Reaction, ChatMessage, Track } from '../types';
+import type { QueueTrack, Participant, Session, Reaction, ChatMessage, Track, RoomBehaviors } from '../types';
 import { USE_MOCKS, SOCKET_URL } from './config';
 
 // ─── Mock Event Bus ─────────────────────────────────────────
@@ -176,12 +176,12 @@ export function joinSession(sessionId: string, userId: string, username: string)
     console.log(`[Socket:Mock] ${username} joined session ${sessionId}`);
     return;
   }
-  socket?.emit('join-session', { sessionId, userId, username });
+  socket?.emit('session:join_room', sessionId);
 }
 
 export function leaveSession(sessionId: string, userId: string): void {
   if (USE_MOCKS) return;
-  socket?.emit('leave-session', { sessionId, userId });
+  socket?.emit('session:leave_room', sessionId);
 }
 
 /** Permanently leave a session (removes membership). Use for "Leave Room" button. */
@@ -198,7 +198,7 @@ export function addToQueue(sessionId: string, track: QueueTrack): void {
     mockEmit('track-added', track);
     return;
   }
-  socket?.emit('add-to-queue', { sessionId, track });
+  socket?.emit('queue:add_track', { sessionId, track });
 }
 
 export function voteTrack(
@@ -211,11 +211,10 @@ export function voteTrack(
     mockEmit('vote-cast', { trackId, userId, direction });
     return;
   }
-  socket?.emit('vote-track', {
+  socket?.emit('queue:vote', {
     sessionId,
-    trackId,
-    userId,
-    direction: direction === 1 ? 'up' : 'down',
+    queueId: trackId,
+    vote: direction
   });
 }
 
@@ -224,7 +223,7 @@ export function skipTrack(sessionId: string, userId?: string): void {
     mockEmit('track-skipped', { userId });
     return;
   }
-  socket?.emit('skip-track', { sessionId, userId });
+  socket?.emit('playback:skip', { sessionId });
 }
 
 /** Notify backend that the current track finished playing (auto-advance). */
@@ -261,14 +260,35 @@ export function endSessionEvent(sessionId: string): void {
   socket?.emit('end-session', { sessionId });
 }
 
-// ─── Mode Change Events ─────────────────────────────────────
+// ─── Mode / Behavior Events ─────────────────────────────────
 
+/** Apply a preset template (legacy — maps preset to toggles on server). */
 export function changeModeEvent(sessionId: string, newMode: string): void {
   if (USE_MOCKS) {
     mockEmit('mode-changed', { sessionId, roomMode: newMode });
     return;
   }
   socket?.emit('change-mode', { sessionId, roomMode: newMode });
+}
+
+/** Update individual behavioral toggles live (host-only). */
+export function updateBehaviors(sessionId: string, behaviors: Partial<RoomBehaviors>): void {
+  if (USE_MOCKS) {
+    mockEmit('behaviors-updated', { sessionId, behaviors });
+    return;
+  }
+  socket?.emit('update-behaviors', { sessionId, behaviors });
+}
+
+// ─── Skip-Vote Events ────────────────────────────────────────
+
+/** Toggle a skip vote for the current track (voteRequired rooms only). */
+export function voteSkip(sessionId: string): void {
+  if (USE_MOCKS) {
+    mockEmit('skip-vote-update', { sessionId, votes: 1, threshold: 2, participants: 3, voters: ['mock'] });
+    return;
+  }
+  socket?.emit('vote-skip', { sessionId });
 }
 
 // ─── Reaction Events ────────────────────────────────────────
@@ -317,7 +337,10 @@ export function sendChatMessage(
 /** Full room state sent by server when joining a session */
 export interface RoomState {
   sessionId: string;
+  /** Legacy field — kept for backward compat display. */
   roomMode: string;
+  /** Granular behavioral toggles — source of truth for all queue/feature logic. */
+  behaviors: RoomBehaviors;
   hostId: string;
   hostUsername: string;
   participants: Participant[];
@@ -329,7 +352,9 @@ export interface RoomState {
 }
 
 export interface SessionSocketEvents {
-  'queue-updated': (queue: QueueTrack[]) => void;
+  'queue:updated': (queue: QueueTrack[]) => void;
+  'session:current_track_updated': (track: QueueTrack | null) => void;
+  'session:playback_state_updated': (data: { isPlaying: boolean }) => void;
   'participant-joined': (participant: Participant) => void;
   'participant-left': (data: { userId: string }) => void;
   'participant-updated': (participant: Participant) => void;
@@ -344,18 +369,21 @@ export interface SessionSocketEvents {
   'playback:seeked': (data: { position: number; timestamp: number }) => void;
   // Mock-only events (for local state management)
   'track-added': (track: QueueTrack) => void;
-  'vote-cast': (data: { trackId: string; userId: string; direction: 1 | -1 }) => void;
+  'vote-cast': (data: { trackId: string; userId: string; direction: number; totalVotes: number }) => void;
   'track-skipped': (data: Record<string, never>) => void;
-  'reaction-local': (data: { trackId: string; userId: string; type: string }) => void;
   // Spotlight mode events
   'track-pending': (data: { track: QueueTrack }) => void;
   'track-approved': (data: { trackId: string; track: QueueTrack }) => void;
   'track-rejected': (data: { trackId: string }) => void;
   // Session ended (host ended the room)
   'session-ended': (data: { sessionId: string }) => void;
-  // Mode change events
-  'mode-changed': (data: { sessionId: string; roomMode: string }) => void;
-  // Pending queue (Spotlight mode) — full replacement of suggested queue
+  // Mode change events (legacy — preset was applied)
+  'mode-changed': (data: { sessionId: string; roomMode: string; behaviors: RoomBehaviors }) => void;
+  // Behavioral toggles updated (host changed individual toggles live)
+  'behaviors-updated': (data: { sessionId: string; behaviors: RoomBehaviors }) => void;
+  // Skip-vote tally update (voteRequired rooms)
+  'skip-vote-update': (data: { sessionId: string; votes: number; threshold: number; participants: number; voters: string[] }) => void;
+  // Pending queue — full replacement of suggested queue
   'pending-updated': (queue: QueueTrack[]) => void;
   // Chat events
   'chat-message': (message: ChatMessage) => void;
@@ -375,6 +403,24 @@ export interface SessionSocketEvents {
   // Presence events (Transient/Reverb Tail)
   'transient:enter': (data: { userId: string; username: string; avatarUrl?: string }) => void;
   'reverb-tail:ghost': (data: { userId: string; username: string; duration: number }) => void;
+  // Phantom Power events
+  'phantom-power-activated': (data: {
+    sessionId: string; trackId: string; trackTitle: string;
+    userId: string; username: string; cvSpent: number; voteBoost: number;
+  }) => void;
+  // Overdrive events
+  'overdrive-activated': (data: {
+    sessionId: string; trackId: string; trackTitle: string;
+    userId: string; username: string; cvSpent: number;
+  }) => void;
+  // Phase Cancel events
+  'phase-cancel-active': (data: {
+    sessionId: string; userId: string; username: string; cvSpent: number;
+  }) => void;
+  'phase-cancel-triggered': (data: {
+    sessionId: string; shieldUserId: string; shieldUsername: string;
+    blockedUserId: string; voteSkip?: boolean; forced?: boolean;
+  }) => void;
 }
 
 export function onSessionEvent<K extends keyof SessionSocketEvents>(
@@ -462,6 +508,12 @@ export function submitForecast(sessionId: string, userId: string, trackId: strin
   socket?.emit('forecast:predict', { sessionId, userId, trackId });
 }
 
+/** Send listen heartbeat (called every 60s while in an active session) */
+export function listenHeartbeat(sessionId: string): void {
+  if (USE_MOCKS) return;
+  socket?.emit('listen:heartbeat', { sessionId });
+}
+
 export default {
   connect: connectSocket,
   disconnect: disconnectSocket,
@@ -475,10 +527,20 @@ export default {
   addToQueue,
   voteTrack,
   skipTrack,
+  voteSkip,
   approveTrackEvent,
   rejectTrackEvent,
   endSessionEvent,
+  updateBehaviors,
+  changeModeEvent,
   sendReaction,
   sendChatMessage,
   onSessionEvent,
+  // Power moves
+  phantomPower,
+  overdrive,
+  phaseCancel,
+  startDuel,
+  submitForecast,
+  listenHeartbeat,
 };

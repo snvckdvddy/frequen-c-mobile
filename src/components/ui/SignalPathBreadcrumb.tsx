@@ -9,7 +9,7 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 
 export interface BreadcrumbNode {
   id: string;
@@ -34,7 +34,7 @@ export function SignalPathBreadcrumb({ nodes }: SignalPathBreadcrumbProps) {
               <Svg width={20} height={2}>
                 <Line
                   x1={0} y1={1} x2={20} y2={1}
-                  stroke={colors.chrome.border}
+                  stroke={palette.chromeBorder}
                   strokeWidth={1}
                   strokeDasharray="3,3"
                 />
@@ -52,7 +52,7 @@ export function SignalPathBreadcrumb({ nodes }: SignalPathBreadcrumbProps) {
           >
             <Text
               variant="labelSmall"
-              color={index === nodes.length - 1 ? colors.action.primary : colors.chrome.text}
+              color={index === nodes.length - 1 ? palette.orange : palette.slate}
               style={styles.nodeText}
             >
               {node.label}
@@ -70,9 +70,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 6,
-    backgroundColor: colors.bg.surface,
+    backgroundColor: palette.steel,
     borderBottomWidth: 1,
-    borderBottomColor: colors.chrome.border,
+    borderBottomColor: palette.chromeBorder,
   },
   connector: {
     marginHorizontal: 4,

@@ -12,13 +12,14 @@ export const USE_MOCKS = false;
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // ━━━ SET YOUR LOCAL IP HERE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Override via EXPO_PUBLIC_LOCAL_IP env var, or edit the fallback below.
 // Run `ipconfig` on Windows and find your WiFi adapter's IPv4 Address.
 // Both your phone and computer must be on the same WiFi network.
-// Example: '192.168.1.42'
-const LOCAL_IP = '192.168.1.254'; // Caleb's Ethernet adapter
+const LOCAL_IP = process.env.EXPO_PUBLIC_LOCAL_IP || '192.168.1.3'; // Dev fallback — update to your LAN IP if connection fails
+const API_PORT = process.env.EXPO_PUBLIC_API_PORT || '5000';
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// Backend base URLs — Hardcoded to local IP for testing APKs
-export const API_BASE_URL = `http://${LOCAL_IP}:5000/api`;
+// Backend base URLs
+export const API_BASE_URL = `https://freq-backend-tunnel.loca.lt/api`;
 
-export const SOCKET_URL = `http://${LOCAL_IP}:5000`;
+export const SOCKET_URL = `https://freq-backend-tunnel.loca.lt`;

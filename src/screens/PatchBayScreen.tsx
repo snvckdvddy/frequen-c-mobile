@@ -17,7 +17,7 @@ import { WaveformIcon } from '../components/ui/WaveformIcon';
 import { AnimatedPressable } from '../components/ui/AnimatedPressable';
 import { useAuth } from '../contexts/AuthContext';
 import { sessionApi } from '../services/api';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import type { Session, RoomMode } from '../types';
 
@@ -89,7 +89,7 @@ function ModuleCard({ session, onPress, isGhost = false }: ModuleCardProps) {
         <WaveformIcon mode={mode} size={14} />
         <Text
           variant="labelSmall"
-          color={colors.text.primary}
+          color={palette.frost}
           style={styles.moduleName}
           numberOfLines={1}
         >
@@ -102,15 +102,15 @@ function ModuleCard({ session, onPress, isGhost = false }: ModuleCardProps) {
         {/* Current track info or empty state */}
         {session.currentTrack ? (
           <View style={styles.trackInfo}>
-            <Text variant="bodySmall" color={colors.text.primary} numberOfLines={1}>
+            <Text variant="bodySmall" color={palette.frost} numberOfLines={1}>
               {session.currentTrack.title}
             </Text>
-            <Text variant="labelSmall" color={colors.text.muted} numberOfLines={1}>
+            <Text variant="labelSmall" color={palette.slate} numberOfLines={1}>
               {session.currentTrack.artist}
             </Text>
           </View>
         ) : (
-          <Text variant="labelSmall" color={colors.text.muted} style={styles.noTrack}>
+          <Text variant="labelSmall" color={palette.slate} style={styles.noTrack}>
             No signal
           </Text>
         )}
@@ -121,7 +121,7 @@ function ModuleCard({ session, onPress, isGhost = false }: ModuleCardProps) {
         {/* Genre tag */}
         {session.genre && (
           <View style={styles.genreTag}>
-            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9 }}>
+            <Text variant="labelSmall" color={palette.slate} style={{ fontSize: 9 }}>
               {session.genre}
             </Text>
           </View>
@@ -132,14 +132,14 @@ function ModuleCard({ session, onPress, isGhost = false }: ModuleCardProps) {
         {/* Listener count + LIVE dot */}
         <View style={styles.listeners}>
           {session.isLive && <View style={styles.liveDot} />}
-          <Text variant="labelSmall" color={colors.text.secondary}>
+          <Text variant="labelSmall" color={palette.silver}>
             {listenerCount}
           </Text>
         </View>
       </View>
 
       {/* Host */}
-      <Text variant="labelSmall" color={colors.text.muted} style={styles.hostLabel}>
+      <Text variant="labelSmall" color={palette.slate} style={styles.hostLabel}>
         {session.hostUsername}
       </Text>
     </AnimatedPressable>
@@ -177,7 +177,7 @@ function GenreFilterBand({
           >
             <Text
               variant="labelSmall"
-              color={isActive ? colors.action.primary : colors.text.muted}
+              color={isActive ? palette.orange : palette.slate}
               style={{ fontSize: 10, letterSpacing: 0.8 }}
             >
               {genre.toUpperCase()}
@@ -258,7 +258,7 @@ export function PatchBayScreen({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.action.primary}
+            tintColor={palette.orange}
           />
         }
       >
@@ -266,10 +266,10 @@ export function PatchBayScreen({
         <ADSRFadeIn index={0}>
           <View style={styles.header}>
             <View>
-              <Text variant="h2" color={colors.text.primary}>
+              <Text variant="h2" color={palette.frost}>
                 Home
               </Text>
-              <Text variant="bodySmall" color={colors.text.secondary}>
+              <Text variant="bodySmall" color={palette.silver}>
                 {allRooms.filter((r) => r.isLive).length} live rooms
               </Text>
             </View>
@@ -281,7 +281,7 @@ export function PatchBayScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Join a session"
               >
-                <Ionicons name="qr-code-outline" size={20} color={colors.chrome.text} />
+                <Ionicons name="qr-code-outline" size={20} color={palette.slate} />
               </TouchableOpacity>
               {onOpenProfile && (
                 <TouchableOpacity
@@ -291,7 +291,7 @@ export function PatchBayScreen({
                   accessibilityRole="button"
                   accessibilityLabel="Open profile"
                 >
-                  <Ionicons name="person-circle-outline" size={22} color={colors.text.secondary} />
+                  <Ionicons name="person-circle-outline" size={22} color={palette.silver} />
                 </TouchableOpacity>
               )}
             </View>
@@ -318,7 +318,7 @@ export function PatchBayScreen({
             {/* Skeleton placeholder */}
             <ADSRFadeIn index={2}>
               <View style={styles.section}>
-                <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
+                <Text variant="labelSmall" color={palette.slate} style={styles.sectionLabel}>
                   LIVE GRID
                 </Text>
                 <View style={styles.moduleGrid}>
@@ -335,7 +335,7 @@ export function PatchBayScreen({
               {myRooms.length > 0 && (
                 <ADSRFadeIn index={2}>
                   <View style={styles.section}>
-                    <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
+                    <Text variant="labelSmall" color={palette.slate} style={styles.sectionLabel}>
                       YOUR ROOMS
                     </Text>
                     <View style={styles.moduleGrid}>
@@ -354,17 +354,17 @@ export function PatchBayScreen({
               {/* Live Grid */}
               <ADSRFadeIn index={3}>
                 <View style={styles.section}>
-                  <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
+                  <Text variant="labelSmall" color={palette.slate} style={styles.sectionLabel}>
                     LIVE NOW
                   </Text>
                   {filteredRooms.length === 0 ? (
                     <View style={styles.emptyModule}>
-                      <Ionicons name="radio-outline" size={32} color={colors.text.muted} />
-                      <Text variant="body" color={colors.text.muted} align="center">
+                      <Ionicons name="radio-outline" size={32} color={palette.slate} />
+                      <Text variant="body" color={palette.slate} align="center">
                         No live rooms{genreFilter !== 'All' ? ` in ${genreFilter}` : ''}.
                       </Text>
                       <TouchableOpacity onPress={onCreateSession} accessibilityRole="button" accessibilityLabel="Create a session">
-                        <Text variant="label" color={colors.action.primary}>
+                        <Text variant="label" color={palette.orange}>
                           Create a room
                         </Text>
                       </TouchableOpacity>
@@ -415,9 +415,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -432,13 +432,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
   },
   filterChipActive: {
-    borderColor: colors.action.primary,
-    backgroundColor: colors.highlight.iceSubtle,
+    borderColor: palette.orange,
+    backgroundColor: 'rgba(100, 200, 255, 0.10)',
   },
 
   // Sections
@@ -462,10 +462,10 @@ const styles = StyleSheet.create({
   // Module Card
   moduleCard: {
     width: MODULE_WIDTH,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     padding: 12,
     gap: 8,
   },
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: colors.chrome.border,
+    borderBottomColor: palette.chromeBorder,
   },
   moduleName: {
     flex: 1,
@@ -505,9 +505,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    backgroundColor: colors.chrome.surface,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
   },
   listeners: {
     flexDirection: 'row',
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.session.live,
+    backgroundColor: palette.red,
   },
   hostLabel: {
     fontSize: 9,
@@ -527,10 +527,10 @@ const styles = StyleSheet.create({
 
   // Empty state
   emptyModule: {
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     padding: spacing.xl,
     alignItems: 'center',
     gap: spacing.sm,

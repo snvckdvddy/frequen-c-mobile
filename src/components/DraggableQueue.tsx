@@ -20,7 +20,7 @@ import {
   PanGestureHandlerGestureEvent,
   State,
 } from 'react-native-gesture-handler';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { tapLight, tapMedium } from '../utils/haptics';
 
 // Enable LayoutAnimation on Android
@@ -155,7 +155,7 @@ export function DraggableQueue<T>({
                 transform: [{ translateY: dragY }],
                 zIndex: 999,
                 elevation: 8,
-                shadowColor: colors.action.primary,
+                shadowColor: palette.orange,
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.3,
                 shadowRadius: 8,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   draggingItem: {
     opacity: 0.92,
     borderRadius: 12,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
   },
 });
 

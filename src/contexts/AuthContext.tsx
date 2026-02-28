@@ -8,6 +8,7 @@
 import React, { createContext, useContext, useEffect, useReducer, useCallback, useRef } from 'react';
 import { authApi, storeToken, clearToken, getStoredToken, setCurrentServices } from '../services/api';
 import { config } from '../config';
+import { API_BASE_URL } from '../services/config';
 import { AppState, type AppStateStatus } from 'react-native';
 import type { User, AuthState } from '../types';
 import * as WebBrowser from 'expo-web-browser';
@@ -178,6 +179,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check for existing token on mount
   useEffect(() => {
     async function bootstrap() {
+      // DEV BYPASS: Instantly log in with a mock test user so we can test the app
+      if (__DEV__) {
+        dispatch({
+          type: 'SET_USER',
+          payload: {
+            user: {
+              id: 'user_1772242953184_fidhjphqc',
+              username: 'testbot',
+              email: 'testbot@freq.local',
+              connectedServices: {},
+              createdAt: new Date().toISOString()
+            },
+            token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXJfMTc3MjI0Mjk1MzE4NF9maWRoanBocWMiLCJ1c2VybmFtZSI6InRlc3Rib3QiLCJlbWFpbCI6InRlc3Rib3RAZnJlcS5sb2NhbCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzcyMjQ0MTI1LCJleHAiOjE3NzI4NDg5MjV9.fB8CL_5Ud1Hj8eYp8cl2CjLz5oi2ZniJx_aN-FsrzaE'
+          }
+        });
+        return;
+      }
+
       try {
         const token = await getStoredToken();
         if (token) {
@@ -301,7 +320,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const connectSoundcloud = useCallback(async () => {
     if (!state.user) return;
     const clientId = config.SOUNDCLOUD_CLIENT_ID;
-    const redirectUri = 'http://localhost:5000/api/auth/soundcloud/callback';
+    const redirectUri = `${API_BASE_URL}/auth/soundcloud/callback`;
     const stateParam = state.user.id;
     const authUrl = `https://api.soundcloud.com/connect?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${stateParam}`;
 
@@ -320,7 +339,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!state.user) return;
     const apiKey = config.LASTFM_API_KEY;
     const redirectUri = makeRedirectUri({ scheme: 'frequenc' });
-    const authUrl = `http://www.last.fm/api/auth/?api_key=${apiKey}&cb=${encodeURIComponent(redirectUri)}`;
+    const authUrl = `https://www.last.fm/api/auth/?api_key=${apiKey}&cb=${encodeURIComponent(redirectUri)}`;
 
     const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
     if (result.type === 'success' && result.url) {

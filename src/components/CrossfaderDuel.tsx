@@ -21,7 +21,7 @@ import {
 import { Text } from './ui/Text';
 import { AnimatedPressable } from './ui/AnimatedPressable';
 import { WaveformIcon } from './ui/WaveformIcon';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { tapMedium, tapLight } from '../utils/haptics';
 import type { QueueTrack } from '../types';
@@ -75,27 +75,27 @@ function ChannelTrack({
       <View style={channelStyles.info}>
         <Text
           variant="labelSmall"
-          color={isWinning ? colors.action.primary : colors.text.muted}
+          color={isWinning ? palette.orange : palette.slate}
           style={channelStyles.sideLabel}
         >
           {side === 'a' ? 'CH A' : 'CH B'}
         </Text>
         <Text
           variant="body"
-          color={colors.text.primary}
+          color={palette.frost}
           numberOfLines={1}
           style={channelStyles.title}
         >
           {track.title}
         </Text>
-        <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
+        <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
           {track.artist}
         </Text>
       </View>
 
       {/* Vote count */}
       <View style={[channelStyles.voteCount, isWinning && channelStyles.voteCountWinning]}>
-        <Text variant="h2" color={isWinning ? colors.action.primary : colors.text.muted}>
+        <Text variant="h2" color={isWinning ? palette.orange : palette.slate}>
           {votes}
         </Text>
       </View>
@@ -117,7 +117,7 @@ const channelStyles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 6,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
   },
   artPlaceholder: {
     alignItems: 'center',
@@ -198,11 +198,11 @@ export function CrossfaderDuel({
       {/* Duel header */}
       <View style={styles.header}>
         <Animated.View style={{ opacity: pulseAnim }}>
-          <Text variant="labelSmall" color={colors.action.destructive} style={styles.duelLabel}>
+          <Text variant="labelSmall" color={palette.red} style={styles.duelLabel}>
             CROSSFADER DUEL
           </Text>
         </Animated.View>
-        <Text variant="labelSmall" color={colors.text.muted} style={styles.timer}>
+        <Text variant="labelSmall" color={palette.slate} style={styles.timer}>
           {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
         </Text>
       </View>
@@ -224,11 +224,11 @@ export function CrossfaderDuel({
       <View style={styles.faderTrack}>
         {/* A-side zone */}
         <View style={[styles.faderZone, { backgroundColor: 'rgba(255, 107, 53, 0.08)' }]}>
-          <Text variant="labelSmall" color={colors.signal.sine} style={styles.zoneLabel}>A</Text>
+          <Text variant="labelSmall" color={'#FF6B35'} style={styles.zoneLabel}>A</Text>
         </View>
         {/* B-side zone */}
         <View style={[styles.faderZone, { backgroundColor: 'rgba(192, 223, 255, 0.08)' }]}>
-          <Text variant="labelSmall" color={colors.signal.saw} style={styles.zoneLabel}>B</Text>
+          <Text variant="labelSmall" color={'#C0DFFF'} style={styles.zoneLabel}>B</Text>
         </View>
 
         {/* Center line */}
@@ -272,7 +272,7 @@ export function CrossfaderDuel({
         >
           <Text
             variant="labelLarge"
-            color={userVote === 'a' ? colors.text.inverse : colors.signal.sine}
+            color={userVote === 'a' ? palette.void : '#FF6B35'}
           >
             CHANNEL A
           </Text>
@@ -296,7 +296,7 @@ export function CrossfaderDuel({
         >
           <Text
             variant="labelLarge"
-            color={userVote === 'b' ? colors.text.inverse : colors.signal.saw}
+            color={userVote === 'b' ? palette.void : '#C0DFFF'}
           >
             CHANNEL B
           </Text>
@@ -304,7 +304,7 @@ export function CrossfaderDuel({
       </View>
 
       {userVote && (
-        <Text variant="labelSmall" color={colors.text.muted} style={styles.votedLabel}>
+        <Text variant="labelSmall" color={palette.slate} style={styles.votedLabel}>
           SIGNAL LOCKED — {userVote === 'a' ? 'CH A' : 'CH B'}
         </Text>
       )}
@@ -314,9 +314,9 @@ export function CrossfaderDuel({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     borderRadius: 12,
     padding: spacing.md,
     marginHorizontal: spacing.screenPadding,
@@ -339,14 +339,14 @@ const styles = StyleSheet.create({
   },
   timerBar: {
     height: 2,
-    backgroundColor: colors.chrome.surface,
+    backgroundColor: palette.steel,
     borderRadius: 1,
     marginBottom: spacing.sm,
     overflow: 'hidden',
   },
   timerFill: {
     height: '100%',
-    backgroundColor: colors.action.destructive,
+    backgroundColor: palette.red,
     borderRadius: 1,
   },
   // Crossfader track
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     position: 'relative',
     marginVertical: spacing.sm,
   },
@@ -376,17 +376,17 @@ const styles = StyleSheet.create({
     top: 4,
     bottom: 4,
     width: 1,
-    backgroundColor: colors.chrome.border,
+    backgroundColor: palette.chromeBorder,
   },
   faderKnob: {
     position: 'absolute',
     top: 2,
     bottom: 2,
     width: KNOB_WIDTH,
-    backgroundColor: colors.bg.surface,
+    backgroundColor: palette.steel,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.chrome.highlight,
+    borderColor: palette.ice,
     justifyContent: 'center',
     alignItems: 'center',
     // Shadow
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
   knobLine: {
     width: 1,
     height: 16,
-    backgroundColor: colors.chrome.highlight,
+    backgroundColor: palette.ice,
     borderRadius: 0.5,
   },
   // Vote buttons
@@ -421,16 +421,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   voteBtnA: {
-    borderColor: colors.signal.sine,
+    borderColor: '#FF6B35',
     backgroundColor: 'rgba(255, 107, 53, 0.06)',
   },
   voteBtnB: {
-    borderColor: colors.signal.saw,
+    borderColor: '#C0DFFF',
     backgroundColor: 'rgba(192, 223, 255, 0.06)',
   },
   voteBtnActive: {
-    backgroundColor: colors.action.primary,
-    borderColor: colors.action.primary,
+    backgroundColor: palette.orange,
+    borderColor: palette.orange,
   },
   votedLabel: {
     textAlign: 'center',

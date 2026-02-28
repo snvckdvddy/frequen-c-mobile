@@ -14,7 +14,7 @@ import { Text, Button, showToast } from '../ui';
 import { useActiveSession } from '../../contexts/ActiveSessionContext';
 import { addToQueue } from '../../services/socket';
 import { useAuth } from '../../contexts/AuthContext';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import { notifySuccess } from '../../utils/haptics';
 import type { Track, QueueTrack } from '../../types';
@@ -85,16 +85,16 @@ export function AddToRoomSheet({
                   <Image source={{ uri: track.albumArt }} style={styles.art} />
                 ) : (
                   <View style={[styles.art, { alignItems: 'center', justifyContent: 'center' }]}>
-                    <Text variant="labelSmall" color={colors.text.muted}>
+                    <Text variant="labelSmall" color={palette.slate}>
                       {track.artist.charAt(0)}
                     </Text>
                   </View>
                 )}
                 <View style={styles.trackInfo}>
-                  <Text variant="label" color={colors.text.primary} numberOfLines={1}>
+                  <Text variant="label" color={palette.frost} numberOfLines={1}>
                     {track.title}
                   </Text>
-                  <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
+                  <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
                     {track.artist}
                   </Text>
                 </View>
@@ -105,7 +105,7 @@ export function AddToRoomSheet({
 
               {activeSession ? (
                 <>
-                  <Text variant="body" color={colors.text.primary} align="center" style={styles.prompt}>
+                  <Text variant="body" color={palette.frost} align="center" style={styles.prompt}>
                     Add to {activeSession.sessionName}?
                   </Text>
                   <Button
@@ -116,7 +116,7 @@ export function AddToRoomSheet({
                 </>
               ) : (
                 <>
-                  <Text variant="body" color={colors.text.muted} align="center" style={styles.prompt}>
+                  <Text variant="body" color={palette.slate} align="center" style={styles.prompt}>
                     You're not in a room
                   </Text>
                   <Button
@@ -134,7 +134,7 @@ export function AddToRoomSheet({
               )}
 
               <Pressable onPress={onClose} style={styles.cancelRow}>
-                <Text variant="label" color={colors.text.muted}>Cancel</Text>
+                <Text variant="label" color={palette.slate}>Cancel</Text>
               </Pressable>
             </View>
           </TouchableWithoutFeedback>
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sheet: {
-    backgroundColor: colors.bg.surface,
+    backgroundColor: palette.steel,
     borderTopLeftRadius: spacing.radius.lg,
     borderTopRightRadius: spacing.radius.lg,
     paddingHorizontal: spacing.screenPadding,
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: spacing.radius.sm,
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.sm,
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border.subtle,
+    backgroundColor: palette.chromeBorder,
     marginBottom: spacing.md,
   },
   prompt: {

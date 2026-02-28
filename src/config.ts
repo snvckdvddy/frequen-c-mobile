@@ -24,7 +24,7 @@ export const config = {
   SOUNDCLOUD_CLIENT_ID: 'A6P1OlzNLYo7LrMcTA2TaGWVzM6RHgbw',
 
   // ─── Backend ───────────────────────────────────────────────
-  LOCAL_IP: process.env.EXPO_PUBLIC_LOCAL_IP || '192.168.1.254',
+  LOCAL_IP: '192.168.1.3', // Dev fallback — update to your LAN IP if connection fails
   API_PORT: '5000',
 
   get API_BASE_URL() {

@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Text } from './ui/Text';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 
 interface ReverbTailProps {
@@ -134,7 +134,7 @@ export function ReverbTail({
           >
             <Path
               d={generateDecayPath(waveWidth, waveHeight)}
-              stroke={colors.text.muted}
+              stroke={palette.slate}
               strokeWidth={1}
               fill="none"
               opacity={0.5}
@@ -144,10 +144,10 @@ export function ReverbTail({
           {/* Ghost info */}
           <View style={styles.infoRow}>
             <View style={styles.ghostDot} />
-            <Text variant="labelSmall" color={colors.text.muted} style={styles.username}>
+            <Text variant="labelSmall" color={palette.slate} style={styles.username}>
               {username}
             </Text>
-            <Text variant="labelSmall" color={colors.text.muted} style={styles.statusLabel}>
+            <Text variant="labelSmall" color={palette.slate} style={styles.statusLabel}>
               REVERB TAIL
             </Text>
           </View>
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   },
   ghostBorder: {
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     borderStyle: 'dashed',
     borderRadius: 8,
     overflow: 'hidden',
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.text.muted,
+    backgroundColor: palette.slate,
     opacity: 0.4,
     marginRight: spacing.xs,
   },
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   },
   degradationOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.midnight,
   },
 });
 

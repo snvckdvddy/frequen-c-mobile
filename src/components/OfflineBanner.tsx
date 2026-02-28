@@ -8,7 +8,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 
 export interface OfflineBannerProps {
@@ -20,7 +20,7 @@ export function OfflineBanner({ visible }: OfflineBannerProps) {
 
   return (
     <View style={styles.banner}>
-      <Text variant="labelSmall" color={colors.text.primary}>
+      <Text variant="labelSmall" color={palette.frost}>
         No connection — some features may not work
       </Text>
     </View>
@@ -29,12 +29,12 @@ export function OfflineBanner({ visible }: OfflineBannerProps) {
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: colors.action.destructive + '30',
+    backgroundColor: palette.red + '30',
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.screenPadding,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: colors.action.destructive + '40',
+    borderBottomColor: palette.red + '40',
   },
 });
 

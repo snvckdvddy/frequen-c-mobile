@@ -11,6 +11,7 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { ActiveSessionProvider } from './src/contexts/ActiveSessionContext';
 import { FavoritesProvider } from './src/contexts/FavoritesContext';
+import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme/colors';
 import { ToastProvider } from './src/components/ui';
@@ -41,8 +42,10 @@ export default function App() {
         <AuthProvider>
           <ActiveSessionProvider>
             <FavoritesProvider>
-              <AppNavigator />
-              <ToastProvider />
+              <ThemeProvider>
+                <AppNavigator />
+                <ToastProvider />
+              </ThemeProvider>
             </FavoritesProvider>
           </ActiveSessionProvider>
         </AuthProvider>

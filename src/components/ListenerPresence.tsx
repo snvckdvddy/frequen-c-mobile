@@ -12,7 +12,7 @@ import {
   Animated, Dimensions,
 } from 'react-native';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import type { Listener } from '../types';
 
@@ -42,15 +42,15 @@ function Avatar({
           height: size,
           borderRadius: size / 2,
           backgroundColor: bg,
-          borderColor: borderColor || colors.bg.surface,
+          borderColor: borderColor || palette.steel,
           borderWidth: 2,
         },
-        isHost && { borderColor: colors.session.live },
+        isHost && { borderColor: '#39FF14' },
       ]}
     >
       <Text
         variant="labelSmall"
-        color={colors.text.primary}
+        color={palette.frost}
         style={{ fontSize: size * 0.38, lineHeight: size * 0.5 }}
       >
         {initials}
@@ -92,7 +92,7 @@ export function ListenerBar({ listeners, hostId, onPress }: ListenerBarProps) {
         ))}
       </View>
       {overflow > 0 && (
-        <Text variant="labelSmall" color={colors.text.muted} style={barStyles.overflowText}>
+        <Text variant="labelSmall" color={palette.slate} style={barStyles.overflowText}>
           +{overflow}
         </Text>
       )}
@@ -163,10 +163,10 @@ export function ListenerDrawer({ visible, listeners, hostId, onClose }: Listener
         </TouchableOpacity>
 
         <View style={drawerStyles.header}>
-          <Text variant="h3" color={colors.text.primary}>
+          <Text variant="h3" color={palette.frost}>
             Listening Now
           </Text>
-          <Text variant="labelSmall" color={colors.text.muted}>
+          <Text variant="labelSmall" color={palette.slate}>
             {listeners.length} {listeners.length === 1 ? 'person' : 'people'}
           </Text>
         </View>
@@ -180,11 +180,11 @@ export function ListenerDrawer({ visible, listeners, hostId, onClose }: Listener
               <View style={drawerStyles.row}>
                 <Avatar username={item.username} size={36} isHost={isHost} />
                 <View style={drawerStyles.rowInfo}>
-                  <Text variant="label" color={colors.text.primary}>
+                  <Text variant="label" color={palette.frost}>
                     {item.username}
                   </Text>
                   {isHost && (
-                    <Text variant="labelSmall" color={colors.session.live}>HOST</Text>
+                    <Text variant="labelSmall" color={'#39FF14'}>HOST</Text>
                   )}
                 </View>
                 {/* Activity dot — green for "listening" */}
@@ -214,7 +214,7 @@ const drawerStyles = StyleSheet.create({
   },
   sheet: {
     maxHeight: SCREEN_H * 0.55,
-    backgroundColor: colors.bg.surface,
+    backgroundColor: palette.steel,
     borderTopLeftRadius: spacing.radius.xl,
     borderTopRightRadius: spacing.radius.xl,
     paddingBottom: 40,
@@ -227,7 +227,7 @@ const drawerStyles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.text.muted,
+    backgroundColor: palette.slate,
     opacity: 0.5,
   },
   header: {
@@ -256,7 +256,7 @@ const drawerStyles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.session.live,
+    backgroundColor: '#39FF14',
   },
 });
 
@@ -265,7 +265,7 @@ const drawerStyles = StyleSheet.create({
 interface ToastMessage {
   id: string;
   text: string;
-  type: 'join' | 'leave' | 'mode';
+  type: 'join' | 'leave' | 'mode' | 'system';
 }
 
 interface JoinLeaveToastProps {
@@ -277,9 +277,9 @@ export function JoinLeaveToast({ messages }: JoinLeaveToastProps) {
 
   // Show only the most recent toast
   const latest = messages[messages.length - 1];
-  const iconColor = latest.type === 'join' ? colors.session.live
-    : latest.type === 'mode' ? colors.action.primary
-    : colors.text.muted;
+  const iconColor = latest.type === 'join' ? '#39FF14'
+    : latest.type === 'mode' ? palette.orange
+    : palette.slate;
   const icon = latest.type === 'join' ? '→'
     : latest.type === 'mode' ? '~'
     : '←';
@@ -288,7 +288,7 @@ export function JoinLeaveToast({ messages }: JoinLeaveToastProps) {
     <View style={toastStyles.container}>
       <View style={[toastStyles.pill, latest.type === 'mode' && toastStyles.modePill]}>
         <Text variant="labelSmall" color={iconColor}>{icon}</Text>
-        <Text variant="labelSmall" color={latest.type === 'mode' ? colors.action.primary : colors.text.secondary}>
+        <Text variant="labelSmall" color={latest.type === 'mode' ? palette.orange : palette.silver}>
           {latest.text}
         </Text>
       </View>
@@ -312,13 +312,13 @@ const toastStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
   },
   modePill: {
-    borderColor: colors.action.primary + '30',
-    backgroundColor: colors.action.primary + '08',
+    borderColor: palette.orange + '30',
+    backgroundColor: palette.orange + '08',
   },
 });
 

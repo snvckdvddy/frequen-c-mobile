@@ -9,7 +9,7 @@
 
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import type { RoomMode } from '../../types';
 
 interface WaveformIconProps {
@@ -31,9 +31,9 @@ const waveformPaths: Record<RoomMode, string> = {
 };
 
 const modeColors: Record<RoomMode, string> = {
-  campfire: colors.signal.sine,
-  spotlight: colors.signal.square,
-  openFloor: colors.signal.saw,
+  campfire: palette.signalSine,
+  spotlight: palette.signalSquare,
+  openFloor: palette.signalSaw,
 };
 
 export function WaveformIcon({ mode, size = 20, color }: WaveformIconProps) {

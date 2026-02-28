@@ -59,7 +59,59 @@ export interface RegisterCredentials {
 }
 
 // ─── Session / Room ─────────────────────────────────────────
+
+/** Legacy preset names — still used as quick-start templates. */
 export type RoomMode = 'campfire' | 'spotlight' | 'openFloor';
+
+/** Granular per-session behavioral toggles. */
+export interface RoomBehaviors {
+  queueOrdering: 'roundRobin' | 'voteWeighted' | 'fifo';
+  voteReordersQueue: boolean;
+  skipAccess: 'anyone' | 'hostOnly' | 'voteRequired';
+  requiresApproval: boolean;
+  allowOverdrive: boolean;
+  allowPhaseCancel: boolean;
+  allowPhantomPower: boolean;
+  forecastEnabled: boolean;
+  duelEnabled: boolean;
+  reverbTailSeconds: number;
+}
+
+/** Default behaviors (fifo, no approval, anyone can skip, all features on). */
+export const DEFAULT_BEHAVIORS: RoomBehaviors = {
+  queueOrdering: 'fifo',
+  voteReordersQueue: false,
+  skipAccess: 'anyone',
+  requiresApproval: false,
+  allowOverdrive: true,
+  allowPhaseCancel: true,
+  allowPhantomPower: true,
+  forecastEnabled: true,
+  duelEnabled: true,
+  reverbTailSeconds: 300,
+};
+
+/** Maps a legacy preset name to its behavioral toggle values. */
+export const BEHAVIOR_PRESETS: Record<RoomMode, Partial<RoomBehaviors>> = {
+  campfire: {
+    queueOrdering: 'roundRobin',
+    voteReordersQueue: false,
+    skipAccess: 'anyone',
+    requiresApproval: false,
+  },
+  spotlight: {
+    queueOrdering: 'fifo',
+    voteReordersQueue: false,
+    skipAccess: 'hostOnly',
+    requiresApproval: true,
+  },
+  openFloor: {
+    queueOrdering: 'voteWeighted',
+    voteReordersQueue: true,
+    skipAccess: 'anyone',
+    requiresApproval: false,
+  },
+};
 
 export interface Listener {
   userId: string;
@@ -74,7 +126,10 @@ export interface Session {
   hostUsername: string;
   description?: string;
   genre?: string;
+  /** Legacy preset label — kept for backward compat display. */
   roomMode: RoomMode;
+  /** Granular behavioral toggles — source of truth for all queue/feature logic. */
+  behaviors: RoomBehaviors;
   isPublic: boolean;
   isLive: boolean;
   joinCode: string;

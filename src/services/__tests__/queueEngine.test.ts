@@ -16,7 +16,8 @@ import {
   rejectTrack,
   moveTrack,
 } from '../queueEngine';
-import type { QueueTrack } from '../../types';
+import type { QueueTrack, RoomBehaviors } from '../../types';
+import { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } from '../../types';
 
 // ─── Test Helpers ────────────────────────────────────────────
 
@@ -24,6 +25,12 @@ const HOST_ID = 'host_001';
 const USER_A = 'user_alice';
 const USER_B = 'user_bob';
 const USER_C = 'user_carol';
+
+// Behavior presets for each mode (replaces string mode names)
+const CAMPFIRE: RoomBehaviors = { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.campfire };
+const SPOTLIGHT: RoomBehaviors = { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.spotlight };
+const OPEN_FLOOR: RoomBehaviors = { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.openFloor };
+const VOTE_SKIP: RoomBehaviors = { ...DEFAULT_BEHAVIORS, skipAccess: 'voteRequired' };
 
 function makeTrack(overrides: Partial<QueueTrack> = {}): QueueTrack {
   const id = overrides.id || `trk_${Math.random().toString(36).slice(2, 8)}`;
@@ -58,7 +65,7 @@ describe('addTrackToQueue', () => {
   describe('campfire mode', () => {
     it('appends a single track to an empty queue', () => {
       const track = makeTrack({ addedById: USER_A });
-      const result = addTrackToQueue([], [], track, 'campfire', HOST_ID);
+      const result = addTrackToQueue([], [], track, CAMPFIRE, HOST_ID);
 
       expect(result.queue).toHaveLength(1);
       expect(result.queue[0].id).toBe(track.id);
@@ -71,7 +78,7 @@ describe('addTrackToQueue', () => {
       const aliceTracks = tracksByUser(USER_A, 2);
       const bobTrack = makeTrack({ addedById: USER_B });
 
-      const result = addTrackToQueue(aliceTracks, [], bobTrack, 'campfire', HOST_ID);
+      const result = addTrackToQueue(aliceTracks, [], bobTrack, CAMPFIRE, HOST_ID);
 
       // Should interleave: Alice → Bob → Alice
       expect(result.queue).toHaveLength(3);
@@ -87,7 +94,7 @@ describe('addTrackToQueue', () => {
       const existing = [...alice, ...bob];
       const newTrack = carol[0];
 
-      const result = addTrackToQueue(existing, [], newTrack, 'campfire', HOST_ID);
+      const result = addTrackToQueue(existing, [], newTrack, CAMPFIRE, HOST_ID);
 
       // Round-robin order should be: A → B → C → A → B
       expect(result.queue).toHaveLength(5);
@@ -104,7 +111,7 @@ describe('addTrackToQueue', () => {
       const a2 = makeTrack({ id: 'a2', addedById: USER_A, addedAt: '2026-01-01T00:01:00Z' });
       const b1 = makeTrack({ id: 'b1', addedById: USER_B, addedAt: '2026-01-01T00:00:30Z' });
 
-      const result = addTrackToQueue([a1, a2], [], b1, 'campfire', HOST_ID);
+      const result = addTrackToQueue([a1, a2], [], b1, CAMPFIRE, HOST_ID);
 
       // Alice's tracks should still be a1 before a2
       const aliceTracks = result.queue.filter((t) => t.addedById === USER_A);
@@ -116,7 +123,7 @@ describe('addTrackToQueue', () => {
       const tracks = tracksByUser(USER_A, 3);
       const newTrack = makeTrack({ addedById: USER_A });
 
-      const result = addTrackToQueue(tracks, [], newTrack, 'campfire', HOST_ID);
+      const result = addTrackToQueue(tracks, [], newTrack, CAMPFIRE, HOST_ID);
 
       expect(result.queue).toHaveLength(4);
       // All same contributor — no interleaving needed
@@ -129,7 +136,7 @@ describe('addTrackToQueue', () => {
   describe('spotlight mode', () => {
     it('host track goes directly to queue', () => {
       const hostTrack = makeTrack({ addedById: HOST_ID });
-      const result = addTrackToQueue([], [], hostTrack, 'spotlight', HOST_ID);
+      const result = addTrackToQueue([], [], hostTrack, SPOTLIGHT, HOST_ID);
 
       expect(result.queue).toHaveLength(1);
       expect(result.suggestedQueue).toHaveLength(0);
@@ -138,7 +145,7 @@ describe('addTrackToQueue', () => {
 
     it('non-host track goes to suggestedQueue as pending', () => {
       const guestTrack = makeTrack({ addedById: USER_A });
-      const result = addTrackToQueue([], [], guestTrack, 'spotlight', HOST_ID);
+      const result = addTrackToQueue([], [], guestTrack, SPOTLIGHT, HOST_ID);
 
       expect(result.queue).toHaveLength(0);
       expect(result.suggestedQueue).toHaveLength(1);
@@ -150,7 +157,7 @@ describe('addTrackToQueue', () => {
       const existing = [makeTrack({ addedById: HOST_ID })];
       const guestTrack = makeTrack({ addedById: USER_B });
 
-      const result = addTrackToQueue(existing, [], guestTrack, 'spotlight', HOST_ID);
+      const result = addTrackToQueue(existing, [], guestTrack, SPOTLIGHT, HOST_ID);
 
       expect(result.queue).toEqual(existing);
       expect(result.suggestedQueue).toHaveLength(1);
@@ -160,7 +167,7 @@ describe('addTrackToQueue', () => {
       const existing = [makeTrack({ addedById: HOST_ID, id: 'h1' })];
       const hostTrack2 = makeTrack({ addedById: HOST_ID, id: 'h2' });
 
-      const result = addTrackToQueue(existing, [], hostTrack2, 'spotlight', HOST_ID);
+      const result = addTrackToQueue(existing, [], hostTrack2, SPOTLIGHT, HOST_ID);
 
       expect(result.queue).toHaveLength(2);
       expect(result.queue[1].id).toBe('h2');
@@ -174,7 +181,7 @@ describe('addTrackToQueue', () => {
       const existing = tracksByUser(USER_A, 2);
       const newTrack = makeTrack({ addedById: USER_B });
 
-      const result = addTrackToQueue(existing, [], newTrack, 'openFloor', HOST_ID);
+      const result = addTrackToQueue(existing, [], newTrack, OPEN_FLOOR, HOST_ID);
 
       expect(result.queue).toHaveLength(3);
       // Last track should be the newly added one (no reorder on add)
@@ -189,7 +196,7 @@ describe('addTrackToQueue', () => {
 describe('applyVote', () => {
   it('adds an upvote to a track', () => {
     const queue = [makeTrack({ id: 'now' }), makeTrack({ id: 'target', votes: 0 })];
-    const result = applyVote(queue, 'target', USER_A, 1, 'openFloor');
+    const result = applyVote(queue, 'target', USER_A, 1, OPEN_FLOOR);
 
     const target = result.find((t) => t.id === 'target')!;
     expect(target.votes).toBe(1);
@@ -198,7 +205,7 @@ describe('applyVote', () => {
 
   it('adds a downvote to a track', () => {
     const queue = [makeTrack({ id: 'now' }), makeTrack({ id: 'target', votes: 0 })];
-    const result = applyVote(queue, 'target', USER_A, -1, 'openFloor');
+    const result = applyVote(queue, 'target', USER_A, -1, OPEN_FLOOR);
 
     const target = result.find((t) => t.id === 'target')!;
     expect(target.votes).toBe(-1);
@@ -210,7 +217,7 @@ describe('applyVote', () => {
       makeTrack({ id: 'now' }),
       makeTrack({ id: 'target', votes: 1, votedBy: { [USER_A]: 1 } }),
     ];
-    const result = applyVote(queue, 'target', USER_A, 1, 'openFloor');
+    const result = applyVote(queue, 'target', USER_A, 1, OPEN_FLOOR);
 
     const target = result.find((t) => t.id === 'target')!;
     expect(target.votes).toBe(0);
@@ -223,7 +230,7 @@ describe('applyVote', () => {
       makeTrack({ id: 'target', votes: 1, votedBy: { [USER_A]: 1 } }),
     ];
     // User taps downvote — should undo the upvote, NOT apply downvote
-    const result = applyVote(queue, 'target', USER_A, -1, 'openFloor');
+    const result = applyVote(queue, 'target', USER_A, -1, OPEN_FLOOR);
 
     const target = result.find((t) => t.id === 'target')!;
     expect(target.votes).toBe(0);
@@ -233,9 +240,9 @@ describe('applyVote', () => {
   it('multiple users can vote independently', () => {
     const queue = [makeTrack({ id: 'now' }), makeTrack({ id: 'target', votes: 0 })];
 
-    let result = applyVote(queue, 'target', USER_A, 1, 'openFloor');
-    result = applyVote(result, 'target', USER_B, 1, 'openFloor');
-    result = applyVote(result, 'target', USER_C, -1, 'openFloor');
+    let result = applyVote(queue, 'target', USER_A, 1, OPEN_FLOOR);
+    result = applyVote(result, 'target', USER_B, 1, OPEN_FLOOR);
+    result = applyVote(result, 'target', USER_C, -1, OPEN_FLOOR);
 
     const target = result.find((t) => t.id === 'target')!;
     expect(target.votes).toBe(1); // +1 +1 -1 = 1
@@ -252,7 +259,7 @@ describe('applyVote', () => {
     ];
 
     // Upvote the last track — it should move ahead of 'low'
-    const result = applyVote(queue, 'high', USER_A, 1, 'openFloor');
+    const result = applyVote(queue, 'high', USER_A, 1, OPEN_FLOOR);
 
     expect(result[0].id).toBe('now'); // now-playing stays put
     expect(result[1].id).toBe('high'); // voted up
@@ -266,7 +273,7 @@ describe('applyVote', () => {
       makeTrack({ id: 'second', votes: 0 }),
     ];
 
-    const result = applyVote(queue, 'second', USER_A, 1, 'campfire');
+    const result = applyVote(queue, 'second', USER_A, 1, CAMPFIRE);
 
     // Order should be unchanged despite vote
     expect(result[0].id).toBe('now');
@@ -281,7 +288,7 @@ describe('applyVote', () => {
       makeTrack({ id: 'second', votes: 0 }),
     ];
 
-    const result = applyVote(queue, 'second', USER_A, 1, 'spotlight');
+    const result = applyVote(queue, 'second', USER_A, 1, SPOTLIGHT);
 
     expect(result[0].id).toBe('now');
     expect(result[1].id).toBe('first');
@@ -296,7 +303,7 @@ describe('applyVote', () => {
     ];
 
     // Upvote 'older' to tie with 'newer' (both at 1 vote)
-    const result = applyVote(queue, 'older', USER_A, 1, 'openFloor');
+    const result = applyVote(queue, 'older', USER_A, 1, OPEN_FLOOR);
 
     expect(result[0].id).toBe('now');
     // Tied at 1 vote — 'older' addedAt is earlier, so it wins
@@ -306,7 +313,7 @@ describe('applyVote', () => {
 
   it('handles non-existent trackId gracefully', () => {
     const queue = [makeTrack({ id: 'real', votes: 0 })];
-    const result = applyVote(queue, 'nonexistent', USER_A, 1, 'openFloor');
+    const result = applyVote(queue, 'nonexistent', USER_A, 1, OPEN_FLOOR);
 
     // Queue unchanged
     expect(result).toHaveLength(1);
@@ -319,7 +326,7 @@ describe('applyVote', () => {
 describe('skipCurrentTrack', () => {
   it('removes the first track from the queue', () => {
     const queue = [makeTrack({ id: 'playing' }), makeTrack({ id: 'next' })];
-    const { queue: result, skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, 'campfire');
+    const { queue: result, skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, CAMPFIRE);
 
     expect(skipped).toBe(true);
     expect(result).toHaveLength(1);
@@ -327,7 +334,7 @@ describe('skipCurrentTrack', () => {
   });
 
   it('returns skipped=false on empty queue', () => {
-    const { queue: result, skipped } = skipCurrentTrack([], USER_A, HOST_ID, 'campfire');
+    const { queue: result, skipped } = skipCurrentTrack([], USER_A, HOST_ID, CAMPFIRE);
 
     expect(skipped).toBe(false);
     expect(result).toHaveLength(0);
@@ -335,28 +342,43 @@ describe('skipCurrentTrack', () => {
 
   it('anyone can skip in campfire mode', () => {
     const queue = [makeTrack({ id: 'playing' })];
-    const { skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, 'campfire');
+    const { skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, CAMPFIRE);
     expect(skipped).toBe(true);
   });
 
   it('anyone can skip in openFloor mode', () => {
     const queue = [makeTrack({ id: 'playing' })];
-    const { skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, 'openFloor');
+    const { skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, OPEN_FLOOR);
     expect(skipped).toBe(true);
   });
 
   it('host CAN skip in spotlight mode', () => {
     const queue = [makeTrack({ id: 'playing' })];
-    const { skipped } = skipCurrentTrack(queue, HOST_ID, HOST_ID, 'spotlight');
+    const { skipped } = skipCurrentTrack(queue, HOST_ID, HOST_ID, SPOTLIGHT);
     expect(skipped).toBe(true);
   });
 
   it('non-host CANNOT skip in spotlight mode', () => {
     const queue = [makeTrack({ id: 'playing' })];
-    const { queue: result, skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, 'spotlight');
+    const { queue: result, skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, SPOTLIGHT);
 
     expect(skipped).toBe(false);
     expect(result).toHaveLength(1); // Queue unchanged
+  });
+
+  it('voteRequired: non-host returns skipped=false with reason', () => {
+    const queue = [makeTrack({ id: 'playing' })];
+    const result = skipCurrentTrack(queue, USER_A, HOST_ID, VOTE_SKIP);
+    expect(result.skipped).toBe(false);
+    expect(result.reason).toBe('voteRequired');
+  });
+
+  it('voteRequired: host can force-skip', () => {
+    const queue = [makeTrack({ id: 'playing' })];
+    const result = skipCurrentTrack(queue, HOST_ID, HOST_ID, VOTE_SKIP);
+    expect(result.skipped).toBe(true);
+    expect(result.reason).toBe('hostForce');
+    expect(result.queue).toHaveLength(0);
   });
 });
 
@@ -532,8 +554,8 @@ describe('edge cases', () => {
   it('addTrackToQueue handles empty queue in all modes', () => {
     const track = makeTrack({ addedById: USER_A });
 
-    const campfire = addTrackToQueue([], [], track, 'campfire', HOST_ID);
-    const openFloor = addTrackToQueue([], [], track, 'openFloor', HOST_ID);
+    const campfire = addTrackToQueue([], [], track, CAMPFIRE, HOST_ID);
+    const openFloor = addTrackToQueue([], [], track, OPEN_FLOOR, HOST_ID);
 
     expect(campfire.queue).toHaveLength(1);
     expect(openFloor.queue).toHaveLength(1);
@@ -541,14 +563,14 @@ describe('edge cases', () => {
 
   it('applyVote on single-item queue does not crash', () => {
     const queue = [makeTrack({ id: 'only', votes: 0 })];
-    const result = applyVote(queue, 'only', USER_A, 1, 'openFloor');
+    const result = applyVote(queue, 'only', USER_A, 1, OPEN_FLOOR);
 
     expect(result[0].votes).toBe(1);
   });
 
   it('skipCurrentTrack on single-item queue returns empty', () => {
     const queue = [makeTrack({ id: 'only' })];
-    const { queue: result, skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, 'campfire');
+    const { queue: result, skipped } = skipCurrentTrack(queue, USER_A, HOST_ID, CAMPFIRE);
 
     expect(skipped).toBe(true);
     expect(result).toHaveLength(0);
@@ -558,9 +580,9 @@ describe('edge cases', () => {
     const queue = [makeTrack({ id: 'now' }), makeTrack({ id: 'a' })];
     const suggested = [makeTrack({ id: 'p1', status: 'pending' })];
 
-    const addResult = addTrackToQueue(queue, suggested, makeTrack(), 'campfire', HOST_ID);
-    const voteResult = applyVote(queue, 'a', USER_A, 1, 'openFloor');
-    const skipResult = skipCurrentTrack(queue, USER_A, HOST_ID, 'campfire');
+    const addResult = addTrackToQueue(queue, suggested, makeTrack(), CAMPFIRE, HOST_ID);
+    const voteResult = applyVote(queue, 'a', USER_A, 1, OPEN_FLOOR);
+    const skipResult = skipCurrentTrack(queue, USER_A, HOST_ID, CAMPFIRE);
     const approveResult = approveTrack(queue, suggested, 'p1');
     const rejectResult = rejectTrack(suggested, 'p1');
     const moveResult = moveTrack(queue, 'a', 'down');

@@ -9,7 +9,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 
 interface QRCodeDisplayProps {
@@ -26,14 +26,14 @@ export function QRCodeDisplay({ joinCode, size = 180 }: QRCodeDisplayProps) {
         <QRCode
           value={value}
           size={size}
-          color={colors.text.primary}
-          backgroundColor={colors.bg.elevated}
+          color={palette.frost}
+          backgroundColor={palette.midnight}
         />
       </View>
-      <Text variant="label" color={colors.text.secondary} align="center" style={styles.code}>
+      <Text variant="label" color={palette.silver} align="center" style={styles.code}>
         {joinCode}
       </Text>
-      <Text variant="labelSmall" color={colors.text.muted} align="center">
+      <Text variant="labelSmall" color={palette.slate} align="center">
         Scan to join this room
       </Text>
     </View>
@@ -48,9 +48,9 @@ const styles = StyleSheet.create({
   qrWrapper: {
     padding: spacing.md,
     borderRadius: spacing.radius.lg,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
   },
   code: {
     marginTop: spacing.md,

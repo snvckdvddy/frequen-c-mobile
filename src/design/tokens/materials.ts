@@ -18,20 +18,58 @@
 // ─── Core Palette (from existing colors.ts) ─────────────────
 
 export const palette = {
-  void: '#06080F',
-  midnight: '#0E1219',
-  steel: '#161B28',
-  gunmetal: '#1E2436',
-  ice: '#00E5FF',
-  amber: '#FFB347',
-  white: '#E8EAED',
+  // ─── Surface tones ───────────────────────────────────
+  void: '#06080F',       // Deepest background
+  midnight: '#0E1219',   // Card/section backgrounds
+  steel: '#161B28',      // Raised surfaces
+  gunmetal: '#1E2436',   // Interactive surface base
+
+  // ─── Primary accent: ORANGE (Gemini V7 identity) ─────
+  orange: '#FF6B35',     // Primary interactive accent (play, CTAs, badges)
+  orangeGlow: 'rgba(255, 107, 53, 0.30)',
+  orangeDim: '#CC5528',  // Pressed/disabled orange
+
+  // ─── Secondary accent: ICE CYAN (status, indicators) ─
+  ice: '#00E5FF',        // Status indicators, Signal Chain underline, system
+  iceGlow: 'rgba(0, 229, 255, 0.25)',
+
+  // ─── Alert accents ──────────────────────────────────
+  amber: '#FFB347',      // Voltage sag / warning state
+  red: '#FF3B5C',        // Destructive / ACTIVE PATCH badge
+  green: '#00FF88',      // CV economy, success, onboarding
+  magenta: '#FF2D78',    // Phase Cancel, compression alerts
+
+  // ─── Text hierarchy ─────────────────────────────────
+  frost: '#F0F4F8',      // Primary text — near-white with warmth
+  white: '#E8EAED',      // Pure white text
+  silver: '#94A3B8',     // Secondary text — metallic mid-tone
+  slate: '#5A6680',      // Muted/tertiary text — dark gray-blue
   textSecondary: '#8B9EB0',
   textDim: '#4A5568',
+
+  // ─── Signal waveform colors (room mode identity) ────
+  signalSine: '#FF6B35',      // Campfire — warm orange
+  signalSquare: '#FF2D55',    // Spotlight — hot pink
+  signalSaw: '#C0DFFF',       // Open Floor — chrome blue
+
+  // ─── Semantic border / chrome ───────────────────────
+  chromeBorder: 'rgba(148, 163, 184, 0.15)',
+  chromeHighlight: 'rgba(255, 255, 255, 0.06)',
 } as const;
 
 // ─── Emission / Glow Configs ────────────────────────────────
 
 export const glow = {
+  /** Orange — primary interactive glow (Gemini V7) */
+  orange: {
+    core: '#FF6B35',
+    inner: 'rgba(255, 107, 53, 0.45)',
+    innerRadius: 12,
+    outer: 'rgba(255, 107, 53, 0.18)',
+    outerRadius: 35,
+    ambient: 'rgba(255, 107, 53, 0.07)',
+    ambientRadius: 65,
+  },
   ice: {
     /** Bright core color */
     core: '#00E5FF',

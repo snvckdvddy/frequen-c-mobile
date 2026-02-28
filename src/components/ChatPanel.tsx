@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView, Platform, Animated, Keyboard,
 } from 'react-native';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { sendChatMessage, onSessionEvent } from '../services/socket';
 import { getGlobalLimiter, validateChatMessage, CHAT_MAX_LENGTH } from '../utils/rateLimiter';
@@ -58,7 +58,7 @@ function MessageBubble({ message, isOwn }: { message: ChatMessage; isOwn: boolea
   if (message.type === 'system') {
     return (
       <View style={bubbleStyles.systemRow}>
-        <Text variant="labelSmall" color={colors.text.muted} align="center">
+        <Text variant="labelSmall" color={palette.slate} align="center">
           {message.text}
         </Text>
       </View>
@@ -82,10 +82,10 @@ function MessageBubble({ message, isOwn }: { message: ChatMessage; isOwn: boolea
             {message.username}
           </Text>
         )}
-        <Text variant="bodySmall" color={colors.text.primary}>
+        <Text variant="bodySmall" color={palette.frost}>
           {message.text}
         </Text>
-        <Text variant="labelSmall" color={colors.text.muted} style={bubbleStyles.time}>
+        <Text variant="labelSmall" color={palette.slate} style={bubbleStyles.time}>
           {formatTime(message.timestamp)}
         </Text>
       </View>
@@ -115,11 +115,11 @@ const bubbleStyles = StyleSheet.create({
     borderRadius: 16,
   },
   bubbleOwn: {
-    backgroundColor: colors.action.primary + '25',
+    backgroundColor: palette.orange + '25',
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     borderBottomLeftRadius: 4,
   },
   time: {
@@ -208,12 +208,12 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
       <View style={styles.header}>
         <View style={styles.handle} />
         <View style={styles.headerRow}>
-          <Text variant="labelLarge" color={colors.text.primary}>Chat</Text>
-          <Text variant="labelSmall" color={colors.text.muted}>
+          <Text variant="labelLarge" color={palette.frost}>Chat</Text>
+          <Text variant="labelSmall" color={palette.slate}>
             {messages.filter((m) => m.type === 'message').length} messages
           </Text>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close chat">
-            <Text variant="label" color={colors.text.muted}>✕</Text>
+            <Text variant="label" color={palette.slate}>✕</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -259,7 +259,7 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
           <TextInput
             style={styles.input}
             placeholder="Say something..."
-            placeholderTextColor={colors.text.muted}
+            placeholderTextColor={palette.slate}
             value={inputText}
             onChangeText={setInputText}
             onSubmitEditing={handleSend}
@@ -278,7 +278,7 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
             accessibilityLabel="Send message"
             accessibilityState={{ disabled: !inputText.trim() }}
           >
-            <Text variant="label" color={inputText.trim() ? colors.action.primary : colors.text.muted}>
+            <Text variant="label" color={inputText.trim() ? palette.orange : palette.slate}>
               ↑
             </Text>
           </TouchableOpacity>
@@ -297,24 +297,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '55%',
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.midnight,
     borderTopLeftRadius: spacing.radius.xl,
     borderTopRightRadius: spacing.radius.xl,
     borderTopWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
     overflow: 'hidden',
   },
   header: {
     paddingTop: 8,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    borderBottomColor: palette.chromeBorder,
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.border.subtle,
+    backgroundColor: palette.chromeBorder,
     alignSelf: 'center',
     marginBottom: 8,
   },
@@ -336,11 +336,11 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 6,
     borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
+    borderTopColor: palette.chromeBorder,
   },
   quickBtn: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     alignItems: 'center', justifyContent: 'center',
   },
   inputRow: {
@@ -354,19 +354,19 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: 40,
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     borderRadius: 20,
     paddingHorizontal: 16,
-    color: colors.text.primary,
+    color: palette.frost,
     fontSize: 14,
   },
   sendBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.action.primary + '20',
+    backgroundColor: palette.orange + '20',
     alignItems: 'center', justifyContent: 'center',
   },
   sendBtnDisabled: {
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
   },
 });
 

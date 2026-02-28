@@ -9,7 +9,7 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Text } from '../ui';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import { tapLight } from '../../utils/haptics';
 import type { Track } from '../../types';
@@ -52,7 +52,7 @@ export function TrackResultCard({
         <Image source={{ uri: track.albumArt }} style={styles.art} />
       ) : (
         <View style={[styles.art, { alignItems: 'center', justifyContent: 'center' }]}>
-          <Text variant="labelSmall" color={colors.text.muted}>
+          <Text variant="labelSmall" color={palette.slate}>
             {track.artist.charAt(0)}
           </Text>
         </View>
@@ -60,13 +60,13 @@ export function TrackResultCard({
 
       {/* Track info */}
       <View style={styles.info}>
-        <Text variant="label" color={colors.text.primary} numberOfLines={1}>
+        <Text variant="label" color={palette.frost} numberOfLines={1}>
           {track.title}
         </Text>
-        <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
+        <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
           {track.artist}{track.album ? ` · ${track.album}` : ''}
         </Text>
-        <Text variant="labelSmall" color={colors.text.muted}>
+        <Text variant="labelSmall" color={palette.slate}>
           {formatDuration(track.duration)} · {sourceLabel(track.source)}
         </Text>
       </View>
@@ -82,7 +82,7 @@ export function TrackResultCard({
       >
         <Text
           variant="labelLarge"
-          color={isFavorite ? colors.action.primary : colors.text.muted}
+          color={isFavorite ? palette.orange : palette.slate}
           style={{ fontSize: 18 }}
         >
           {isFavorite ? '♥' : '♡'}
@@ -94,7 +94,7 @@ export function TrackResultCard({
         onPress={() => onAddToRoom(track)}
         activeOpacity={0.6}
       >
-        <Text variant="labelLarge" color={colors.action.primary} style={{ fontSize: 20 }}>
+        <Text variant="labelLarge" color={palette.orange} style={{ fontSize: 20 }}>
           +
         </Text>
       </TouchableOpacity>
@@ -109,13 +109,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    borderBottomColor: palette.chromeBorder,
   },
   art: {
     width: 48,
     height: 48,
     borderRadius: spacing.radius.sm,
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.sm,

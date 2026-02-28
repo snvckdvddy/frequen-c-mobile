@@ -15,7 +15,7 @@
 
 import React from 'react';
 import { View, StyleSheet, ViewStyle, ViewProps } from 'react-native';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 
 type CardVariant = 'surface' | 'elevated' | 'glass';
@@ -29,16 +29,16 @@ interface CardProps extends ViewProps {
 
 const variantMap: Record<CardVariant, { bg: string; border: string }> = {
   surface: {
-    bg: colors.bg.surface,       // Midnight #0E1219
-    border: colors.border.default, // Dark steel #2D3548
+    bg: palette.midnight,       // Midnight #0E1219
+    border: palette.chromeBorder, // Dark steel #2D3548
   },
   elevated: {
-    bg: colors.bg.elevated,      // Steel #161B28
-    border: colors.border.default,
+    bg: palette.midnight,      // Steel #161B28
+    border: palette.chromeBorder,
   },
   glass: {
-    bg: colors.chrome.surface,   // Chrome translucent
-    border: colors.chrome.border, // Chrome border
+    bg: palette.steel,   // Chrome translucent
+    border: palette.chromeBorder, // Chrome border
   },
 };
 

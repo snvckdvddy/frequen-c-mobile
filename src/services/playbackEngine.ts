@@ -133,7 +133,7 @@ export async function loadTrack(
         }
       }
     } catch (err) {
-      console.warn('PlaybackEngine adapter failed to fetch fresh stream:', err);
+      console.log('[PlaybackEngine] Adapter failed to fetch fresh stream:', err);
     }
   }
 
@@ -174,12 +174,12 @@ export async function loadTrack(
         return; // success — exit the function
       } catch (err) {
         lastErr = err;
-        console.warn(`Audio load attempt ${attempt + 1}/${MAX_RETRIES + 1} failed:`, err);
+        console.log(`[PlaybackEngine] Audio load attempt ${attempt + 1}/${MAX_RETRIES + 1} failed:`, err);
       }
     }
     // All retries exhausted — fall through to timer simulation
     const msg = lastErr instanceof Error ? lastErr.message : 'Audio load failed';
-    console.warn('Audio load failed after retries, using timer fallback');
+    console.log('[PlaybackEngine] Audio load failed after retries, using timer fallback');
     state = { ...state, isLoading: false, error: msg };
     emitProgress();
     startTimerFallback(trackId, durationSec);

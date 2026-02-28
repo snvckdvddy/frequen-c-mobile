@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 
 // Voltage Sag palette — warm amber replaces icy cyan
 const sagPalette = {
@@ -83,8 +83,8 @@ export function useVoltageSag(): VoltageSagState {
   return {
     isVoltageSag,
     batteryLevel,
-    accent: isVoltageSag ? sagPalette.accent : colors.action.primary,
-    accentGlow: isVoltageSag ? sagPalette.accentGlow : colors.highlight.ice,
+    accent: isVoltageSag ? sagPalette.accent : palette.orange,
+    accentGlow: isVoltageSag ? sagPalette.accentGlow : palette.ice,
     reduceAnimations: isVoltageSag,
     setForceSag: useCallback((force: boolean | null) => setForceSag(force), []),
   };

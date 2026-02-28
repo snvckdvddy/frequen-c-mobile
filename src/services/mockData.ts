@@ -6,6 +6,7 @@
  */
 
 import type { User, Session, Track, RoomMode, MockUser } from '../types';
+import { BEHAVIOR_PRESETS, DEFAULT_BEHAVIORS } from '../types';
 
 // ─── Mock User ──────────────────────────────────────────────
 
@@ -34,6 +35,7 @@ export const mockSessions: Session[] = [
     hostId: 'usr_mock_001',
     hostUsername: 'caleb',
     roomMode: 'campfire' as RoomMode,
+    behaviors: { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.campfire },
     genre: 'Lo-fi / Chill',
     isPublic: true,
     isLive: true,
@@ -63,6 +65,7 @@ export const mockSessions: Session[] = [
     hostId: 'usr_005',
     hostUsername: 'priya',
     roomMode: 'spotlight' as RoomMode,
+    behaviors: { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.spotlight },
     genre: 'Indie / Alternative',
     isPublic: true,
     isLive: true,
@@ -91,6 +94,7 @@ export const mockSessions: Session[] = [
     hostId: 'usr_008',
     hostUsername: 'dex',
     roomMode: 'openFloor' as RoomMode,
+    behaviors: { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.openFloor },
     genre: 'Mixed',
     isPublic: true,
     isLive: true,
@@ -122,6 +126,7 @@ export const mockSessions: Session[] = [
     hostId: 'usr_014',
     hostUsername: 'dani',
     roomMode: 'campfire' as RoomMode,
+    behaviors: { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.campfire },
     genre: 'R&B / Soul',
     isPublic: true,
     isLive: true,
@@ -150,6 +155,7 @@ export const mockSessions: Session[] = [
     hostId: 'usr_017',
     hostUsername: 'king',
     roomMode: 'openFloor' as RoomMode,
+    behaviors: { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.openFloor },
     genre: 'Hip-Hop / Rap',
     isPublic: true,
     isLive: true,
@@ -183,6 +189,7 @@ export const mockSessions: Session[] = [
     hostId: 'usr_025',
     hostUsername: 'ella',
     roomMode: 'spotlight' as RoomMode,
+    behaviors: { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.spotlight },
     genre: 'Jazz / Blues',
     isPublic: true,
     isLive: true,
@@ -212,6 +219,7 @@ export const mockSessions: Session[] = [
     hostId: 'usr_029',
     hostUsername: 'volt',
     roomMode: 'openFloor' as RoomMode,
+    behaviors: { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.openFloor },
     genre: 'Electronic / Dance',
     isPublic: true,
     isLive: true,
@@ -242,6 +250,7 @@ export const mockSessions: Session[] = [
     hostId: 'usr_034',
     hostUsername: 'luna',
     roomMode: 'campfire' as RoomMode,
+    behaviors: { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS.campfire },
     genre: 'Lo-fi / Chill',
     isPublic: true,
     isLive: true,

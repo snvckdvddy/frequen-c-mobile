@@ -12,7 +12,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Easing } from 'react-native';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { DURATION } from '../../theme/motion';
 
 interface LivePulseProps {
@@ -29,7 +29,7 @@ interface LivePulseProps {
 export function LivePulse({
   size = 8,
   showLabel = true,
-  color = colors.raw.neonGreen,
+  color = palette.green,
   paused = false,
 }: LivePulseProps) {
   const pulseAnim = useRef(new Animated.Value(0.4)).current;

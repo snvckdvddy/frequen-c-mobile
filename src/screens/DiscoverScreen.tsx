@@ -1,24 +1,37 @@
 /**
- * Discover Screen — Browse live rooms.
+ * Discover Screen — "Live Sonar" (Gemini V7)
  *
- * Sprint 2: Wired to convergence strategy components.
- * Uses RoomCard (§4.2) for all room entries.
- * Uses RoomModeBadge (§3.1) in filter context.
- * SoundCloud-inspired: content-forward, restrained chrome, one accent.
+ * Structure:
+ *   Live Sonar                         ← Title
+ *   SCANNING LOCAL FREQUENCIES         ← Subtitle (monospace)
+ *   ┌─────────────────────────────┐
+ *   │                             │
+ *   │     ·  Sonar Radar  ·       │    ← Animated radar with room dots
+ *   │         Visualization       │
+ *   │                             │
+ *   └─────────────────────────────┘
+ *   [LP FILTER]  [HP FILTER]          ← Knob-style filters
+ *   🔍 Ping a vibe (e.g. Rainy 2AM)  ← Search bar
+ *   ─────────────────────────────────
+ *   LIVE SIGNALS                       ← Room list section
+ *   [room] [room] [room]
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  RefreshControl, TextInput, ScrollView, Keyboard,
+  RefreshControl, TextInput, Dimensions, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, SafeScreen, RoomCard, ErrorState } from '../components/ui';
-import { AnimatedPressable } from '../components/ui/AnimatedPressable';
 import { sessionApi } from '../services/api';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import type { Session, RoomMode } from '../types';
+import { VoidSurface, StatusLight } from '../design/components';
+import { palette } from '../design/tokens/materials';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SONAR_SIZE = SCREEN_WIDTH - 64;
 
 // ─── Props ──────────────────────────────────────────────────
 
@@ -26,468 +39,321 @@ interface DiscoverScreenProps {
   onOpenRoom?: (sessionId: string) => void;
 }
 
-// ─── Helpers ────────────────────────────────────────────────
+// ─── Sonar Radar Visualization ──────────────────────────────
 
-/** Activity score — higher = hotter. Combines listener count + recency. */
-function activityScore(session: Session): number {
-  const listeners = session.listeners?.length || 0;
-  const ageMinutes = (Date.now() - new Date(session.createdAt).getTime()) / 60_000;
-  const recencyBoost = Math.max(0, 1 - ageMinutes / 360);
-  return listeners * 2 + recencyBoost * 5 + (session.currentTrack?.votes || 0) * 0.5;
-}
+function SonarRadar({ rooms, onRoomPress }: { rooms: Session[]; onRoomPress?: (id: string) => void }) {
+  const spinAnim = useRef(new Animated.Value(0)).current;
 
-/** Relative time — "2m ago", "1h ago", "just now" */
-function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(spinAnim, {
+        toValue: 1,
+        duration: 4000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    ).start();
+  }, [spinAnim]);
 
-// ─── Activity Feed ──────────────────────────────────────────
+  const spin = spinAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
-interface ActivityItem {
-  id: string;
-  text: string;
-  roomName: string;
-  sessionId: string;
-  time: string;
-  type: 'started' | 'joined';
-}
-
-function buildActivityFeed(sessions: Session[]): ActivityItem[] {
-  const items: ActivityItem[] = [];
-  for (const s of sessions) {
-    items.push({
-      id: `start_${s.id}`,
-      text: `${s.hostUsername} started`,
-      roomName: s.name,
-      sessionId: s.id,
-      time: relativeTime(s.createdAt),
-      type: 'started',
+  // Place rooms pseudo-randomly on the radar
+  const roomDots = useMemo(() => {
+    return rooms.slice(0, 8).map((room, i) => {
+      const angle = (i / Math.max(rooms.length, 1)) * 2 * Math.PI + 0.3 * i;
+      const distance = 0.25 + (i % 3) * 0.2; // 25-65% from center
+      const x = SONAR_SIZE / 2 + Math.cos(angle) * (SONAR_SIZE / 2) * distance - 6;
+      const y = SONAR_SIZE / 2 + Math.sin(angle) * (SONAR_SIZE / 2) * distance - 6;
+      return { ...room, x, y };
     });
-    const lastListener = s.listeners?.at(-1);
-    if (lastListener) {
-      items.push({
-        id: `join_${s.id}_${lastListener.username}`,
-        text: `${lastListener.username} joined`,
-        roomName: s.name,
-        sessionId: s.id,
-        time: relativeTime(s.createdAt),
-        type: 'joined',
-      });
-    }
-  }
-  return items.slice(0, 8);
-}
+  }, [rooms]);
 
-function ActivityFeedRow({ item, onPress }: { item: ActivityItem; onPress: () => void }) {
   return (
-    <AnimatedPressable style={activityStyles.row} onPress={onPress} scaleDown={0.98}>
-      <View style={activityStyles.dot} />
-      <View style={{ flex: 1 }}>
-        <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
-          {item.text}{' '}
-          <Text variant="label" color={colors.text.primary}>{item.roomName}</Text>
-        </Text>
-      </View>
-      <Text variant="labelSmall" color={colors.text.muted}>{item.time}</Text>
-    </AnimatedPressable>
-  );
-}
+    <View style={sonarStyles.container}>
+      {/* Concentric circles */}
+      <View style={[sonarStyles.ring, sonarStyles.ringOuter]} />
+      <View style={[sonarStyles.ring, sonarStyles.ringMiddle]} />
+      <View style={[sonarStyles.ring, sonarStyles.ringInner]} />
 
-const activityStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
-    paddingHorizontal: spacing.cardPadding,
-  },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.text.muted,
-  },
-});
+      {/* Crosshairs */}
+      <View style={sonarStyles.crossH} />
+      <View style={sonarStyles.crossV} />
 
-// ─── Filter Chips ───────────────────────────────────────────
+      {/* Sweep line */}
+      <Animated.View style={[sonarStyles.sweepArm, { transform: [{ rotate: spin }] }]}>
+        <View style={sonarStyles.sweepLine} />
+      </Animated.View>
 
-const FILTERS = ['All', 'Campfire', 'Spotlight', 'Open Floor'] as const;
-type FilterType = (typeof FILTERS)[number];
+      {/* Room dots */}
+      {roomDots.map((room) => (
+        <TouchableOpacity
+          key={room.id}
+          style={[sonarStyles.roomDot, { left: room.x, top: room.y }]}
+          onPress={() => onRoomPress?.(room.id)}
+          activeOpacity={0.7}
+        >
+          <View style={sonarStyles.roomDotInner} />
+        </TouchableOpacity>
+      ))}
 
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <TouchableOpacity
-      style={[
-        filterStyles.chip,
-        active && { backgroundColor: colors.highlight.iceSubtle, borderColor: colors.action.primary },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`Filter by ${label}${active ? ', selected' : ''}`}
-      accessibilityState={{ selected: active }}
-    >
-      <Text variant="labelSmall" color={active ? colors.action.primary : colors.text.muted}>
-        {label.toUpperCase()}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-const filterStyles = StyleSheet.create({
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    marginRight: spacing.sm,
-  },
-});
-
-// ─── Section Header ─────────────────────────────────────────
-
-function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <View style={sectionStyles.header}>
-      <Text variant="h3" color={colors.text.primary}>{title}</Text>
-      {subtitle && <Text variant="labelSmall" color={colors.text.muted}>{subtitle}</Text>}
+      {/* Center point */}
+      <View style={sonarStyles.centerDot} />
     </View>
   );
 }
 
-const sectionStyles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+const sonarStyles = StyleSheet.create({
+  container: {
+    width: SONAR_SIZE,
+    height: SONAR_SIZE,
+    alignSelf: 'center',
+    borderRadius: SONAR_SIZE / 2,
+    backgroundColor: 'rgba(14, 18, 25, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.08)',
+    overflow: 'hidden',
+  },
+  ring: {
+    position: 'absolute',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.06)',
+    borderRadius: 999,
+  },
+  ringOuter: {
+    width: SONAR_SIZE * 0.85,
+    height: SONAR_SIZE * 0.85,
+    left: SONAR_SIZE * 0.075,
+    top: SONAR_SIZE * 0.075,
+  },
+  ringMiddle: {
+    width: SONAR_SIZE * 0.55,
+    height: SONAR_SIZE * 0.55,
+    left: SONAR_SIZE * 0.225,
+    top: SONAR_SIZE * 0.225,
+  },
+  ringInner: {
+    width: SONAR_SIZE * 0.25,
+    height: SONAR_SIZE * 0.25,
+    left: SONAR_SIZE * 0.375,
+    top: SONAR_SIZE * 0.375,
+  },
+  crossH: {
+    position: 'absolute',
+    width: '100%',
+    height: 1,
+    top: '50%',
+    backgroundColor: 'rgba(0, 229, 255, 0.05)',
+  },
+  crossV: {
+    position: 'absolute',
+    height: '100%',
+    width: 1,
+    left: '50%',
+    backgroundColor: 'rgba(0, 229, 255, 0.05)',
+  },
+  sweepArm: {
+    position: 'absolute',
+    width: SONAR_SIZE,
+    height: SONAR_SIZE,
     alignItems: 'center',
-    paddingHorizontal: spacing.screenPadding,
-    marginBottom: spacing.sm,
-    marginTop: spacing.lg,
+  },
+  sweepLine: {
+    width: 2,
+    height: SONAR_SIZE / 2,
+    backgroundColor: 'rgba(0, 229, 255, 0.20)',
+    borderRadius: 1,
+  },
+  roomDot: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roomDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.ice,
+    shadowColor: palette.ice,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  centerDot: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: palette.orange,
+    left: SONAR_SIZE / 2 - 3,
+    top: SONAR_SIZE / 2 - 3,
+    shadowColor: palette.orange,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
   },
 });
-
-// ─── Session → RoomCard adapter ─────────────────────────────
-
-/** Maps a Session object to RoomCard props */
-function sessionToRoomCardProps(
-  session: Session,
-  onOpenRoom: (sessionId: string) => void,
-) {
-  return {
-    roomName: session.name,
-    hostUsername: session.hostUsername,
-    roomMode: (session.roomMode || 'campfire') as RoomMode,
-    isLive: session.isLive ?? true,
-    listenerCount: session.listeners?.length || 0,
-    genre: session.genre,
-    currentTrack: session.currentTrack
-      ? {
-          title: session.currentTrack.title,
-          artist: session.currentTrack.artist,
-          albumArt: session.currentTrack.albumArt,
-        }
-      : undefined,
-    onJoin: () => onOpenRoom(session.id),
-    onPress: () => onOpenRoom(session.id),
-  };
-}
 
 // ─── Main Screen ────────────────────────────────────────────
 
 export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [rooms, setRooms] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterType>('All');
-  const [activeGenre, setActiveGenre] = useState<string>('All');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [search, setSearch] = useState('');
 
-  const fetchSessions = useCallback(async () => {
+  const fetchRooms = useCallback(async () => {
     try {
-      const { sessions: list } = await sessionApi.discover();
-      setSessions(list || []);
+      const { sessions } = await sessionApi.discover();
+      setRooms(sessions);
       setError(null);
     } catch (err) {
-      setSessions([]);
-      setError(err instanceof Error ? err.message : 'Failed to load rooms');
+      setError(err instanceof Error ? err.message : 'Failed to scan frequencies');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    fetchSessions().finally(() => setLoading(false));
-  }, [fetchSessions]);
+    fetchRooms();
+    const interval = setInterval(fetchRooms, 10000);
+    return () => clearInterval(interval);
+  }, [fetchRooms]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchSessions();
+    await fetchRooms();
     setRefreshing(false);
-  }, [fetchSessions]);
+  }, [fetchRooms]);
 
-  // ─── Derived data ──────────────────────────────────────
-  const liveSessions = useMemo(
-    () => sessions.filter((s) => s.isLive && s.isPublic),
-    [sessions],
-  );
-
-  const availableGenres = useMemo(() => {
-    const genres = new Set<string>();
-    for (const s of liveSessions) {
-      if (s.genre && s.genre !== 'Mixed') genres.add(s.genre);
-    }
-    return ['All', ...Array.from(genres).sort()];
-  }, [liveSessions]);
-
-  const filteredSessions = useMemo(() => {
-    let list = liveSessions;
-
-    if (activeFilter === 'Campfire') list = list.filter((s) => s.roomMode === 'campfire');
-    else if (activeFilter === 'Spotlight') list = list.filter((s) => s.roomMode === 'spotlight');
-    else if (activeFilter === 'Open Floor') list = list.filter((s) => s.roomMode === 'openFloor');
-
-    if (activeGenre !== 'All') list = list.filter((s) => s.genre === activeGenre);
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          (s.description || '').toLowerCase().includes(q) ||
-          (s.genre || '').toLowerCase().includes(q) ||
-          s.hostUsername.toLowerCase().includes(q) ||
-          (s.currentTrack?.artist || '').toLowerCase().includes(q),
-      );
-    }
-
-    return list;
-  }, [liveSessions, activeFilter, activeGenre, searchQuery]);
-
-  // Hot rooms — top 3 by activity score
-  const hotRooms = useMemo(
-    () => [...filteredSessions].sort((a, b) => activityScore(b) - activityScore(a)).slice(0, 3),
-    [filteredSessions],
-  );
-
-  // Activity feed
-  const activityFeed = useMemo(() => buildActivityFeed(liveSessions), [liveSessions]);
-
-  // Remaining rooms (not in top 3)
-  const hotIds = useMemo(() => new Set(hotRooms.map((s) => s.id)), [hotRooms]);
-  const remainingRooms = useMemo(
-    () => filteredSessions.filter((s) => !hotIds.has(s.id)),
-    [filteredSessions, hotIds],
-  );
-
-  const isSearchActive = searchQuery.trim().length > 0;
-
-  const handleOpenRoom = useCallback(
-    (sessionId: string) => {
-      if (onOpenRoom) onOpenRoom(sessionId);
-    },
-    [onOpenRoom],
-  );
-
-  // ─── Loading state ─────────────────────────────────────
-  if (loading) {
-    return (
-      <SafeScreen>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.action.primary} />
-          <Text variant="label" color={colors.text.muted} style={{ marginTop: spacing.md }}>
-            Loading rooms...
-          </Text>
-        </View>
-      </SafeScreen>
+  // Filter rooms by search
+  const filteredRooms = useMemo(() => {
+    if (!search.trim()) return rooms;
+    const q = search.toLowerCase();
+    return rooms.filter((r) =>
+      r.name.toLowerCase().includes(q) ||
+      r.genre?.toLowerCase().includes(q) ||
+      r.hostUsername?.toLowerCase().includes(q)
     );
-  }
+  }, [rooms, search]);
 
   return (
     <SafeScreen>
-      <FlatList
-        data={isSearchActive ? filteredSessions : remainingRooms}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.cardWrapper}>
-            <RoomCard {...sessionToRoomCardProps(item, handleOpenRoom)} />
-          </View>
-        )}
-        initialNumToRender={6}
-        maxToRenderPerBatch={4}
-        windowSize={7}
-        removeClippedSubviews={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.action.primary}
-            colors={[colors.action.primary]}
-          />
-        }
-        keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={
-          <View>
-            {/* ─── Error State ─────────────────────────── */}
-            {error && (
-              <ErrorState variant="banner" message={error} onRetry={fetchSessions} />
-            )}
-            {/* ─── Header ──────────────────────────────── */}
-            <View style={styles.header}>
-              <View style={styles.headerRow}>
-                <Text variant="h1" color={colors.text.primary}>
-                  Discover
-                </Text>
-                <Text variant="labelSmall" color={colors.text.muted}>
-                  {liveSessions.length} live
-                </Text>
-              </View>
-            </View>
+      <VoidSurface style={{ flex: 1 }}>
+        <FlatList
+          data={filteredRooms}
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={palette.orange}
+            />
+          }
+          contentContainerStyle={styles.content}
+          ListHeaderComponent={
+            <>
+              {/* Title */}
+              <Text style={styles.title}>Live Sonar</Text>
+              <Text style={styles.subtitle}>SCANNING LOCAL FREQUENCIES</Text>
 
-            {/* ─── Search Bar ──────────────────────────── */}
-            <View style={styles.searchRow}>
-              <View style={styles.searchIcon}>
-                <Ionicons name="search-outline" size={16} color={colors.text.muted} />
+              {/* Sonar Radar */}
+              <View style={styles.sonarContainer}>
+                <SonarRadar rooms={rooms} onRoomPress={onOpenRoom} />
               </View>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search rooms, genres, artists..."
-                placeholderTextColor={colors.text.muted}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                returnKeyType="search"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => { setSearchQuery(''); Keyboard.dismiss(); }}
-                  style={styles.clearBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                >
-                  <Ionicons name="close" size={16} color={colors.text.muted} />
-                </TouchableOpacity>
-              )}
-            </View>
 
-            {/* ─── Room Mode Filter ──────────────────── */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterRow}
-            >
-              {FILTERS.map((f) => (
-                <FilterChip
-                  key={f}
-                  label={f}
-                  active={activeFilter === f}
-                  onPress={() => setActiveFilter(f)}
+              {/* Filter knobs row */}
+              <View style={styles.filterRow}>
+                <View style={styles.filterKnob}>
+                  <Text style={styles.knobLabel}>LP FILTER</Text>
+                  <View style={styles.knobDial}>
+                    <View style={styles.knobIndicator} />
+                  </View>
+                </View>
+                <View style={styles.filterKnob}>
+                  <Text style={styles.knobLabel}>HP FILTER</Text>
+                  <View style={styles.knobDial}>
+                    <View style={styles.knobIndicator} />
+                  </View>
+                </View>
+              </View>
+
+              {/* Search bar */}
+              <View style={styles.searchBar}>
+                <Ionicons name="radio-outline" size={16} color={palette.slate} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Ping a vibe (e.g. Rainy 2AM)..."
+                  placeholderTextColor={palette.slate}
+                  value={search}
+                  onChangeText={setSearch}
+                  returnKeyType="search"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
-              ))}
-            </ScrollView>
-
-            {/* ─── Genre Filter ─────────────────────────── */}
-            {availableGenres.length > 1 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filterRow}
-              >
-                {availableGenres.map((g) => (
-                  <FilterChip
-                    key={g}
-                    label={g}
-                    active={activeGenre === g}
-                    onPress={() => setActiveGenre(g)}
-                  />
-                ))}
-              </ScrollView>
-            )}
-
-            {/* ─── Browse Mode (no search active) ──────── */}
-            {!isSearchActive && (
-              <View>
-                {/* Trending — top 3 by activity score, horizontal scroll */}
-                {hotRooms.length > 0 && (
-                  <View>
-                    <SectionHeader title="Trending" />
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.hotRow}
-                    >
-                      {hotRooms.map((s) => (
-                        <View key={s.id} style={styles.hotCardWrapper}>
-                          <RoomCard {...sessionToRoomCardProps(s, handleOpenRoom)} />
-                        </View>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {/* Activity Feed */}
-                {activityFeed.length > 0 && (
-                  <View>
-                    <SectionHeader title="Activity" />
-                    <View style={styles.activityCard}>
-                      {activityFeed.slice(0, 5).map((item) => (
-                        <ActivityFeedRow
-                          key={item.id}
-                          item={item}
-                          onPress={() => handleOpenRoom(item.sessionId)}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* All remaining rooms header */}
-                {remainingRooms.length > 0 && (
-                  <SectionHeader
-                    title="More Rooms"
-                    subtitle={`${remainingRooms.length} more`}
-                  />
-                )}
-
-                {/* Empty state */}
-                {filteredSessions.length === 0 && (
-                  <View style={styles.emptyState}>
-                    <Text variant="body" color={colors.text.muted} align="center">
-                      No rooms match this filter.{'\n'}Start one and set the vibe.
-                    </Text>
-                  </View>
+                {search.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearch('')}>
+                    <Ionicons name="close-circle" size={16} color={palette.slate} />
+                  </TouchableOpacity>
                 )}
               </View>
-            )}
 
-            {/* ─── Search Mode Header ─────────────────── */}
-            {isSearchActive && (
-              <View style={styles.searchResultsHeader}>
-                <Text variant="label" color={colors.text.secondary}>
-                  {filteredSessions.length} result{filteredSessions.length !== 1 ? 's' : ''} for "{searchQuery}"
+              {/* Section label */}
+              <Text style={styles.sectionLabel}>LIVE SIGNALS</Text>
+
+              {error && <ErrorState message={error} onRetry={fetchRooms} />}
+
+              {loading && (
+                <View style={styles.loadingCenter}>
+                  <ActivityIndicator color={palette.orange} size="large" />
+                </View>
+              )}
+            </>
+          }
+          renderItem={({ item }) => (
+            <View style={styles.roomCardWrapper}>
+              <RoomCard
+                roomName={item.name}
+                hostUsername={item.hostUsername}
+                roomMode={(item.roomMode || 'campfire') as RoomMode}
+                isLive={item.isLive ?? true}
+                listenerCount={item.listeners?.length || 0}
+                genre={item.genre}
+                currentTrack={
+                  item.currentTrack
+                    ? {
+                        title: item.currentTrack.title,
+                        artist: item.currentTrack.artist,
+                        albumArt: item.currentTrack.albumArt,
+                      }
+                    : undefined
+                }
+                onJoin={() => onOpenRoom?.(item.id)}
+                onPress={() => onOpenRoom?.(item.id)}
+              />
+            </View>
+          )}
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="radio-outline" size={40} color={palette.slate} />
+                <Text style={styles.emptyText}>No signals detected.</Text>
+                <Text style={styles.emptySubtext}>
+                  {search ? 'Try a different frequency.' : 'No live rooms right now. Start one.'}
                 </Text>
               </View>
-            )}
-          </View>
-        }
-        ListEmptyComponent={
-          isSearchActive ? (
-            <View style={styles.emptyState}>
-              <Text variant="body" color={colors.text.muted} align="center">
-                No rooms match "{searchQuery}".{'\n'}Try a different search.
-              </Text>
-            </View>
-          ) : null
-        }
-        contentContainerStyle={styles.listContent}
-      />
+            ) : null
+          }
+          ListFooterComponent={<View style={{ height: 120 }} />}
+        />
+      </VoidSurface>
     </SafeScreen>
   );
 }
@@ -495,79 +361,119 @@ export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
 // ─── Styles ─────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-  },
-  header: {
+  content: {
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.sm,
+    paddingTop: spacing['3xl'],
   },
-  headerRow: {
+  title: {
+    fontFamily: 'ChakraPetch-Bold',
+    fontSize: 28,
+    color: palette.frost,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.slate,
+    letterSpacing: 2,
+    marginBottom: spacing.lg,
+  },
+  sonarContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+
+  // Filter knobs
+  filterRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 40,
+    marginBottom: spacing.lg,
+  },
+  filterKnob: {
+    alignItems: 'center',
+  },
+  knobLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 9,
+    color: palette.slate,
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  knobDial: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(148, 163, 184, 0.20)',
+    backgroundColor: palette.steel,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 4,
+  },
+  knobIndicator: {
+    width: 2,
+    height: 10,
+    borderRadius: 1,
+    backgroundColor: palette.orange,
+  },
+
+  // Search
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: spacing.screenPadding,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.bg.input,
-    borderRadius: spacing.radius.md,
-    overflow: 'hidden',
-  },
-  searchIcon: {
-    paddingLeft: 12,
-    paddingRight: 4,
+    backgroundColor: palette.steel,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.10)',
   },
   searchInput: {
     flex: 1,
-    height: 42,
-    paddingHorizontal: 8,
-    color: colors.text.primary,
-    fontSize: 14,
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 13,
+    color: palette.frost,
   },
-  clearBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+
+  // Section
+  sectionLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 11,
+    color: palette.slate,
+    letterSpacing: 2,
+    marginBottom: 12,
   },
-  filterRow: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingVertical: spacing.sm,
-    paddingBottom: spacing.xs,
+
+  // Room cards
+  roomCardWrapper: {
+    marginBottom: 10,
   },
-  hotRow: {
-    paddingHorizontal: spacing.screenPadding,
-    gap: spacing.md,
-    paddingBottom: spacing.sm,
+
+  // Loading
+  loadingCenter: {
+    paddingVertical: 40,
+    alignItems: 'center',
   },
-  hotCardWrapper: {
-    width: 300, // wider for horizontal scroll prominence
-  },
-  cardWrapper: {
-    paddingHorizontal: spacing.screenPadding,
-    marginBottom: spacing.md,
-  },
-  activityCard: {
-    marginHorizontal: spacing.screenPadding,
-    backgroundColor: colors.bg.elevated,
-    borderRadius: spacing.radius.md,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    paddingVertical: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  searchResultsHeader: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingBottom: spacing.sm,
-  },
-  listContent: {
-    paddingBottom: 120, // clear mini-player + tab bar
-  },
+
+  // Empty
   emptyState: {
-    paddingVertical: spacing['3xl'],
-    paddingHorizontal: spacing.screenPadding,
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontFamily: 'ChakraPetch-SemiBold',
+    fontSize: 16,
+    color: palette.silver,
+    marginTop: 12,
+  },
+  emptySubtext: {
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 13,
+    color: palette.slate,
+    marginTop: 4,
   },
 });
 

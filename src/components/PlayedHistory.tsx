@@ -9,7 +9,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import type { QueueTrack, Track } from '../types';
 
@@ -25,7 +25,7 @@ export function PlayedHistory({ history, limit = 5, onRequeue }: PlayedHistoryPr
 
   return (
     <View style={styles.section}>
-      <Text variant="labelSmall" color={colors.text.muted} style={styles.title}>
+      <Text variant="labelSmall" color={palette.slate} style={styles.title}>
         Recently Played
       </Text>
       {history.slice(0, limit).map((t) => (
@@ -34,12 +34,12 @@ export function PlayedHistory({ history, limit = 5, onRequeue }: PlayedHistoryPr
             <Image source={{ uri: t.albumArt }} style={styles.art} />
           ) : (
             <View style={[styles.art, { alignItems: 'center', justifyContent: 'center' }]}>
-              <Text variant="labelSmall" color={colors.text.muted}>{t.artist.charAt(0)}</Text>
+              <Text variant="labelSmall" color={palette.slate}>{t.artist.charAt(0)}</Text>
             </View>
           )}
           <View style={{ flex: 1, marginRight: spacing.sm }}>
-            <Text variant="labelSmall" color={colors.text.muted} numberOfLines={1}>{t.title}</Text>
-            <Text variant="labelSmall" color={colors.text.muted} numberOfLines={1} style={{ opacity: 0.6 }}>
+            <Text variant="labelSmall" color={palette.slate} numberOfLines={1}>{t.title}</Text>
+            <Text variant="labelSmall" color={palette.slate} numberOfLines={1} style={{ opacity: 0.6 }}>
               {t.artist}
             </Text>
           </View>
@@ -48,7 +48,7 @@ export function PlayedHistory({ history, limit = 5, onRequeue }: PlayedHistoryPr
             activeOpacity={0.6}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="reload-outline" size={14} color={colors.text.muted} />
+            <Ionicons name="reload-outline" size={14} color={palette.slate} />
           </TouchableOpacity>
         </View>
       ))}
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
+    borderTopColor: palette.chromeBorder,
   },
   title: {
     marginBottom: spacing.sm,
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: spacing.radius.sm,
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     marginRight: spacing.sm,
   },
 });

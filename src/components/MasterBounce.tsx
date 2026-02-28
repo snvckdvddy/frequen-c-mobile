@@ -28,16 +28,18 @@ import {
 import Svg, { Path, Rect, Line } from 'react-native-svg';
 import { Text } from './ui/Text';
 import { Button } from './ui/Button';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { notifySuccess, tapLight } from '../utils/haptics';
-import type { QueueTrack, RoomMode } from '../types';
+import type { QueueTrack, RoomMode, RoomBehaviors } from '../types';
 
 interface MasterBounceProps {
   /** Session name */
   sessionName: string;
-  /** Room mode used */
+  /** Room mode used (preset label) */
   roomMode: RoomMode;
+  /** Behavioral toggles active during session */
+  behaviors?: RoomBehaviors;
   /** Host username */
   hostUsername: string;
   /** Session duration in seconds */
@@ -63,9 +65,9 @@ const MODE_LABELS: Record<RoomMode, string> = {
 };
 
 const MODE_COLORS: Record<RoomMode, string> = {
-  campfire: colors.signal.sine,
-  spotlight: colors.signal.square,
-  openFloor: colors.signal.saw,
+  campfire: '#FF6B35',
+  spotlight: '#FFAB00',
+  openFloor: '#C0DFFF',
 };
 
 function formatDuration(seconds: number): string {
@@ -131,10 +133,10 @@ function generateSessionFingerprint(
 function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <View style={statStyles.row}>
-      <Text variant="labelSmall" color={colors.text.muted} style={statStyles.label}>
+      <Text variant="labelSmall" color={palette.slate} style={statStyles.label}>
         {label}
       </Text>
-      <Text variant="body" color={color || colors.text.primary} style={statStyles.value}>
+      <Text variant="body" color={color || palette.frost} style={statStyles.value}>
         {value}
       </Text>
     </View>
@@ -169,18 +171,18 @@ function TopTrackRow({
   const votes = track.votedBy?.length ?? 0;
   return (
     <View style={topTrackStyles.row}>
-      <Text variant="labelSmall" color={colors.chrome.text} style={topTrackStyles.rank}>
+      <Text variant="labelSmall" color={palette.slate} style={topTrackStyles.rank}>
         {rank}
       </Text>
       <View style={topTrackStyles.info}>
-        <Text variant="body" color={colors.text.primary} style={topTrackStyles.title} numberOfLines={1}>
+        <Text variant="body" color={palette.frost} style={topTrackStyles.title} numberOfLines={1}>
           {track.title}
         </Text>
-        <Text variant="labelSmall" color={colors.text.secondary} numberOfLines={1}>
+        <Text variant="labelSmall" color={palette.silver} numberOfLines={1}>
           {track.artist}
         </Text>
       </View>
-      <Text variant="labelSmall" color={colors.cv.positive} style={topTrackStyles.votes}>
+      <Text variant="labelSmall" color={palette.green} style={topTrackStyles.votes}>
         {votes} {votes === 1 ? 'vote' : 'votes'}
       </Text>
     </View>
@@ -216,6 +218,7 @@ const topTrackStyles = StyleSheet.create({
 export function MasterBounce({
   sessionName,
   roomMode,
+  behaviors,
   hostUsername,
   durationSeconds,
   tracksPlayed,
@@ -294,10 +297,10 @@ export function MasterBounce({
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text variant="labelSmall" color={colors.chrome.text} style={styles.bounceLabel}>
+            <Text variant="labelSmall" color={palette.slate} style={styles.bounceLabel}>
               MASTER BOUNCE
             </Text>
-            <Text variant="h1" color={colors.text.primary} style={styles.sessionName}>
+            <Text variant="h1" color={palette.frost} style={styles.sessionName}>
               {sessionName}
             </Text>
             <View style={styles.modeRow}>
@@ -305,6 +308,16 @@ export function MasterBounce({
               <Text variant="labelSmall" color={modeColor} style={styles.modeLabel}>
                 {MODE_LABELS[roomMode]}
               </Text>
+              {behaviors && (
+                <Text variant="labelSmall" color={palette.slate} style={styles.behaviorHint}>
+                  {[
+                    behaviors.voteReordersQueue && 'Vote reorder',
+                    behaviors.requiresApproval && 'Approval gate',
+                    behaviors.skipAccess === 'hostOnly' && 'Host skip',
+                    behaviors.allowOverdrive && 'Overdrive',
+                  ].filter(Boolean).join(' · ') || 'Default behaviors'}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -328,7 +341,7 @@ export function MasterBounce({
                 y1={fingerprintHeight / 2}
                 x2={fingerprintWidth}
                 y2={fingerprintHeight / 2}
-                stroke={colors.chrome.border}
+                stroke={palette.chromeBorder}
                 strokeWidth={0.5}
               />
             </Svg>
@@ -343,7 +356,7 @@ export function MasterBounce({
             <StatRow label="DURATION" value={formatDuration(durationSeconds)} />
             <StatRow label="TRACKS PLAYED" value={`${tracksPlayed.length}`} />
             <StatRow label="PARTICIPANTS" value={`${participantCount}`} />
-            <StatRow label="CV EARNED" value={`+${cvEarned}`} color={colors.cv.positive} />
+            <StatRow label="CV EARNED" value={`+${cvEarned}`} color={palette.green} />
             <StatRow label="ENDED" value={formatDate(endedAt)} />
           </View>
 
@@ -352,7 +365,7 @@ export function MasterBounce({
             <>
               <View style={styles.divider} />
               <View style={styles.topTracksSection}>
-                <Text variant="labelSmall" color={colors.chrome.text} style={styles.sectionLabel}>
+                <Text variant="labelSmall" color={palette.slate} style={styles.sectionLabel}>
                   TOP SIGNALS
                 </Text>
                 {topTracks.map((track, i) => (
@@ -365,7 +378,7 @@ export function MasterBounce({
           {/* Actions */}
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.7}>
-              <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 9, letterSpacing: 1.5 }}>
+              <Text variant="labelSmall" color={palette.slate} style={{ fontSize: 9, letterSpacing: 1.5 }}>
                 SHARE BOUNCE
               </Text>
             </TouchableOpacity>
@@ -380,10 +393,10 @@ export function MasterBounce({
 
           {/* Footer / build tag */}
           <View style={styles.footer}>
-            <Text variant="labelSmall" color={colors.text.muted} style={styles.buildTag}>
+            <Text variant="labelSmall" color={palette.slate} style={styles.buildTag}>
               FREQUEN-C // MASTER BOUNCE
             </Text>
-            <Text variant="labelSmall" color={colors.text.muted} style={styles.buildTag}>
+            <Text variant="labelSmall" color={palette.slate} style={styles.buildTag}>
               DESN 374-040
             </Text>
           </View>
@@ -403,9 +416,9 @@ const styles = StyleSheet.create({
     padding: spacing.screenPadding,
   },
   card: {
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     borderRadius: 12,
     maxHeight: '85%',
     width: '100%',
@@ -441,18 +454,24 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 2,
   },
+  behaviorHint: {
+    fontSize: 8,
+    letterSpacing: 1,
+    marginLeft: spacing.sm,
+    opacity: 0.6,
+  },
   fingerprintContainer: {
     alignItems: 'center',
     paddingVertical: spacing.md,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     borderRadius: 6,
-    backgroundColor: colors.chrome.surface,
+    backgroundColor: palette.steel,
     marginBottom: spacing.md,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.chrome.border,
+    backgroundColor: palette.chromeBorder,
     marginVertical: spacing.sm,
   },
   statsSection: {
@@ -477,8 +496,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
-    backgroundColor: colors.chrome.surface,
+    borderColor: palette.chromeBorder,
+    backgroundColor: palette.steel,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -487,7 +506,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.chrome.border,
+    borderTopColor: palette.chromeBorder,
   },
   buildTag: {
     fontSize: 8,

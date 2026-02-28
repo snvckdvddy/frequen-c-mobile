@@ -19,7 +19,7 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { SafeScreen, Text, Button, Input } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 
 interface LoginScreenProps {
@@ -68,7 +68,7 @@ function SignalMark() {
       <Svg width={200} height={48} viewBox="0 0 200 48" style={signalStyles.wave}>
         <Path
           d="M 0 24 Q 12.5 0, 25 24 Q 37.5 48, 50 24 Q 62.5 0, 75 24 Q 87.5 48, 100 24 Q 112.5 0, 125 24 Q 137.5 48, 150 24 Q 162.5 0, 175 24 Q 187.5 48, 200 24"
-          stroke={colors.action.primary}
+          stroke={palette.orange}
           strokeWidth={2}
           fill="none"
           opacity={0.8}
@@ -90,8 +90,8 @@ const signalStyles = StyleSheet.create({
     width: 220,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.action.primary,
-    shadowColor: colors.action.primary,
+    backgroundColor: palette.orange,
+    shadowColor: palette.orange,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 50,
@@ -147,22 +147,22 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
         <View style={styles.brandArea}>
           <Text
             variant="displaySmall"
-            color={colors.text.primary}
+            color={palette.frost}
             style={styles.brandLetter}
           >
             C
           </Text>
-          <Text variant="labelSmall" color={colors.chrome.text} style={styles.brandTag}>
+          <Text variant="labelSmall" color={palette.slate} style={styles.brandTag}>
             FREQUEN-C
           </Text>
         </View>
 
         {/* Headline */}
         <View style={styles.header}>
-          <Text variant="h1" color={colors.text.primary}>
+          <Text variant="h1" color={palette.frost}>
             Patch in.
           </Text>
-          <Text variant="body" color={colors.text.secondary} style={styles.subtitle}>
+          <Text variant="body" color={palette.silver} style={styles.subtitle}>
             Your signal chain is waiting.
           </Text>
         </View>
@@ -203,18 +203,18 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
 
         {/* Switch to register */}
         <View style={styles.footer}>
-          <Text variant="body" color={colors.text.muted}>
+          <Text variant="body" color={palette.slate}>
             New signal?{' '}
           </Text>
           <TouchableOpacity onPress={onSwitchToRegister} accessibilityRole="button" accessibilityLabel="Create your frequency, switch to registration">
-            <Text variant="body" color={colors.action.primary}>
+            <Text variant="body" color={palette.orange}>
               Create your frequency
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Build tag */}
-        <Text variant="labelSmall" color={colors.text.muted} style={styles.buildTag}>
+        <Text variant="labelSmall" color={palette.slate} style={styles.buildTag}>
           DESN 374-040
         </Text>
       </ScrollView>
@@ -226,7 +226,7 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.midnight,
   },
   scrollContent: {
     flexGrow: 1,

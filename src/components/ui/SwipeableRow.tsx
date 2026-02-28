@@ -13,7 +13,7 @@ import { View, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 
 interface SwipeableRowProps {
@@ -61,8 +61,8 @@ export function SwipeableRow({ children, onRemove, enabled = true }: SwipeableRo
           accessibilityLabel="Remove from queue"
         >
           <Animated.View style={{ transform: [{ scale }] }}>
-            <Ionicons name="trash-outline" size={22} color={colors.text.primary} />
-            <Text variant="labelSmall" color={colors.text.primary} style={styles.removeLabel}>
+            <Ionicons name="trash-outline" size={22} color={palette.frost} />
+            <Text variant="labelSmall" color={palette.frost} style={styles.removeLabel}>
               Remove
             </Text>
           </Animated.View>
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.action.destructive,
+    backgroundColor: palette.red,
     width: 80,
     borderTopRightRadius: spacing.radius.md,
     borderBottomRightRadius: spacing.radius.md,

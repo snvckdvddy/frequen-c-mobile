@@ -15,7 +15,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
   TextInput, Alert, Share, Keyboard, Modal, KeyboardAvoidingView, Platform,
-  ScrollView, Dimensions, Image, Animated,
+  ScrollView, Dimensions, Image, Animated, PanResponder,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -25,10 +25,10 @@ import { useAuth } from '../contexts/AuthContext';
 import api, { sessionApi } from '../services/api';
 import {
   connectSocket, joinSession, leaveSession, quitSession, addToQueue,
-  voteTrack, sendReaction, skipTrack, trackEnded,
+  voteTrack, sendReaction, skipTrack, voteSkip, trackEnded,
   approveTrackEvent, rejectTrackEvent, changeModeEvent, endSessionEvent,
-  onSessionEvent, spendCV, duelVote, submitForecast, phantomPower,
-  overdrive, phaseCancel,
+  updateBehaviors, onSessionEvent, spendCV, duelVote, submitForecast, phantomPower,
+  overdrive, phaseCancel, listenHeartbeat,
 } from '../services/socket';
 import {
   addTrackToQueue, applyVote, skipCurrentTrack, moveTrack as moveTrackEngine,
@@ -38,6 +38,7 @@ import {
   loadTrack, onProgress, onTrackEnd, stop as stopPlayback,
   togglePlayPause, type PlaybackState,
 } from '../services/playbackEngine';
+import { USE_MOCKS } from '../services/config';
 import {
   ListenerBar, ListenerDrawer, JoinLeaveToast, type ToastMessage,
 } from '../components/ListenerPresence';
@@ -46,11 +47,16 @@ import { useSearch } from '../hooks/useSearch';
 import { useRecentSearches } from '../hooks/useRecentSearches';
 import { useActiveSession } from '../contexts/ActiveSessionContext';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
-import { colors } from '../theme/colors';
+
 import { spacing } from '../theme/spacing';
 import { tapMedium, tapLight, tapHeavy, notifySuccess } from '../utils/haptics';
+// ─── Design System: Rack × Chrome visual language ──────────
+import { VoidSurface, ModuleFaceplate, LEDReadout, ChromeButton, StatusLight } from '../design/components';
+import { palette } from '../design/tokens/materials';
+import { fontFamily } from '../design/tokens/typography';
 import { notifyParticipantJoined, notifyTrackChanged } from '../services/notifications';
-import type { Session, QueueTrack, Track, RoomMode, Listener } from '../types';
+import type { Session, QueueTrack, Track, RoomMode, Listener, RoomBehaviors } from '../types';
+import { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } from '../types';
 import { QueueTrackCard } from '../components/QueueTrackCard';
 import { LyricsOverlay } from '../components/ui/LyricsOverlay';
 import { DraggableQueue } from '../components/DraggableQueue';
@@ -82,13 +88,20 @@ import { useVoltageSag } from '../hooks/useVoltageSag';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ALBUM_ART_SIZE = SCREEN_WIDTH - 48;
 
-// ─── Mode descriptions (for overflow menu tooltip) ───────────
-const modeDesc: Record<string, string> = {
-  campfire: 'Round-robin — tracks interleave by contributor',
-  spotlight_host: 'You curate — approve or reject suggestions',
-  spotlight_guest: 'Host curates — your adds need approval',
-  openFloor: 'Democratic — votes reorder the queue',
-};
+// ─── Behavior summary helpers ────────────────────────────────
+function getBehaviorSummary(behaviors: RoomBehaviors, isHost: boolean): string {
+  const parts: string[] = [];
+  switch (behaviors.queueOrdering) {
+    case 'roundRobin': parts.push('Round-robin queue'); break;
+    case 'voteWeighted': parts.push('Vote-weighted queue'); break;
+    default: parts.push('FIFO queue');
+  }
+  if (behaviors.voteReordersQueue) parts.push('votes reorder');
+  if (behaviors.requiresApproval) parts.push(isHost ? 'you approve adds' : 'host approves adds');
+  if (behaviors.skipAccess === 'hostOnly') parts.push('host skips only');
+  if (behaviors.skipAccess === 'voteRequired') parts.push('vote to skip');
+  return parts.join(' · ');
+}
 
 // ─── Main Screen ─────────────────────────────────────────────
 
@@ -194,12 +207,43 @@ export function SessionRoomScreen() {
   const [bounceVisible, setBounceVisible] = useState(false);
   const [sessionStartTime] = useState(Date.now());
 
+  // Skip-vote state (voteRequired rooms)
+  const [skipVoteState, setSkipVoteState] = useState<{
+    votes: number;
+    threshold: number;
+    participants: number;
+    voters: string[];
+  } | null>(null);
+
+  // Phase Cancel shield state — shows shield indicator when active
+  const [phaseCancelShield, setPhaseCancelShield] = useState<{
+    userId: string;
+    username: string;
+  } | null>(null);
+
   // Guards against double-removal (skip + auto-advance race)
   const isAdvancingRef = useRef(false);
   const MAX_PLAYED_HISTORY = 50;
   const { query, setQuery, results, isSearching, clearSearch } = useSearch();
   const { searches: recentSearches, addSearch: saveRecentSearch, removeSearch: removeRecentSearch } = useRecentSearches();
   const searchInputRef = useRef<TextInput>(null);
+
+  // Swipe-to-close gesture for the queue sheet
+  const sheetPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only claim the gesture if user is swiping down significantly
+        return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 50) {
+          setQueueSheetOpen(false);
+          setSearchInSheet(false);
+          Keyboard.dismiss();
+        }
+      },
+    })
+  ).current;
 
   // Shared queue advancement
   const advanceQueue = useCallback(() => {
@@ -246,6 +290,7 @@ export function SessionRoomScreen() {
           sessionId: s.id,
           sessionName: s.name,
           roomMode: s.roomMode,
+          behaviors: s.behaviors || { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[s.roomMode] },
           hostId: s.hostId,
         });
         const baseListeners: Listener[] = s.listeners || [];
@@ -265,43 +310,120 @@ export function SessionRoomScreen() {
         await connectSocket();
         if (!mounted) return;
 
+        let lastCurrentTrack: QueueTrack | null = s.currentTrack ? {
+          ...s.currentTrack,
+          addedBy: { userId: (s.currentTrack as any).addedBy?.id || '', username: (s.currentTrack as any).addedBy?.username || '' },
+          addedById: (s.currentTrack as any).addedBy?.id || '',
+          addedAt: s.createdAt,
+          votes: 0,
+          voltageBoost: 0,
+          reactions: []
+        } as QueueTrack : null;
+        let lastQueue: QueueTrack[] = initialQueue;
+
         socketUnsubsRef.current = [
-          onSessionEvent('queue-updated', (newQueue) => {
-            if (mounted) setQueue(newQueue);
+          onSessionEvent('queue:updated', (newQueue) => {
+            if (!mounted) return;
+            lastQueue = newQueue;
+            setQueue(lastCurrentTrack ? [lastCurrentTrack, ...newQueue] : newQueue);
+          }),
+          onSessionEvent('session:current_track_updated', (currentTrack) => {
+            if (!mounted) return;
+            lastCurrentTrack = currentTrack;
+            setQueue(currentTrack ? [currentTrack, ...lastQueue] : lastQueue);
+          }),
+          onSessionEvent('session:playback_state_updated', (data) => {
+            if (!mounted) return;
+            setPlayback(prev => ({ ...prev, isPlaying: data.isPlaying }));
           }),
           onSessionEvent('session-updated', (update) => {
             if (mounted) setSession((prev) => prev ? { ...prev, ...update } : null);
           }),
-          onSessionEvent('room-state' as any, (state: any) => {
+          onSessionEvent('room-state', (state) => {
             if (!mounted) return;
+            // ─── Authoritative state from server on join ───
+            // Sync behaviors, roomMode & hostId (server is source of truth)
+            if (state.roomMode || state.hostId || state.behaviors) {
+              setSession((prev) => prev ? {
+                ...prev,
+                ...(state.roomMode ? { roomMode: state.roomMode as RoomMode } : {}),
+                ...(state.behaviors ? { behaviors: state.behaviors } : {}),
+                ...(state.hostId ? { hostId: state.hostId } : {}),
+              } : prev);
+            }
             if (state.queue) setQueue(state.queue);
             if (state.suggestedQueue) setSuggestedQueue(state.suggestedQueue);
             if (state.participants) setListeners(state.participants);
-            if (state.currentTrack && state.queue?.length === 0) {
-              setQueue([state.currentTrack]);
+            if (state.currentTrack && (!state.queue || state.queue.length === 0)) {
+              // Server's currentTrack includes addedById/addedAt — safe to cast
+              setQueue([{
+                ...state.currentTrack,
+                addedById: (state.currentTrack as any).addedById || state.hostId || '',
+                addedAt: (state.currentTrack as any).addedAt || new Date().toISOString(),
+              } as QueueTrack]);
+            }
+            // Sync playback position for late joiners
+            if (state.playback && state.playback.state !== 'stopped') {
+              const serverPos = state.playback.position || 0;
+              const serverTimestamp = state.playback.timestamp || Date.now();
+              const drift = (Date.now() - serverTimestamp) / 1000;
+              const correctedPos = state.playback.state === 'playing'
+                ? serverPos + drift
+                : serverPos;
+              // playbackEngine will handle seeking to correct position
+              setPlayback((prev) => ({
+                ...prev,
+                isPlaying: state.playback.state === 'playing',
+                elapsed: Math.max(0, correctedPos),
+              }));
             }
           }),
-          onSessionEvent('track-pending' as any, (data: any) => {
+          onSessionEvent('track-pending', (data) => {
             if (!mounted || !data?.track) return;
             setSuggestedQueue((prev) => {
               if (prev.some((t) => t.id === data.track.id)) return prev;
               return [...prev, { ...data.track, status: 'pending' as const }];
             });
           }),
-          onSessionEvent('track-changed' as any, (_track: any) => {}),
-          onSessionEvent('participant-joined' as any, (data: any) => {
+          // ─── Track changed (server advanced the queue) ───
+          onSessionEvent('track-changed', (track) => {
             if (!mounted) return;
-            setListeners((prev) => {
-              if (prev.some((l) => l.userId === data.userId)) return prev;
-              return [...prev, { userId: data.userId, username: data.username }];
-            });
-            setToasts((prev) => [...prev, { id: Date.now().toString(), text: `${data.username} joined`, type: 'join' as const }]);
+            setSkipVoteState(null); // Reset skip votes on track change
+            setPhaseCancelShield(null); // Reset phase cancel shield on track change
+            // Server says a new track is now playing — update local state
+            if (track) {
+              setQueue((prev) => {
+                // If the track is already at position 0, no-op
+                if (prev[0]?.id === track.id) return prev;
+                // Server advanced: remove the old head, put this track at front
+                const filtered = prev.filter((t) => t.id !== track.id);
+                return [track as QueueTrack, ...filtered.slice(filtered[0] ? 1 : 0)];
+              });
+            }
           }),
-          onSessionEvent('participant-left' as any, (data: any) => {
+          // ─── Playback sync (multi-client) ───
+          onSessionEvent('playback:stateChange', (data) => {
             if (!mounted) return;
-            setListeners((prev) => prev.filter((l) => l.userId !== data.userId));
+            const isPlaying = data.state === 'playing';
+            setPlayback((prev) => ({
+              ...prev,
+              isPlaying,
+              elapsed: data.position || prev.elapsed,
+            }));
+            // Sync local audio engine with server state
+            if (isPlaying !== playback.isPlaying) {
+              togglePlayPause();
+            }
           }),
-          onSessionEvent('reaction-received' as any, (data: any) => {
+          onSessionEvent('playback:seeked', (data) => {
+            if (!mounted) return;
+            setPlayback((prev) => ({
+              ...prev,
+              elapsed: data.position || 0,
+            }));
+          }),
+          // participant-joined / participant-left handled by dedicated useEffect below
+          onSessionEvent('reaction-received', (data) => {
             if (!mounted) return;
             setQueue((prev) =>
               prev.map((t) => {
@@ -342,46 +464,39 @@ export function SessionRoomScreen() {
     };
   }, [sessionId]);
 
-  // ─── Mock socket listeners (mode-aware via queueEngine) ──
+  // ─── Mock socket listeners (behavior-aware via queueEngine) ──
   useEffect(() => {
-    const roomMode: RoomMode = session?.roomMode || 'campfire';
+    const behaviors: RoomBehaviors = session?.behaviors || DEFAULT_BEHAVIORS;
     const hostId = session?.hostId || '';
 
     const unsubs = [
       onSessionEvent('track-added', (track: QueueTrack) => {
         setQueue((prevQ) => {
-          if (roomMode === 'spotlight' && track.addedById !== hostId) {
-            setSuggestedQueue((prevS) => [...prevS, { ...track, status: 'pending' as const }]);
+          const result = addTrackToQueue(prevQ, suggestedQueue, track, behaviors, hostId);
+          if (result.destination === 'suggested') {
+            setSuggestedQueue(result.suggestedQueue);
             return prevQ;
           }
-          const result = addTrackToQueue(prevQ, [], track, roomMode, hostId);
           return result.queue;
         });
       }),
       onSessionEvent('vote-cast', (data) => {
-        setQueue((prev) => applyVote(prev, data.trackId, data.userId, data.direction, roomMode));
-      }),
-      onSessionEvent('reaction-local', (data) => {
-        setQueue((prev) =>
-          prev.map((t) => {
-            if (t.id !== data.trackId) return t;
-            const existing = t.reactions || [];
-            const hasReaction = existing.some(
-              (r) => r.userId === data.userId && r.type === data.type
-            );
-            return {
-              ...t,
-              reactions: hasReaction
-                ? existing.filter((r) => !(r.userId === data.userId && r.type === data.type))
-                : [...existing, { userId: data.userId, type: data.type as 'fire' | 'vibe' | 'skip' }],
-            };
-          })
-        );
+        setQueue((prev) => applyVote(prev, data.trackId, data.userId, (data.direction || 1) as 1 | -1, behaviors));
       }),
       onSessionEvent('track-skipped', (data) => {
+        // Reset skip vote UI when track changes
+        setSkipVoteState(null);
         if (data?.userId !== user?.id) {
           advanceQueue();
         }
+      }),
+      onSessionEvent('skip-vote-update', (data) => {
+        setSkipVoteState({
+          votes: data.votes,
+          threshold: data.threshold,
+          participants: data.participants,
+          voters: data.voters || [],
+        });
       }),
       onSessionEvent('track-approved', (data) => {
         setSuggestedQueue((prev) => prev.filter((t) => t.id !== data.trackId));
@@ -393,18 +508,39 @@ export function SessionRoomScreen() {
         setSuggestedQueue((prev) => prev.filter((t) => t.id !== data.trackId));
       }),
       onSessionEvent('mode-changed', (data) => {
-        setSession((prev) => prev ? { ...prev, roomMode: data.roomMode as RoomMode } : prev);
-        if (data.roomMode !== 'spotlight') {
+        setSession((prev) => prev ? {
+          ...prev,
+          roomMode: data.roomMode as RoomMode,
+          ...(data.behaviors ? { behaviors: data.behaviors } : {}),
+        } : prev);
+        // If approval was turned off, clear suggested queue
+        if (data.behaviors && !data.behaviors.requiresApproval) {
           setSuggestedQueue([]);
         }
         const toast: ToastMessage = {
           id: `mode_${Date.now()}`,
-          text: `Mode → ${data.roomMode}`,
+          text: `Preset → ${data.roomMode}`,
           type: 'mode',
         };
         setToasts((prev) => [...prev, toast]);
         setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 3000);
         tapMedium();
+      }),
+      onSessionEvent('behaviors-updated', (data) => {
+        setSession((prev) => prev ? {
+          ...prev,
+          behaviors: data.behaviors,
+        } : prev);
+        // If approval was turned off, move all pending to approved
+        if (!data.behaviors.requiresApproval) {
+          setSuggestedQueue((prev) => {
+            if (prev.length === 0) return prev;
+            const approved = prev.map((t) => ({ ...t, status: 'approved' as const }));
+            setQueue((q) => [...q, ...approved]);
+            return [];
+          });
+        }
+        tapLight();
       }),
       onSessionEvent('pending-updated', (pendingQueue) => {
         setSuggestedQueue(pendingQueue);
@@ -473,9 +609,65 @@ export function SessionRoomScreen() {
       onSessionEvent('cv:earn', (data) => {
         if (data.userId === user?.id) cv.earn(data.amount, data.reason);
       }),
+      // ─── Phantom Power: vote boost on a track ──
+      onSessionEvent('phantom-power-activated', (data) => {
+        const toast: ToastMessage = {
+          id: `phantompower_${Date.now()}`,
+          text: `⚡ ${data.username} used Phantom Power on "${data.trackTitle}" (+${data.voteBoost} votes)`,
+          type: 'system',
+        };
+        setToasts((prev) => [...prev, toast]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 4000);
+        tapLight();
+      }),
+      // ─── Overdrive: track boosted to front of queue ──
+      onSessionEvent('overdrive-activated', (data) => {
+        const toast: ToastMessage = {
+          id: `overdrive_${Date.now()}`,
+          text: `⚡ ${data.username} used Overdrive on "${data.trackTitle}"`,
+          type: 'system',
+        };
+        setToasts((prev) => [...prev, toast]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 4000);
+        tapLight();
+      }),
+      // ─── Phase Cancel: skip shield placed ──
+      onSessionEvent('phase-cancel-active', (data) => {
+        setPhaseCancelShield({ userId: data.userId, username: data.username });
+        const toast: ToastMessage = {
+          id: `phasecancelactive_${Date.now()}`,
+          text: `🛡️ ${data.username} activated Phase Cancel`,
+          type: 'system',
+        };
+        setToasts((prev) => [...prev, toast]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 4000);
+        tapLight();
+      }),
+      // ─── Phase Cancel: shield consumed a skip ──
+      onSessionEvent('phase-cancel-triggered', (data) => {
+        setPhaseCancelShield(null);
+        const blocker = data.voteSkip ? 'vote-skip' : data.shieldUsername;
+        const toast: ToastMessage = {
+          id: `phasecanceltriggered_${Date.now()}`,
+          text: `🛡️ Phase Cancel blocked ${data.voteSkip ? 'a vote-skip' : 'a skip'} — shielded by ${data.shieldUsername}`,
+          type: 'system',
+        };
+        setToasts((prev) => [...prev, toast]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), 5000);
+        notifySuccess();
+      }),
     ];
     return () => unsubs.forEach((fn) => fn());
-  }, [session?.roomMode, session?.hostId, user?.id, advanceQueue, clearActiveSession, navigation]);
+  }, [session?.behaviors, session?.hostId, user?.id, advanceQueue, clearActiveSession, navigation]);
+
+  // ─── Listen heartbeat (1 CV per minute of active listening) ──
+  useEffect(() => {
+    if (!sessionId) return;
+    const interval = setInterval(() => {
+      listenHeartbeat(sessionId);
+    }, 60_000); // Every 60 seconds
+    return () => clearInterval(interval);
+  }, [sessionId]);
 
   // ─── Listener presence (join/leave events) ──────────────
   useEffect(() => {
@@ -519,9 +711,11 @@ export function SessionRoomScreen() {
     return () => unsubs.forEach((fn) => fn());
   }, []);
 
-  // ─── Mock: simulate someone joining after 5s ──────────────
+  // ─── Mock: simulate someone joining after 5s (mock mode only) ──
   useEffect(() => {
     if (!session) return;
+    // Only run fake joiners in mock mode — real server handles participants
+    if (!USE_MOCKS) return;
     const timer = setTimeout(() => {
       const mockJoiner: Listener = {
         userId: 'usr_sim_' + Date.now(),
@@ -590,10 +784,10 @@ export function SessionRoomScreen() {
     if (!user) return;
     if (!getGlobalLimiter().canDo('vote')) return;
     tapMedium();
-    const mode = session?.roomMode || 'campfire';
-    setQueue((prev) => applyVote(prev, trackId, user.id, direction, mode));
+    const behaviors = session?.behaviors || DEFAULT_BEHAVIORS;
+    setQueue((prev) => applyVote(prev, trackId, user.id, direction, behaviors));
     voteTrack(sessionId, trackId, user.id, direction);
-  }, [user, sessionId, session?.roomMode]);
+  }, [user, sessionId, session?.behaviors]);
 
   const handleReaction = useCallback((trackId: string, type: string) => {
     if (!user) return;
@@ -615,9 +809,16 @@ export function SessionRoomScreen() {
   const handleSkip = useCallback(() => {
     if (!user || !session) return;
     if (!getGlobalLimiter().canDo('skip')) return;
-    const { skipped } = skipCurrentTrack(queue, user.id, session.hostId, session.roomMode);
+    const behaviors = session.behaviors || DEFAULT_BEHAVIORS;
+    const { skipped, reason } = skipCurrentTrack(queue, user.id, session.hostId, behaviors);
     if (!skipped) {
-      Alert.alert('Host only', 'Only the host can skip tracks in Spotlight mode.');
+      if (reason === 'voteRequired') {
+        // In vote-skip mode, toggle user's skip vote instead of direct skip
+        tapMedium();
+        voteSkip(sessionId);
+        return;
+      }
+      Alert.alert('Skip restricted', 'You don\'t have permission to skip in this room.');
       return;
     }
     tapHeavy();
@@ -758,7 +959,7 @@ export function SessionRoomScreen() {
     }
   }, [handleToggleFavorite, handleOverdrive, handlePhantomPower]);
 
-  // ─── Room Mode Switching (host only) ───────────────────
+  // ─── Room Preset Switching (host only) ───────────────────
   const handleChangeMode = useCallback(() => {
     if (!session || !user || user.id !== session.hostId) return;
     const modes: RoomMode[] = ['campfire', 'spotlight', 'openFloor'];
@@ -769,12 +970,13 @@ export function SessionRoomScreen() {
       onPress: () => {
         if (mode === session.roomMode) return;
         tapMedium();
-        setSession((prev) => prev ? { ...prev, roomMode: mode } : prev);
+        const newBehaviors = { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[mode] };
+        setSession((prev) => prev ? { ...prev, roomMode: mode, behaviors: newBehaviors } : prev);
         changeModeEvent(sessionId, mode);
       },
     }));
     buttons.push({ text: 'Cancel', onPress: () => { } });
-    Alert.alert('Change Room Mode', 'This affects how the queue works for everyone.', buttons);
+    Alert.alert('Switch Preset', 'This changes queue behavior for everyone.', buttons);
   }, [session, user, sessionId]);
 
   const handleShare = useCallback(() => {
@@ -855,28 +1057,30 @@ export function SessionRoomScreen() {
   if (loading || !session) {
     return (
       <SafeScreen>
-        <View style={styles.skeletonContainer}>
-          <View style={styles.skeletonHeader}>
-            <Skeleton width={28} height={28} borderRadius={14} />
-            <View style={{ flex: 1, marginLeft: spacing.sm }}>
-              <Skeleton fill height={18} style={{ maxWidth: 180 }} />
+        <VoidSurface style={{ flex: 1 }}>
+          <View style={styles.skeletonContainer}>
+            <View style={styles.skeletonHeader}>
+              <Skeleton width={28} height={28} borderRadius={14} />
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                <Skeleton fill height={18} style={{ maxWidth: 180 }} />
+              </View>
+              <Skeleton width={60} height={24} borderRadius={12} />
             </View>
-            <Skeleton width={60} height={24} borderRadius={12} />
+            <View style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
+              <Skeleton width={ALBUM_ART_SIZE} height={ALBUM_ART_SIZE} borderRadius={spacing.radius.sm} />
+            </View>
+            <View style={{ alignItems: 'center', gap: 8, paddingBottom: spacing.lg }}>
+              <Skeleton width={200} height={22} />
+              <Skeleton width={140} height={16} />
+            </View>
+            <Skeleton fill height={2} style={{ marginHorizontal: spacing.screenPadding }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 40, paddingVertical: spacing.md }}>
+              <Skeleton width={32} height={32} borderRadius={16} />
+              <Skeleton width={56} height={56} borderRadius={28} />
+              <Skeleton width={32} height={32} borderRadius={16} />
+            </View>
           </View>
-          <View style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
-            <Skeleton width={ALBUM_ART_SIZE} height={ALBUM_ART_SIZE} borderRadius={spacing.radius.sm} />
-          </View>
-          <View style={{ alignItems: 'center', gap: 8, paddingBottom: spacing.lg }}>
-            <Skeleton width={200} height={22} />
-            <Skeleton width={140} height={16} />
-          </View>
-          <Skeleton fill height={2} style={{ marginHorizontal: spacing.screenPadding }} />
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 40, paddingVertical: spacing.md }}>
-            <Skeleton width={32} height={32} borderRadius={16} />
-            <Skeleton width={56} height={56} borderRadius={28} />
-            <Skeleton width={32} height={32} borderRadius={16} />
-          </View>
-        </View>
+        </VoidSurface>
       </SafeScreen>
     );
   }
@@ -885,8 +1089,13 @@ export function SessionRoomScreen() {
   const currentTrack: QueueTrack | null = queue[0] || null;
   const nextTrack: QueueTrack | null = queue[1] || null;
   const isHost = user?.id === session.hostId;
-  const isSpotlight = session.roomMode === 'spotlight';
-  const canSkip = session.roomMode !== 'spotlight' || isHost;
+  const sessionBehaviors = session.behaviors || DEFAULT_BEHAVIORS;
+  const isApprovalMode = sessionBehaviors.requiresApproval;
+  const canSkip = sessionBehaviors.skipAccess === 'anyone'
+    || (sessionBehaviors.skipAccess === 'hostOnly' && isHost)
+    || sessionBehaviors.skipAccess === 'voteRequired'; // Everyone can vote-skip
+  const isVoteSkipMode = sessionBehaviors.skipAccess === 'voteRequired';
+  const hasVotedToSkip = skipVoteState?.voters?.includes(user?.id ?? '') ?? false;
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -900,686 +1109,609 @@ export function SessionRoomScreen() {
 
   return (
     <SafeScreen>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* ─── Connection Status ──────────────────────── */}
-        <OfflineBanner visible={!isConnected} />
-        <ConnectionBanner />
-
-        {/* ═══ HEADER (§3.1) ═════════════════════════════ */}
-        <View style={styles.header}>
-          {/* ← Back */}
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backBtn}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-
-          {/* Room Name */}
-          <Text
-            variant="labelLarge"
-            color={colors.text.primary}
-            numberOfLines={1}
-            style={styles.headerTitle}
-          >
-            {session.name}
-          </Text>
-
-          {/* Mode Badge (tap = mode switch for host) */}
-          <TouchableOpacity
-            onPress={isHost ? handleChangeMode : undefined}
-            activeOpacity={isHost ? 0.6 : 1}
-          >
-            <RoomModeBadge mode={session.roomMode as RoomMode} variant="full" />
-          </TouchableOpacity>
-
-          {/* ⋯ Overflow */}
-          <TouchableOpacity
-            onPress={() => setOverflowOpen(true)}
-            style={styles.overflowBtn}
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color={colors.text.secondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* ═══ PARTICIPANT BAR (§3.2) ════════════════════ */}
-        <ParticipantAvatarBar
-          listeners={listeners}
-          maxVisible={4}
-          showInvite
-          onInvitePress={handleShare}
-          onAvatarPress={() => setListenerDrawerOpen(true)}
-        />
-
-        {/* ═══ SCROLLABLE PLAYER CONTENT ═════════════════ */}
-        <ScrollView
+      <VoidSurface style={{ flex: 1 }}>
+        <KeyboardAvoidingView
           style={{ flex: 1 }}
-          contentContainerStyle={styles.playerContent}
-          showsVerticalScrollIndicator={false}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          {/* ─── Album Art Hero (§3.3) ────────────────── */}
-          <View style={styles.albumArtContainer}>
-            {currentTrack?.albumArt || currentTrack?.artwork ? (
-              <Image
-                source={{ uri: currentTrack.albumArt || currentTrack.artwork }}
-                style={styles.albumArt}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={[styles.albumArt, styles.albumArtPlaceholder]}>
-                <Ionicons
-                  name="musical-notes"
-                  size={64}
-                  color={colors.text.muted}
-                />
-                {!currentTrack && (
-                  <Text variant="body" color={colors.text.muted} style={{ marginTop: spacing.sm }}>
-                    No track playing
-                  </Text>
-                )}
-              </View>
-            )}
-          </View>
+          {/* ─── Connection Status ──────────────────────── */}
+          <OfflineBanner visible={!isConnected} />
+          <ConnectionBanner />
 
-          {/* ─── Track Info (§3.4) ────────────────────── */}
-          <View style={styles.trackInfo}>
-            <Text
-              variant="h3"
-              color={colors.text.primary}
-              numberOfLines={1}
-              align="center"
-              style={styles.trackTitle}
-            >
-              {currentTrack?.title || 'Add a track to start'}
-            </Text>
-            <Text
-              variant="body"
-              color={colors.text.secondary}
-              numberOfLines={1}
-              align="center"
-            >
-              {currentTrack
-                ? `${currentTrack.artist}${currentTrack.addedBy ? ` · Added by @${currentTrack.addedBy.username}` : ''}`
-                : 'Search to add tracks to the queue'}
-            </Text>
-          </View>
-
-          {/* ─── Progress Bar (§3.5) ──────────────────── */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${(playback.progress || 0) * 100}%`,
-                    backgroundColor: accent,
-                  },
-                ]}
-              />
-            </View>
-            <View style={styles.progressLabels}>
-              <Text variant="labelSmall" color={colors.text.muted}>
-                {formatTime(playback.elapsed || 0)}
-              </Text>
-              <Text variant="labelSmall" color={colors.text.muted}>
-                {formatTime(playback.duration || 0)}
-              </Text>
-            </View>
-          </View>
-
-          {/* ─── Transport Controls (§3.6) ─────────────── */}
-          <View style={styles.transport}>
-            {/* Previous */}
+          {/* ═══ HEADER — Gemini V7 Layout ═══════════════════ */}
+          <View style={styles.header}>
+            {/* ← Back (chevron down) */}
             <TouchableOpacity
-              onPress={handleSkip}
-              disabled={!canSkip || !currentTrack}
-              style={styles.transportSecondary}
+              onPress={() => navigation.goBack()}
+              style={styles.backBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons
-                name="play-skip-back"
-                size={24}
-                color={canSkip && currentTrack ? colors.text.primary : colors.text.muted}
-              />
+              <Ionicons name="chevron-down" size={24} color={palette.silver} />
             </TouchableOpacity>
 
-            {/* Play / Pause */}
-            <TouchableOpacity
-              onPress={handlePlayPause}
-              style={[styles.playPauseBtn, { backgroundColor: accent }]}
-              disabled={!currentTrack}
-              activeOpacity={0.8}
-            >
-              {playback.isLoading ? (
-                <ActivityIndicator color={colors.bg.primary} size="small" />
-              ) : (
-                <Ionicons
-                  name={playback.isPlaying ? 'pause' : 'play'}
-                  size={28}
-                  color={colors.bg.primary}
-                  style={!playback.isPlaying ? { marginLeft: 3 } : undefined}
-                />
-              )}
-            </TouchableOpacity>
-
-            {/* Next / Skip */}
-            <TouchableOpacity
-              onPress={handleSkip}
-              disabled={!canSkip || !currentTrack}
-              style={styles.transportSecondary}
-            >
-              <Ionicons
-                name="play-skip-forward"
-                size={24}
-                color={canSkip && currentTrack ? colors.text.primary : colors.text.muted}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* ─── Reaction Bar (§3.7) ──────────────────── */}
-          {currentTrack && (
-            <ReactionBar
-              onReact={(type) => handleReaction(currentTrack.id, type)}
-              disabled={!currentTrack}
-            />
-          )}
-
-          {/* ─── Queue Peek + CV Pill (§3.8) ──────────── */}
-          <View style={styles.queuePeekSection}>
-            {/* Label row */}
-            <View style={styles.queuePeekHeader}>
+            {/* Center: Mode Badge + Room Name stacked */}
+            <View style={styles.headerCenter}>
               <TouchableOpacity
-                onPress={() => setQueueSheetOpen(true)}
-                style={styles.upNextLabel}
+                onPress={isHost ? handleChangeMode : undefined}
+                activeOpacity={isHost ? 0.6 : 1}
+                style={styles.modeBadgeBtn}
               >
-                <Text
-                  variant="label"
-                  color={colors.text.secondary}
-                  style={{ letterSpacing: 1.5, fontSize: 10 }}
-                >
-                  UP NEXT
-                </Text>
-                <Text variant="labelSmall" color={colors.text.muted}>
-                  {queue.length > 1 ? `${queue.length - 1} track${queue.length - 1 !== 1 ? 's' : ''}` : ''}
+                <Text style={styles.modeBadgeText}>
+                  {(session.roomMode || 'campfire').toUpperCase().replace(/([a-z])([A-Z])/g, '$1 $2')}
                 </Text>
               </TouchableOpacity>
-
-              {/* CV Pill */}
-              <TouchableOpacity
-                style={[styles.cvPill, { borderColor: accent }]}
-                onPress={() => setCvExpanded(!cvExpanded)}
-                activeOpacity={0.7}
+              <Text
+                style={styles.headerTitle}
+                numberOfLines={1}
               >
-                <Ionicons name="flash" size={12} color={accent} />
-                <Text variant="labelSmall" color={accent} style={{ fontWeight: '600' }}>
-                  {cv.balance} CV
-                </Text>
-                <Ionicons
-                  name={cvExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={12}
-                  color={accent}
-                />
-              </TouchableOpacity>
+                {session.name}
+              </Text>
             </View>
 
-            {/* CV Expansion — Power Moves */}
-            {cvExpanded && (
-              <View style={styles.cvExpansion}>
-                <TouchableOpacity
-                  style={[styles.powerMoveBtn, !cv.canUse('phantom_power') && styles.powerMoveDisabled]}
-                  onPress={() => nextTrack && handlePhantomPower(nextTrack.id)}
-                  disabled={!cv.canUse('phantom_power') || !nextTrack}
-                >
-                  <Ionicons name="flash-outline" size={14} color={cv.canUse('phantom_power') ? colors.text.primary : colors.text.muted} />
-                  <Text variant="labelSmall" color={cv.canUse('phantom_power') ? colors.text.primary : colors.text.muted}>
-                    Phantom Power · 5 CV
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.powerMoveBtn, !cv.canUse('phase_cancel') && styles.powerMoveDisabled]}
-                  onPress={handlePhaseCancel}
-                  disabled={!cv.canUse('phase_cancel')}
-                >
-                  <Ionicons name="shield-outline" size={14} color={cv.canUse('phase_cancel') ? colors.text.primary : colors.text.muted} />
-                  <Text variant="labelSmall" color={cv.canUse('phase_cancel') ? colors.text.primary : colors.text.muted}>
-                    Phase Cancel · 15 CV
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.powerMoveBtn, !cv.canUse('overdrive') && styles.powerMoveDisabled]}
-                  onPress={() => nextTrack && handleOverdrive(nextTrack.id)}
-                  disabled={!cv.canUse('overdrive') || !nextTrack}
-                >
-                  <Ionicons name="rocket-outline" size={14} color={cv.canUse('overdrive') ? colors.action.destructive : colors.text.muted} />
-                  <Text variant="labelSmall" color={cv.canUse('overdrive') ? colors.action.destructive : colors.text.muted}>
-                    Overdrive · 25 CV
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Next track peek card */}
-            {nextTrack ? (
+            {/* Right: Settings icon + status dot */}
+            <View style={styles.headerRight}>
               <TouchableOpacity
-                style={styles.peekCard}
-                onPress={() => setQueueSheetOpen(true)}
-                onLongPress={() => handleLongPress(nextTrack)}
-                activeOpacity={0.7}
+                onPress={() => setOverflowOpen(true)}
+                style={styles.overflowBtn}
               >
-                {(nextTrack.albumArt || nextTrack.artwork) ? (
-                  <Image
-                    source={{ uri: nextTrack.albumArt || nextTrack.artwork }}
-                    style={styles.peekArt}
-                  />
+                <Ionicons name="options-outline" size={22} color={palette.silver} />
+              </TouchableOpacity>
+              <StatusLight variant="pulse" color="green" size="sm" />
+            </View>
+          </View>
+
+          {/* SIGNAL FLOW info row */}
+          <View style={styles.signalFlowRow}>
+            <View style={styles.signalFlowLeft}>
+              <Ionicons name="git-network-outline" size={14} color={palette.slate} />
+              <Text style={styles.signalFlowLabel}>SIGNAL FLOW</Text>
+            </View>
+            <View style={styles.codecBadge}>
+              <Text style={styles.codecText}>STEREO | 320KBPS</Text>
+            </View>
+          </View>
+
+          {/* ═══ SCROLLABLE PLAYER CONTENT ═════════════════ */}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.playerContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* ─── Album Art — Gemini V7: vinyl + grid + orange glow ── */}
+            <View style={styles.albumArtContainer}>
+              <View style={styles.albumArtFrame}>
+                {/* Orange glow behind frame */}
+                <View style={styles.albumArtGlow} />
+                {/* Dark surface with grid lines */}
+                <View style={styles.albumArtSurface}>
+                  {/* Grid overlay lines */}
+                  <View style={styles.gridH} />
+                  <View style={styles.gridV} />
+                  {/* Vinyl record concentric circles */}
+                  <View style={styles.vinylOuter}>
+                    <View style={styles.vinylMiddle}>
+                      <View style={styles.vinylInner}>
+                        <View style={styles.vinylDot} />
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* ─── Track Info (§3.4) — LED-style readout ── */}
+            <View style={styles.trackInfo}>
+              <Text
+                variant="h3"
+                color={palette.frost}
+                numberOfLines={1}
+                align="center"
+                style={styles.trackTitle}
+              >
+                {currentTrack?.title || 'Add a track to start'}
+              </Text>
+              <Text
+                variant="body"
+                color={palette.silver}
+                numberOfLines={1}
+                align="center"
+              >
+                {currentTrack
+                  ? `${currentTrack.artist}${currentTrack.addedBy ? ` · Added by @${currentTrack.addedBy.username}` : ''}`
+                  : 'Search to add tracks to the queue'}
+              </Text>
+            </View>
+
+            {/* ─── Progress Bar (§3.5) — Hardware groove ── */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${(playback.progress || 0) * 100}%`,
+                      backgroundColor: accent,
+                      shadowColor: accent,
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.6,
+                      shadowRadius: 4,
+                    },
+                  ]}
+                />
+              </View>
+              <View style={styles.progressLabels}>
+                <LEDReadout
+                  value={formatTime(playback.elapsed || 0)}
+                  variant="ice"
+                  size="sm"
+                />
+                <LEDReadout
+                  value={formatTime(playback.duration || 0)}
+                  variant="ice"
+                  size="sm"
+                />
+              </View>
+            </View>
+
+            {/* ─── Transport Controls — Gemini V7: mic | ORANGE play | skip ─ */}
+            <View style={styles.transport}>
+              {/* Mic button (room voice/chat) */}
+              <TouchableOpacity
+                style={styles.transportCircle}
+                onPress={() => setChatOpen(true)}
+              >
+                <Ionicons name="mic-outline" size={22} color={palette.silver} />
+              </TouchableOpacity>
+
+              {/* Play / Pause — BIG ORANGE button */}
+              <TouchableOpacity
+                onPress={handlePlayPause}
+                disabled={!currentTrack}
+                style={styles.playPauseBtn}
+                activeOpacity={0.8}
+              >
+                {playback.isLoading ? (
+                  <ActivityIndicator color={palette.void} size="small" />
                 ) : (
-                  <View style={[styles.peekArt, styles.peekArtPlaceholder]}>
-                    <Ionicons name="musical-note" size={18} color={colors.text.muted} />
+                  <Ionicons
+                    name={playback.isPlaying ? 'pause' : 'play'}
+                    size={30}
+                    color={palette.void}
+                    style={!playback.isPlaying ? { marginLeft: 3 } : undefined}
+                  />
+                )}
+              </TouchableOpacity>
+
+              {/* Skip forward / Vote-skip */}
+              <TouchableOpacity
+                style={[
+                  styles.transportCircle,
+                  isVoteSkipMode && hasVotedToSkip && { borderColor: palette.orange, borderWidth: 1.5 },
+                ]}
+                onPress={handleSkip}
+                disabled={!canSkip || !currentTrack}
+              >
+                <Ionicons
+                  name={isVoteSkipMode ? 'hand-right' : 'play-forward'}
+                  size={22}
+                  color={
+                    isVoteSkipMode && hasVotedToSkip
+                      ? palette.orange
+                      : canSkip && currentTrack
+                        ? palette.silver
+                        : palette.slate
+                  }
+                />
+                {isVoteSkipMode && skipVoteState && (
+                  <View style={styles.skipVoteBadge}>
+                    <Text variant="labelSmall" color={palette.frost} style={styles.skipVoteText}>
+                      {skipVoteState.votes}/{skipVoteState.threshold}
+                    </Text>
                   </View>
                 )}
-                <View style={styles.peekText}>
-                  <Text variant="body" color={colors.text.primary} numberOfLines={1}>
-                    {nextTrack.title}
-                  </Text>
-                  <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
-                    {nextTrack.artist}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => handleLongPress(nextTrack)}>
-                  <Ionicons name="ellipsis-horizontal" size={18} color={colors.text.muted} />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.peekCardEmpty}
-                onPress={() => { setQueueSheetOpen(true); setSearchInSheet(true); }}
-              >
-                <Ionicons name="add-circle-outline" size={20} color={accent} />
-                <Text variant="body" color={colors.text.muted}>
-                  Add a track to the queue
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Pull-up hint */}
-            {queue.length > 2 && (
-              <TouchableOpacity onPress={() => setQueueSheetOpen(true)} style={styles.pullUpHint}>
-                <Text variant="labelSmall" color={colors.text.muted}>
-                  Pull up for full queue
-                </Text>
-                <Ionicons name="chevron-up" size={14} color={colors.text.muted} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Spotlight: Suggestions banner (non-host) */}
-          {isSpotlight && !isHost && suggestedQueue.length > 0 && (
-            <View style={styles.pendingBanner}>
-              <Text variant="bodySmall" color={colors.text.muted} align="center">
-                {suggestedQueue.length} suggestion{suggestedQueue.length !== 1 ? 's' : ''} pending host approval
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* ─── Join/Leave Toast ─────────────────────────── */}
-        <JoinLeaveToast messages={toasts} />
-
-        {/* ═══ QUEUE BOTTOM SHEET (§3.9) ═════════════════ */}
-        <Modal
-          visible={queueSheetOpen}
-          animationType="slide"
-          transparent
-          onRequestClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
-        >
-          <View style={styles.sheetBackdrop}>
-            <TouchableOpacity
-              style={styles.sheetBackdropTouch}
-              onPress={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
-              activeOpacity={1}
-            />
-            <View style={styles.sheetContainer}>
-              {/* Drag handle */}
-              <View style={styles.sheetHandle} />
-
-              {/* Sheet header */}
-              <View style={styles.sheetHeader}>
-                <Text variant="labelLarge" color={colors.text.primary}>
-                  Queue
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity
-                    style={[styles.addTrackBtn, { borderColor: accent }]}
-                    onPress={() => setSearchInSheet(!searchInSheet)}
-                  >
-                    <Ionicons name="add" size={16} color={accent} />
-                    <Text variant="label" color={accent} style={{ fontSize: 12 }}>
-                      Add track
+                {phaseCancelShield && (
+                  <View style={styles.phaseCancelBadge}>
+                    <Text variant="labelSmall" color={palette.frost} style={styles.phaseCancelBadgeText}>
+                      🛡️
                     </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}>
-                    <Ionicons name="close" size={24} color={colors.text.muted} />
-                  </TouchableOpacity>
-                </View>
-              </View>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
 
-              {/* Search (inside sheet) */}
-              {searchInSheet && (
-                <View style={styles.sheetSearchRow}>
-                  <TextInput
-                    ref={searchInputRef}
-                    style={styles.sheetSearchInput}
-                    placeholder="Search for tracks..."
-                    placeholderTextColor={colors.text.muted}
-                    value={query}
-                    onChangeText={setQuery}
-                    autoFocus
-                    returnKeyType="search"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <TouchableOpacity onPress={handleCancelSearch}>
-                    <Text variant="label" color={colors.text.muted}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+            {/* ─── Reaction Bar (§3.7) ──────────────────── */}
+            {currentTrack && (
+              <ReactionBar
+                onReact={(type) => handleReaction(currentTrack.id, type)}
+                disabled={!currentTrack}
+              />
+            )}
 
-              {/* Search results */}
-              {searchInSheet && query.length > 0 ? (
-                <View style={{ flex: 1 }}>
-                  {isSearching && (
-                    <ActivityIndicator color={accent} style={{ marginVertical: spacing.sm }} />
-                  )}
-                  <FlatList
-                    data={results}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => <SearchResultItem track={item} onAdd={handleAddTrack} />}
-                    keyboardShouldPersistTaps="handled"
-                    style={{ flex: 1 }}
-                    initialNumToRender={8}
-                    maxToRenderPerBatch={5}
-                    windowSize={7}
-                  />
-                </View>
-              ) : searchInSheet && recentSearches.length > 0 ? (
-                <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
-                  <Text variant="labelSmall" color={colors.text.muted} style={{ marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Recent Searches
-                  </Text>
-                  {recentSearches.slice(0, 6).map((s) => (
-                    <TouchableOpacity
-                      key={s.query + s.timestamp}
-                      style={styles.recentItem}
-                      onPress={() => setQuery(s.query)}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="time-outline" size={14} color={colors.text.muted} style={{ marginRight: 8 }} />
-                      <Text variant="body" color={colors.text.secondary} style={{ flex: 1 }} numberOfLines={1}>
-                        {s.query}
-                      </Text>
+          </ScrollView>
+
+          {/* ═══ BOTTOM SHEET — SIGNAL CHAIN / TERMINAL LOG tabs ═══ */}
+          <TouchableOpacity
+            style={styles.bottomSheetTab}
+            onPress={() => setQueueSheetOpen(true)}
+            activeOpacity={0.9}
+          >
+            <View style={styles.bottomSheetHandle} />
+            <View style={styles.bottomSheetTabs}>
+              <TouchableOpacity
+                style={[styles.tabBtn, !chatOpen && styles.tabBtnActive]}
+                onPress={() => { setChatOpen(false); setQueueSheetOpen(true); }}
+              >
+                <Text style={[styles.tabText, !chatOpen && styles.tabTextActive]}>SIGNAL CHAIN</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tabBtn, chatOpen && styles.tabBtnActive]}
+                onPress={() => { setChatOpen(true); setQueueSheetOpen(false); }}
+              >
+                <Text style={[styles.tabText, chatOpen && styles.tabTextActive]}>TERMINAL LOG</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+
+          {/* ─── Join/Leave Toast ─────────────────────────── */}
+          <JoinLeaveToast messages={toasts} />
+
+          {/* ═══ QUEUE BOTTOM SHEET (§3.9) ═════════════════ */}
+          <Modal
+            visible={queueSheetOpen}
+            animationType="slide"
+            transparent
+            onRequestClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.sheetBackdrop}
+            >
+              <TouchableOpacity
+                style={styles.sheetBackdropTouch}
+                onPress={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
+                activeOpacity={1}
+              />
+              <VoidSurface style={styles.sheetContainer} grain={false}>
+                {/* Drag handle and Header wrapper with PanResponder */}
+                <View {...sheetPanResponder.panHandlers}>
+                  <View style={styles.sheetHandle} />
+
+                  {/* Sheet header */}
+                  <View style={styles.sheetHeader}>
+                    <LEDReadout value="QUEUE" variant="amber" size="md" />
+
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
                       <TouchableOpacity
-                        onPress={() => removeRecentSearch(s.query)}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={[styles.addTrackBtn, { borderColor: accent }]}
+                        onPress={() => setSearchInSheet(!searchInSheet)}
                       >
-                        <Ionicons name="close" size={14} color={colors.text.muted} />
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : (
-                /* Queue list */
-                <FlatList<QueueTrack>
-                  data={queue}
-                  keyExtractor={(item, i) => item.id + '_' + i}
-                  renderItem={({ item, index }) => (
-                    <ADSRFadeIn index={index} staggerMs={40}>
-                      <SwipeableRow
-                        onRemove={() => setQueue((prev) => prev.filter((t) => t.id !== item.id))}
-                        enabled={index > 0}
-                      >
-                        <QueueTrackCard
-                          track={item}
-                          isNowPlaying={index === 0}
-                          onVote={handleVote}
-                          userId={user?.id}
-                          roomMode={session.roomMode as RoomMode}
-                          isHost={isHost}
-                          isFavorite={isFavorite(item.sourceId || item.id)}
-                          onToggleFavorite={handleToggleFavorite}
-                          onLongPress={() => handleLongPress(item)}
-                          showDragHandle={isHost && index > 0}
-                        />
-                      </SwipeableRow>
-                    </ADSRFadeIn>
-                  )}
-                  contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xl }}
-                  ListHeaderComponent={
-                    <>
-                      {/* Spotlight: Suggestions panel (host only) */}
-                      {isSpotlight && isHost && suggestedQueue.length > 0 && (
-                        <View style={styles.suggestionsPanel}>
-                          <Text variant="label" color={colors.text.secondary} style={{ marginBottom: spacing.sm }}>
-                            Suggestions ({suggestedQueue.length})
-                          </Text>
-                          {suggestedQueue.map((track) => (
-                            <SuggestionCard
-                              key={track.id}
-                              track={track}
-                              onApprove={handleApproveTrack}
-                              onReject={handleRejectTrack}
-                            />
-                          ))}
-                        </View>
-                      )}
-                    </>
-                  }
-                  ListEmptyComponent={
-                    <View style={styles.sheetEmpty}>
-                      <Ionicons name="musical-notes" size={32} color={colors.text.muted} />
-                      <Text variant="body" color={colors.text.muted} style={{ marginTop: spacing.sm }}>
-                        Queue is empty
-                      </Text>
-                      <TouchableOpacity
-                        style={{ marginTop: spacing.sm }}
-                        onPress={() => setSearchInSheet(true)}
-                      >
-                        <Text variant="label" color={accent}>
-                          Search to add tracks
+                        <Ionicons name="add" size={16} color={accent} />
+                        <Text variant="label" color={accent} style={{ fontSize: 12 }}>
+                          Add track
                         </Text>
                       </TouchableOpacity>
+                      <TouchableOpacity onPress={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}>
+                        <Ionicons name="close" size={24} color={palette.slate} />
+                      </TouchableOpacity>
                     </View>
-                  }
-                  ListFooterComponent={
-                    <PlayedHistory history={playedHistory} onRequeue={handleAddTrack} />
-                  }
-                />
-              )}
-            </View>
-          </View>
-        </Modal>
+                  </View>
+                </View>
 
-        {/* ═══ OVERFLOW BOTTOM SHEET ═════════════════════ */}
-        <Modal
-          visible={overflowOpen}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setOverflowOpen(false)}
-        >
-          <View style={styles.sheetBackdrop}>
-            <TouchableOpacity
-              style={styles.sheetBackdropTouch}
-              onPress={() => setOverflowOpen(false)}
-              activeOpacity={1}
-            />
-            <View style={[styles.sheetContainer, { maxHeight: '50%' }]}>
-              <View style={styles.sheetHandle} />
-              <View style={{ padding: spacing.md, gap: 4 }}>
-                {/* Share */}
-                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); handleShare(); }}>
-                  <Ionicons name="share-outline" size={20} color={colors.text.primary} />
-                  <Text variant="body" color={colors.text.primary}>Share Room</Text>
-                </TouchableOpacity>
-                {/* Copy Code */}
-                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); handleCopyCode(); }}>
-                  <Ionicons name="copy-outline" size={20} color={colors.text.primary} />
-                  <Text variant="body" color={colors.text.primary}>Copy Room Code</Text>
-                  {session.joinCode && (
-                    <Text variant="labelSmall" color={colors.text.muted} style={{ marginLeft: 'auto' }}>
-                      {session.joinCode}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-                {/* Chat */}
-                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); setChatOpen(true); }}>
-                  <Ionicons name="chatbubble-outline" size={20} color={colors.text.primary} />
-                  <Text variant="body" color={colors.text.primary}>Chat</Text>
-                </TouchableOpacity>
-                {/* Lyrics */}
-                {currentTrack && (
-                  <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); setLyricsVisible(true); }}>
-                    <Ionicons name="musical-notes-outline" size={20} color={colors.text.primary} />
-                    <Text variant="body" color={colors.text.primary}>Lyrics</Text>
-                  </TouchableOpacity>
+                {/* Search (inside sheet) */}
+                {searchInSheet && (
+                  <View style={styles.sheetSearchRow}>
+                    <TextInput
+                      ref={searchInputRef}
+                      style={styles.sheetSearchInput}
+                      placeholder="Search for tracks..."
+                      placeholderTextColor={palette.slate}
+                      value={query}
+                      onChangeText={setQuery}
+                      autoFocus
+                      returnKeyType="search"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity onPress={handleCancelSearch}>
+                      <Text variant="label" color={palette.slate}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
-                {/* QR Code */}
-                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); setShowQR(true); }}>
-                  <Ionicons name="qr-code-outline" size={20} color={colors.text.primary} />
-                  <Text variant="body" color={colors.text.primary}>Show QR Code</Text>
-                </TouchableOpacity>
-                {/* Divider */}
-                <View style={styles.overflowDivider} />
-                {/* Leave / End */}
-                <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); handleLeaveRoom(); }}>
-                  <Ionicons
-                    name={isHost ? 'close-circle-outline' : 'exit-outline'}
-                    size={20}
-                    color={colors.action.destructive}
+
+                {/* Search results */}
+                {searchInSheet && query.length > 0 ? (
+                  <View style={{ flex: 1 }}>
+                    {isSearching && (
+                      <ActivityIndicator color={accent} style={{ marginVertical: spacing.sm }} />
+                    )}
+                    <FlatList
+                      data={results}
+                      keyExtractor={(item) => item.id}
+                      renderItem={({ item }) => <SearchResultItem track={item} onAdd={handleAddTrack} />}
+                      keyboardShouldPersistTaps="handled"
+                      style={{ flex: 1 }}
+                      initialNumToRender={8}
+                      maxToRenderPerBatch={5}
+                      windowSize={7}
+                    />
+                  </View>
+                ) : searchInSheet && recentSearches.length > 0 ? (
+                  <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
+                    <Text variant="labelSmall" color={palette.slate} style={{ marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 1 }}>
+                      Recent Searches
+                    </Text>
+                    {recentSearches.slice(0, 6).map((s) => (
+                      <TouchableOpacity
+                        key={s.query + s.timestamp}
+                        style={styles.recentItem}
+                        onPress={() => setQuery(s.query)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="time-outline" size={14} color={palette.slate} style={{ marginRight: 8 }} />
+                        <Text variant="body" color={palette.silver} style={{ flex: 1 }} numberOfLines={1}>
+                          {s.query}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => removeRecentSearch(s.query)}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons name="close" size={14} color={palette.slate} />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  /* Queue list */
+                  <FlatList<QueueTrack>
+                    data={queue}
+                    keyExtractor={(item, i) => item.id + '_' + i}
+                    renderItem={({ item, index }) => (
+                      <ADSRFadeIn index={index} staggerMs={40}>
+                        <SwipeableRow
+                          onRemove={() => setQueue((prev) => prev.filter((t) => t.id !== item.id))}
+                          enabled={index > 0}
+                        >
+                          <QueueTrackCard
+                            track={item}
+                            isNowPlaying={index === 0}
+                            onVote={handleVote}
+                            userId={user?.id}
+                            behaviors={sessionBehaviors}
+                            isHost={isHost}
+                            isFavorite={isFavorite(item.sourceId || item.id)}
+                            onToggleFavorite={handleToggleFavorite}
+                            onLongPress={() => handleLongPress(item)}
+                            showDragHandle={isHost && index > 0}
+                          />
+                        </SwipeableRow>
+                      </ADSRFadeIn>
+                    )}
+                    contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xl }}
+                    ListHeaderComponent={
+                      <>
+                        {/* Approval mode: Suggestions panel (host only) */}
+                        {isApprovalMode && isHost && suggestedQueue.length > 0 && (
+                          <View style={styles.suggestionsPanel}>
+                            <Text variant="label" color={palette.silver} style={{ marginBottom: spacing.sm }}>
+                              Suggestions ({suggestedQueue.length})
+                            </Text>
+                            {suggestedQueue.map((track) => (
+                              <SuggestionCard
+                                key={track.id}
+                                track={track}
+                                onApprove={handleApproveTrack}
+                                onReject={handleRejectTrack}
+                              />
+                            ))}
+                          </View>
+                        )}
+                      </>
+                    }
+                    ListEmptyComponent={
+                      <View style={styles.sheetEmpty}>
+                        <Ionicons name="musical-notes" size={32} color={palette.slate} />
+                        <Text variant="body" color={palette.slate} style={{ marginTop: spacing.sm }}>
+                          Queue is empty
+                        </Text>
+                        <TouchableOpacity
+                          style={{ marginTop: spacing.sm }}
+                          onPress={() => setSearchInSheet(true)}
+                        >
+                          <Text variant="label" color={accent}>
+                            Search to add tracks
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    }
+                    ListFooterComponent={
+                      <PlayedHistory history={playedHistory} onRequeue={handleAddTrack} />
+                    }
                   />
-                  <Text variant="body" color={colors.action.destructive}>
-                    {isHost ? 'End Session' : 'Leave Room'}
-                  </Text>
+                )}
+              </VoidSurface>
+            </KeyboardAvoidingView>
+          </Modal>
+
+          {/* ═══ OVERFLOW BOTTOM SHEET ═════════════════════ */}
+          <Modal
+            visible={overflowOpen}
+            animationType="slide"
+            transparent
+            onRequestClose={() => setOverflowOpen(false)}
+          >
+            <View style={styles.sheetBackdrop}>
+              <TouchableOpacity
+                style={styles.sheetBackdropTouch}
+                onPress={() => setOverflowOpen(false)}
+                activeOpacity={1}
+              />
+              <VoidSurface style={[styles.sheetContainer, { maxHeight: '50%' }]} grain={false}>
+                <View style={styles.sheetHandle} />
+                <View style={{ padding: spacing.md, gap: 4 }}>
+                  {/* Share */}
+                  <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); handleShare(); }}>
+                    <Ionicons name="share-outline" size={20} color={palette.frost} />
+                    <Text variant="body" color={palette.frost}>Share Room</Text>
+                  </TouchableOpacity>
+                  {/* Copy Code */}
+                  <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); handleCopyCode(); }}>
+                    <Ionicons name="copy-outline" size={20} color={palette.frost} />
+                    <Text variant="body" color={palette.frost}>Copy Room Code</Text>
+                    {session.joinCode && (
+                      <LEDReadout value={session.joinCode} variant="amber" size="sm" style={{ marginLeft: 'auto' }} />
+                    )}
+                  </TouchableOpacity>
+                  {/* Chat */}
+                  <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); setChatOpen(true); }}>
+                    <Ionicons name="chatbubble-outline" size={20} color={palette.frost} />
+                    <Text variant="body" color={palette.frost}>Chat</Text>
+                  </TouchableOpacity>
+                  {/* Lyrics */}
+                  {currentTrack && (
+                    <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); setLyricsVisible(true); }}>
+                      <Ionicons name="musical-notes-outline" size={20} color={palette.frost} />
+                      <Text variant="body" color={palette.frost}>Lyrics</Text>
+                    </TouchableOpacity>
+                  )}
+                  {/* QR Code */}
+                  <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); setShowQR(true); }}>
+                    <Ionicons name="qr-code-outline" size={20} color={palette.frost} />
+                    <Text variant="body" color={palette.frost}>Show QR Code</Text>
+                  </TouchableOpacity>
+                  {/* Divider — chrome line */}
+                  <View style={styles.overflowDivider} />
+                  {/* Leave / End */}
+                  <TouchableOpacity style={styles.overflowRow} onPress={() => { setOverflowOpen(false); handleLeaveRoom(); }}>
+                    <Ionicons
+                      name={isHost ? 'close-circle-outline' : 'exit-outline'}
+                      size={20}
+                      color={palette.red}
+                    />
+                    <Text variant="body" color={palette.red}>
+                      {isHost ? 'End Session' : 'Leave Room'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </VoidSurface>
+            </View>
+          </Modal>
+
+          {/* ─── Track Context Menu ─────────────────────── */}
+          <TrackContextMenu
+            visible={contextMenuVisible}
+            track={contextTrack}
+            actions={QUEUE_ACTIONS}
+            onAction={handleContextAction}
+            onClose={() => setContextMenuVisible(false)}
+          />
+
+          {/* ─── Listener Drawer ──────────────────────────── */}
+          <ListenerDrawer
+            visible={listenerDrawerOpen}
+            listeners={listeners}
+            hostId={session.hostId}
+            onClose={() => setListenerDrawerOpen(false)}
+          />
+
+          {/* ─── Chat Panel ────────────────────────────────── */}
+          <ChatPanel
+            sessionId={session.id}
+            userId={user?.id || ''}
+            username={user?.username || ''}
+            visible={chatOpen}
+            onClose={() => setChatOpen(false)}
+          />
+
+          {/* ─── QR Code Modal ─────────────────────────────── */}
+          <Modal
+            visible={showQR}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowQR(false)}
+          >
+            <View style={styles.qrOverlay}>
+              <View style={styles.qrModal}>
+                <Text variant="h3" color={palette.frost} align="center">
+                  {session?.name}
+                </Text>
+                {session?.joinCode && (
+                  <QRCodeDisplay joinCode={session.joinCode} />
+                )}
+                <TouchableOpacity onPress={() => setShowQR(false)} style={styles.qrClose}>
+                  <Text variant="label" color={palette.slate}>Close</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
 
-        {/* ─── Track Context Menu ─────────────────────── */}
-        <TrackContextMenu
-          visible={contextMenuVisible}
-          track={contextTrack}
-          actions={QUEUE_ACTIONS}
-          onAction={handleContextAction}
-          onClose={() => setContextMenuVisible(false)}
-        />
-
-        {/* ─── Listener Drawer ──────────────────────────── */}
-        <ListenerDrawer
-          visible={listenerDrawerOpen}
-          listeners={listeners}
-          hostId={session.hostId}
-          onClose={() => setListenerDrawerOpen(false)}
-        />
-
-        {/* ─── Chat Panel ────────────────────────────────── */}
-        <ChatPanel
-          sessionId={session.id}
-          userId={user?.id || ''}
-          username={user?.username || ''}
-          visible={chatOpen}
-          onClose={() => setChatOpen(false)}
-        />
-
-        {/* ─── QR Code Modal ─────────────────────────────── */}
-        <Modal
-          visible={showQR}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowQR(false)}
-        >
-          <View style={styles.qrOverlay}>
-            <View style={styles.qrModal}>
-              <Text variant="h3" color={colors.text.primary} align="center">
-                {session?.name}
-              </Text>
-              {session?.joinCode && (
-                <QRCodeDisplay joinCode={session.joinCode} />
-              )}
-              <TouchableOpacity onPress={() => setShowQR(false)} style={styles.qrClose}>
-                <Text variant="label" color={colors.text.muted}>Close</Text>
-              </TouchableOpacity>
+          {/* ─── Layer 3: Crossfader Duel (overlay) ──────── */}
+          {duelState.active && duelState.trackA && duelState.trackB && (
+            <View style={StyleSheet.absoluteFill}>
+              <CrossfaderDuel
+                trackA={duelState.trackA}
+                trackB={duelState.trackB}
+                votes={duelState.votes}
+                timeRemaining={duelState.timeRemaining}
+                totalTime={duelState.totalTime}
+                userVote={duelState.userVote}
+                onVote={handleDuelVote}
+                onDuelEnd={() => setDuelState((prev) => ({ ...prev, active: false }))}
+              />
             </View>
-          </View>
-        </Modal>
+          )}
 
-        {/* ─── Layer 3: Crossfader Duel (overlay) ──────── */}
-        {duelState.active && duelState.trackA && duelState.trackB && (
-          <View style={StyleSheet.absoluteFill}>
-            <CrossfaderDuel
-              trackA={duelState.trackA}
-              trackB={duelState.trackB}
-              votes={duelState.votes}
-              timeRemaining={duelState.timeRemaining}
-              totalTime={duelState.totalTime}
-              userVote={duelState.userVote}
-              onVote={handleDuelVote}
-              onDuelEnd={() => setDuelState((prev) => ({ ...prev, active: false }))}
-            />
-          </View>
-        )}
+          {/* ─── Layer 3: Frequency Forecast (overlay) ───── */}
+          {forecastState.active && (
+            <View style={StyleSheet.absoluteFill}>
+              <FrequencyForecast
+                candidates={forecastState.candidates}
+                reward={forecastState.reward}
+                timeRemaining={forecastState.timeRemaining}
+                onPredict={handleForecastPick}
+                lastResult={forecastState.lastResult}
+              />
+            </View>
+          )}
 
-        {/* ─── Layer 3: Frequency Forecast (overlay) ───── */}
-        {forecastState.active && (
-          <View style={StyleSheet.absoluteFill}>
-            <FrequencyForecast
-              candidates={forecastState.candidates}
-              reward={forecastState.reward}
-              timeRemaining={forecastState.timeRemaining}
-              onPredict={handleForecastPick}
-              lastResult={forecastState.lastResult}
-            />
-          </View>
-        )}
-
-        {/* ─── Layer 3: Resonance Event ────────────────── */}
-        <ResonanceEvent
-          type={resonanceState.type}
-          message={resonanceState.message}
-          cvBonus={resonanceState.cvBonus}
-          active={resonanceState.active}
-          duration={3000}
-          onComplete={() => setResonanceState((prev) => ({ ...prev, active: false }))}
-        />
-
-        {/* ─── Layer 4: Transient Enter ────────────────── */}
-        <TransientEnter
-          username={transientUser.username}
-          active={transientUser.active}
-          onComplete={() => setTransientUser({ active: false, username: '' })}
-        />
-
-        {/* ─── Layer 4: Reverb Tails ────────────────────── */}
-        {reverbTails.map((tail) => (
-          <ReverbTail
-            key={tail.userId}
-            username={tail.username}
-            duration={tail.duration}
-            active={tail.active}
-            onDecayed={() => {
-              setReverbTails((prev) => prev.filter((t) => t.userId !== tail.userId));
-            }}
+          {/* ─── Layer 3: Resonance Event ────────────────── */}
+          <ResonanceEvent
+            type={resonanceState.type}
+            message={resonanceState.message}
+            cvBonus={resonanceState.cvBonus}
+            active={resonanceState.active}
+            duration={3000}
+            onComplete={() => setResonanceState((prev) => ({ ...prev, active: false }))}
           />
-        ))}
 
-      </KeyboardAvoidingView>
+          {/* ─── Layer 4: Transient Enter ────────────────── */}
+          <TransientEnter
+            username={transientUser.username}
+            active={transientUser.active}
+            onComplete={() => setTransientUser({ active: false, username: '' })}
+          />
+
+          {/* ─── Layer 4: Reverb Tails ────────────────────── */}
+          {reverbTails.map((tail) => (
+            <ReverbTail
+              key={tail.userId}
+              username={tail.username}
+              duration={tail.duration}
+              active={tail.active}
+              onDecayed={() => {
+                setReverbTails((prev) => prev.filter((t) => t.userId !== tail.userId));
+              }}
+            />
+          ))}
+
+        </KeyboardAvoidingView>
+      </VoidSurface>
 
       {/* ─── Master Bounce Receipt (session end) ──────── */}
       {bounceVisible && (
         <MasterBounce
           sessionName={session.name}
-          roomMode={session.roomMode as RoomMode}
+          roomMode={session.roomMode}
+          behaviors={sessionBehaviors}
           hostUsername={listeners.find((l) => l.userId === session.hostId)?.username || 'Host'}
           durationSeconds={Math.round((Date.now() - sessionStartTime) / 1000)}
           tracksPlayed={[...playedHistory, ...(currentTrack ? [currentTrack] : [])]}
@@ -1616,35 +1748,92 @@ const styles = StyleSheet.create({
   skeletonHeader: {
     flexDirection: 'row', alignItems: 'center',
     marginBottom: spacing.md, paddingBottom: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: colors.border.subtle,
+    borderBottomWidth: 1, borderBottomColor: palette.chromeBorder,
   },
 
-  // ─── Header (§3.1) ───────────────────────────────────
+  // ─── Header — Gemini V7 layout ─────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   backBtn: {
     width: 36,
     height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
+  headerCenter: {
     flex: 1,
+    alignItems: 'center',
+  },
+  modeBadgeBtn: {
+    borderWidth: 1,
+    borderColor: palette.orange,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginBottom: 4,
+  },
+  modeBadgeText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.orange,
+    letterSpacing: 1.5,
+  },
+  headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: 'ChakraPetch-Bold',
+    color: palette.frost,
+    letterSpacing: 0.5,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   overflowBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: 'rgba(148, 163, 184, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // ─── Signal Flow info row ──────────────────────────
+  signalFlowRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  signalFlowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  signalFlowLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.slate,
+    letterSpacing: 1.5,
+  },
+  codecBadge: {
+    borderWidth: 1,
+    borderColor: palette.orange,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  codecText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 9,
+    color: palette.orange,
+    letterSpacing: 1,
   },
 
   // ─── Player Content ───────────────────────────────────
@@ -1653,49 +1842,132 @@ const styles = StyleSheet.create({
     paddingBottom: spacing['2xl'],
   },
 
-  // ─── Album Art (§3.3) ─────────────────────────────────
+  // ─── Album Art — Gemini V7: vinyl + grid + orange glow ──
   albumArtContainer: {
     width: ALBUM_ART_SIZE,
     height: ALBUM_ART_SIZE,
-    borderRadius: spacing.radius.sm,
-    overflow: 'hidden',
-    marginTop: spacing.md,
-    backgroundColor: colors.bg.elevated,
-  },
-  albumArt: {
-    width: '100%',
-    height: '100%',
-  },
-  albumArtPlaceholder: {
+    marginTop: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.bg.elevated,
+    alignSelf: 'center',
+  },
+  albumArtFrame: {
+    width: ALBUM_ART_SIZE - 24,
+    height: ALBUM_ART_SIZE - 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  albumArtGlow: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    // Orange glow emanating from edges
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 25,
+    elevation: 12,
+  },
+  albumArtSurface: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+    backgroundColor: palette.midnight,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 53, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  // Grid overlay
+  gridH: {
+    position: 'absolute',
+    width: '100%',
+    height: 1,
+    backgroundColor: 'rgba(255, 107, 53, 0.08)',
+    top: '50%',
+  },
+  gridV: {
+    position: 'absolute',
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(255, 107, 53, 0.08)',
+    left: '50%',
+  },
+  // Vinyl concentric circles
+  vinylOuter: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 2,
+    borderColor: palette.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vinylMiddle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 107, 53, 0.50)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vinylInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 53, 0.30)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vinylDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: palette.orange,
+    // Glow on center dot
+    shadowColor: palette.orange,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
   },
 
-  // ─── Track Info (§3.4) ────────────────────────────────
+  // ─── Track Info (§3.4) — Display typography ─────────
   trackInfo: {
     width: '100%',
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    gap: 4,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
+    gap: 8,
   },
   trackTitle: {
     fontSize: 22,
     fontWeight: '700',
+    fontFamily: 'ChakraPetch-Bold',
+    letterSpacing: 0.3,
   },
 
-  // ─── Progress Bar (§3.5) ──────────────────────────────
+  // ─── Progress Bar (§3.5) — Recessed hardware groove ──
   progressContainer: {
     width: '100%',
     paddingHorizontal: spacing.screenPadding,
-    paddingBottom: spacing.xs,
+    paddingBottom: spacing.md,
   },
   progressTrack: {
     height: 3,
-    backgroundColor: colors.border.default,
+    backgroundColor: 'rgba(192, 223, 255, 0.08)',
     borderRadius: 2,
     overflow: 'hidden',
+    // Inset groove effect
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(0, 0, 0, 0.4)',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(192, 223, 255, 0.05)',
   },
   progressFill: {
     height: '100%',
@@ -1704,130 +1976,116 @@ const styles = StyleSheet.create({
   progressLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 4,
+    marginTop: 6,
   },
 
-  // ─── Transport (§3.6) ─────────────────────────────────
+  // ─── Transport — Gemini V7: mic | ORANGE play | skip ──
   transport: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 40,
-    paddingVertical: spacing.sm,
+    gap: 48,
+    paddingVertical: spacing.xl,
   },
-  transportSecondary: {
-    width: 44,
-    height: 44,
+  transportCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(148, 163, 184, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  skipVoteBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: palette.midnight,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: palette.orange,
+    minWidth: 22,
+    alignItems: 'center',
+  },
+  skipVoteText: {
+    fontSize: 8,
+    letterSpacing: 0.5,
+    fontWeight: '700',
+  },
+  phaseCancelBadge: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    backgroundColor: palette.steel,
+    borderRadius: 8,
+    paddingHorizontal: 2,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: palette.green,
+    minWidth: 18,
+    alignItems: 'center',
+  },
+  phaseCancelBadgeText: {
+    fontSize: 9,
   },
   playPauseBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: palette.orange,
     alignItems: 'center',
     justifyContent: 'center',
+    // Orange glow
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
   },
 
-  // ─── Queue Peek (§3.8) ────────────────────────────────
-  queuePeekSection: {
-    width: '100%',
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.md,
+  // ─── Bottom Sheet Tab Bar — SIGNAL CHAIN / TERMINAL LOG ─
+  bottomSheetTab: {
+    backgroundColor: palette.steel,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(148, 163, 184, 0.10)',
   },
-  queuePeekHeader: {
+  bottomSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(148, 163, 184, 0.25)',
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+  bottomSheetTabs: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
+    gap: 24,
   },
-  upNextLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  tabBtn: {
+    paddingBottom: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
-  cvPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(0, 229, 255, 0.08)',
-    borderRadius: 100,
-    borderWidth: 1,
+  tabBtnActive: {
+    borderBottomColor: palette.ice,
   },
-  cvExpansion: {
-    marginBottom: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    gap: 4,
+  tabText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 12,
+    color: palette.slate,
+    letterSpacing: 1,
   },
-  powerMoveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 6,
+  tabTextActive: {
+    color: palette.frost,
   },
-  powerMoveDisabled: {
-    opacity: 0.4,
-  },
-  peekCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm,
-    borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    gap: spacing.sm,
-  },
-  peekArt: {
-    width: 48,
-    height: 48,
-    borderRadius: 6,
-  },
-  peekArtPlaceholder: {
-    backgroundColor: colors.bg.input,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  peekText: {
-    flex: 1,
-    gap: 2,
-  },
-  peekCardEmpty: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.md,
-    borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    borderStyle: 'dashed',
-    gap: 8,
-  },
-  pullUpHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: spacing.sm,
-    gap: 4,
-  },
-
-  // ─── Pending banner ───────────────────────────────────
-  pendingBanner: {
-    width: '100%',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.screenPadding,
-    marginTop: spacing.sm,
-  },
-
   // ─── Queue Sheet (§3.9) ───────────────────────────────
   sheetBackdrop: {
     flex: 1,
@@ -1838,20 +2096,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheetContainer: {
-    maxHeight: '85%',
-    backgroundColor: colors.bg.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    height: Dimensions.get('window').height * 0.92,
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
     overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(192, 223, 255, 0.12)',
   },
   sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border.default,
+    width: 40,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(192, 223, 255, 0.2)',
     alignSelf: 'center',
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 10,
+    marginBottom: 6,
   },
   sheetHeader: {
     flexDirection: 'row',
@@ -1879,13 +2138,14 @@ const styles = StyleSheet.create({
   sheetSearchInput: {
     flex: 1,
     height: 38,
-    backgroundColor: colors.bg.input,
-    borderRadius: 6,
+    backgroundColor: 'rgba(192, 223, 255, 0.04)',
+    borderRadius: 4,
     paddingHorizontal: 12,
-    color: colors.text.primary,
+    color: '#F0F4F8',
     fontSize: 13,
+    fontFamily: 'SpaceMono-Regular',
     borderWidth: 1,
-    borderColor: colors.border.default,
+    borderColor: 'rgba(192, 223, 255, 0.1)',
   },
   sheetEmpty: {
     alignItems: 'center',
@@ -1896,7 +2156,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    borderBottomColor: palette.chromeBorder,
   },
 
   // ─── Suggestions (Spotlight) ──────────────────────────
@@ -1904,9 +2164,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     padding: spacing.sm,
     borderRadius: 10,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
   },
 
   // ─── Overflow Sheet ───────────────────────────────────
@@ -1920,25 +2180,25 @@ const styles = StyleSheet.create({
   },
   overflowDivider: {
     height: 1,
-    backgroundColor: colors.border.subtle,
+    backgroundColor: 'rgba(192, 223, 255, 0.06)',
     marginVertical: 4,
   },
 
   // ─── QR Modal ─────────────────────────────────────────
   qrOverlay: {
     flex: 1,
-    backgroundColor: colors.bg.overlay,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   qrModal: {
-    backgroundColor: colors.bg.surface,
-    borderRadius: 12,
+    backgroundColor: '#0E1219',
+    borderRadius: 4,
     padding: spacing.xl,
     width: 300,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: 'rgba(192, 223, 255, 0.15)',
   },
   qrClose: {
     marginTop: spacing.md,

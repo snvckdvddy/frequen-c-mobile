@@ -8,7 +8,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text, Button } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 
 interface Props {
@@ -54,18 +54,18 @@ export class ErrorBoundary extends Component<Props, State> {
 
       return (
         <View style={styles.container}>
-          <Text variant="displaySmall" color={colors.text.muted} align="center" style={styles.icon}>
+          <Text variant="displaySmall" color={palette.slate} align="center" style={styles.icon}>
             ⚠
           </Text>
-          <Text variant="h2" color={colors.text.primary} align="center">
+          <Text variant="h2" color={palette.frost} align="center">
             Something went wrong
           </Text>
-          <Text variant="body" color={colors.text.secondary} align="center" style={styles.message}>
+          <Text variant="body" color={palette.silver} align="center" style={styles.message}>
             The app hit an unexpected error. Tap below to try again.
           </Text>
           {__DEV__ && this.state.error && (
             <View style={styles.errorBox}>
-              <Text variant="mono" color={colors.action.destructive} style={styles.errorText}>
+              <Text variant="mono" color={palette.red} style={styles.errorText}>
                 {this.state.error.message}
               </Text>
             </View>
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.midnight,
     paddingHorizontal: spacing.screenPadding,
   },
   icon: {
@@ -102,13 +102,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   errorBox: {
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderRadius: spacing.radius.md,
     padding: spacing.md,
     marginBottom: spacing.lg,
     maxWidth: '100%',
     borderWidth: 1,
-    borderColor: colors.action.destructive + '30',
+    borderColor: palette.red + '30',
   },
   errorText: {
     fontSize: 12,

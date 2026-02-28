@@ -16,7 +16,7 @@ import { View, StyleSheet, Animated, Easing } from 'react-native';
 import Svg, { Path, Circle, Line, Text as SvgText } from 'react-native-svg';
 import { Text } from './ui/Text';
 import { AnimatedPressable } from './ui/AnimatedPressable';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { tapLight, notifySuccess } from '../utils/haptics';
 import type { QueueTrack } from '../types';
@@ -78,7 +78,7 @@ function TunerDial({ selectedIndex, total }: { selectedIndex: number; total: num
         {/* Dial arc */}
         <Path
           d="M 20 70 A 60 60 0 0 1 140 70"
-          stroke={colors.chrome.border}
+          stroke={palette.chromeBorder}
           strokeWidth={1.5}
           fill="none"
         />
@@ -95,12 +95,12 @@ function TunerDial({ selectedIndex, total }: { selectedIndex: number; total: num
               cx={cx}
               cy={cy}
               r={isSelected ? 4 : 2.5}
-              fill={isSelected ? colors.action.primary : colors.chrome.border}
+              fill={isSelected ? palette.orange : palette.chromeBorder}
             />
           );
         })}
         {/* Center dot */}
-        <Circle cx={80} cy={70} r={4} fill={colors.chrome.highlight} />
+        <Circle cx={80} cy={70} r={4} fill={palette.ice} />
       </Svg>
 
       {/* Needle — rotates via Animated */}
@@ -142,14 +142,14 @@ const dialStyles = StyleSheet.create({
   needleLine: {
     flex: 1,
     width: 2,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.orange,
     borderRadius: 1,
   },
   needleTip: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.orange,
     alignSelf: 'center',
     marginTop: -3,
   },
@@ -198,17 +198,17 @@ export function FrequencyForecast({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text variant="labelSmall" color={colors.chrome.text} style={styles.label}>
+        <Text variant="labelSmall" color={palette.slate} style={styles.label}>
           FREQUENCY FORECAST
         </Text>
         <View style={styles.rewardBadge}>
-          <Text variant="labelSmall" color={colors.cv.positive} style={styles.rewardText}>
+          <Text variant="labelSmall" color={palette.green} style={styles.rewardText}>
             +{reward} CV
           </Text>
         </View>
       </View>
 
-      <Text variant="bodySmall" color={colors.text.muted} style={styles.subtitle}>
+      <Text variant="bodySmall" color={palette.slate} style={styles.subtitle}>
         Tune your antenna — predict which track gets the most votes
       </Text>
 
@@ -222,7 +222,7 @@ export function FrequencyForecast({
             ]}
           />
         </View>
-        <Text variant="labelSmall" color={colors.text.muted} style={styles.timerText}>
+        <Text variant="labelSmall" color={palette.slate} style={styles.timerText}>
           {timeRemaining}s
         </Text>
       </View>
@@ -251,7 +251,7 @@ export function FrequencyForecast({
           >
             <Text
               variant="labelSmall"
-              color={i === selectedIndex ? colors.action.primary : colors.text.muted}
+              color={i === selectedIndex ? palette.orange : palette.slate}
               style={styles.candidateIndex}
             >
               {i + 1}
@@ -259,13 +259,13 @@ export function FrequencyForecast({
             <View style={styles.candidateInfo}>
               <Text
                 variant="body"
-                color={i === selectedIndex ? colors.text.primary : colors.text.secondary}
+                color={i === selectedIndex ? palette.frost : palette.silver}
                 numberOfLines={1}
                 style={styles.candidateTitle}
               >
                 {track.title}
               </Text>
-              <Text variant="bodySmall" color={colors.text.muted} numberOfLines={1}>
+              <Text variant="bodySmall" color={palette.slate} numberOfLines={1}>
                 {track.artist}
               </Text>
             </View>
@@ -284,12 +284,12 @@ export function FrequencyForecast({
           accessibilityLabel={`Lock signal on ${candidates[selectedIndex]?.title || 'selected track'}`}
           accessibilityState={{ disabled: candidates.length === 0 }}
         >
-          <Text variant="labelLarge" color={colors.action.primaryText}>
+          <Text variant="labelLarge" color={palette.void}>
             LOCK SIGNAL
           </Text>
         </AnimatedPressable>
       ) : (
-        <Text variant="labelSmall" color={colors.text.muted} style={styles.lockedText}>
+        <Text variant="labelSmall" color={palette.slate} style={styles.lockedText}>
           ANTENNA LOCKED — AWAITING RESULTS
         </Text>
       )}
@@ -310,12 +310,12 @@ export function FrequencyForecast({
         >
           <Text
             variant="h2"
-            color={lastResult.correct ? colors.cv.positive : colors.action.destructive}
+            color={lastResult.correct ? palette.green : palette.red}
           >
             {lastResult.correct ? 'SIGNAL MATCHED' : 'OFF FREQUENCY'}
           </Text>
           {lastResult.correct && (
-            <Text variant="labelLarge" color={colors.cv.positive} style={{ marginTop: 4 }}>
+            <Text variant="labelLarge" color={palette.green} style={{ marginTop: 4 }}>
               +{lastResult.earned} CV
             </Text>
           )}
@@ -327,9 +327,9 @@ export function FrequencyForecast({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     borderRadius: 12,
     padding: spacing.md,
     marginHorizontal: spacing.screenPadding,
@@ -371,13 +371,13 @@ const styles = StyleSheet.create({
   timerBar: {
     flex: 1,
     height: 2,
-    backgroundColor: colors.chrome.surface,
+    backgroundColor: palette.steel,
     borderRadius: 1,
     overflow: 'hidden',
   },
   timerFill: {
     height: '100%',
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.orange,
     borderRadius: 1,
   },
   timerText: {
@@ -399,11 +399,11 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   candidateActive: {
-    borderColor: colors.chrome.border,
-    backgroundColor: colors.chrome.surface,
+    borderColor: palette.chromeBorder,
+    backgroundColor: palette.steel,
   },
   candidateLocked: {
-    borderColor: colors.action.primary,
+    borderColor: palette.orange,
     backgroundColor: 'rgba(0, 229, 255, 0.06)',
   },
   candidateIndex: {
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
   lockBtn: {
     height: 44,
     borderRadius: 8,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.orange,
     alignItems: 'center',
     justifyContent: 'center',
   },

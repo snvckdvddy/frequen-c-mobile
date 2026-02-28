@@ -19,7 +19,8 @@ import {
   voteTrack, sendReaction, skipTrack, onSessionEvent,
 } from '../services/socket';
 import { tapMedium, tapLight, tapHeavy, notifySuccess } from '../utils/haptics';
-import type { Session, QueueTrack, Track } from '../types';
+import type { Session, QueueTrack, Track, RoomBehaviors } from '../types';
+import { DEFAULT_BEHAVIORS } from '../types';
 
 interface UseSessionReturn {
   session: Session | null;
@@ -108,7 +109,7 @@ export function useSession(sessionId: string): UseSessionReturn {
           );
         }
       }),
-      onSessionEvent('reaction-local', (data) => {
+      onSessionEvent('reaction-received', (data) => {
         if (mountedRef.current) {
           setQueue((prev) =>
             prev.map((t) =>
@@ -163,9 +164,10 @@ export function useSession(sessionId: string): UseSessionReturn {
 
   const handleSkip = useCallback(() => {
     if (!user || !session) return;
-    // Only host can skip in spotlight mode
-    if (session.roomMode === 'spotlight' && session.hostId !== user.id) {
-      Alert.alert('Host Only', 'Only the host can skip tracks in Spotlight mode.');
+    // Behavior-driven skip access check
+    const behaviors: RoomBehaviors = session.behaviors || DEFAULT_BEHAVIORS;
+    if (behaviors.skipAccess === 'hostOnly' && session.hostId !== user.id) {
+      Alert.alert('Host Only', 'Only the host can skip tracks in this session.');
       return;
     }
     tapHeavy();

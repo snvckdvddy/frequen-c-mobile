@@ -14,7 +14,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 
 interface ErrorStateProps {
@@ -34,13 +34,13 @@ export function ErrorState({
   if (variant === 'banner') {
     return (
       <View style={bannerStyles.container}>
-        <Ionicons name="alert-circle" size={16} color={colors.action.destructive} />
-        <Text variant="labelSmall" color={colors.text.secondary} style={bannerStyles.msg} numberOfLines={1}>
+        <Ionicons name="alert-circle" size={16} color={palette.red} />
+        <Text variant="labelSmall" color={palette.silver} style={bannerStyles.msg} numberOfLines={1}>
           {message}
         </Text>
         {onRetry && (
           <TouchableOpacity onPress={onRetry} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text variant="labelSmall" color={colors.action.primary} style={bannerStyles.retry}>
+            <Text variant="labelSmall" color={palette.orange} style={bannerStyles.retry}>
               RETRY
             </Text>
           </TouchableOpacity>
@@ -53,18 +53,18 @@ export function ErrorState({
   return (
     <View style={fullStyles.container}>
       <View style={fullStyles.iconWrap}>
-        <Ionicons name="warning-outline" size={40} color={colors.action.destructive} />
+        <Ionicons name="warning-outline" size={40} color={palette.red} />
       </View>
-      <Text variant="body" color={colors.text.primary} align="center" style={fullStyles.title}>
+      <Text variant="body" color={palette.frost} align="center" style={fullStyles.title}>
         {message}
       </Text>
-      <Text variant="labelSmall" color={colors.text.muted} align="center" style={fullStyles.subtitle}>
+      <Text variant="labelSmall" color={palette.slate} align="center" style={fullStyles.subtitle}>
         Check your connection and try again
       </Text>
       {onRetry && (
         <TouchableOpacity style={fullStyles.retryBtn} onPress={onRetry} activeOpacity={0.7}>
-          <Ionicons name="refresh" size={16} color={colors.action.primary} />
-          <Text variant="label" color={colors.action.primary} style={fullStyles.retryText}>
+          <Ionicons name="refresh" size={16} color={palette.orange} />
+          <Text variant="label" color={palette.orange} style={fullStyles.retryText}>
             Retry
           </Text>
         </TouchableOpacity>
@@ -105,7 +105,7 @@ const fullStyles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     borderRadius: spacing.radius.full,
     borderWidth: 1,
-    borderColor: colors.action.primary,
+    borderColor: palette.orange,
   },
   retryText: {
     fontSize: 12,
@@ -117,12 +117,12 @@ const bannerStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     paddingHorizontal: spacing.screenPadding,
     paddingVertical: spacing.sm,
     gap: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
+    borderBottomColor: palette.chromeBorder,
   },
   msg: {
     flex: 1,

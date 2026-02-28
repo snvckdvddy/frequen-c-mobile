@@ -8,7 +8,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 
 interface VoltageMeterProps {
   balance: number;
@@ -24,8 +24,8 @@ export function VoltageMeter({ balance, max = 500, variant = 'full' }: VoltageMe
     <View style={styles.container}>
       {variant === 'full' && (
         <View style={styles.header}>
-          <Text variant="labelSmall" color={colors.cv.neutral}>CV</Text>
-          <Text variant="labelSmall" color={colors.cv.positive}>
+          <Text variant="labelSmall" color={palette.slate}>CV</Text>
+          <Text variant="labelSmall" color={palette.green}>
             {balance}
           </Text>
         </View>
@@ -36,8 +36,8 @@ export function VoltageMeter({ balance, max = 500, variant = 'full' }: VoltageMe
             styles.fill,
             {
               width: `${fillPercent}%`,
-              backgroundColor: colors.cv.positive,
-              shadowColor: colors.cv.positive,
+              backgroundColor: palette.green,
+              shadowColor: palette.green,
             },
           ]}
         />
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   },
   track: {
     height: 4,
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     borderRadius: 2,
     overflow: 'hidden',
     position: 'relative',

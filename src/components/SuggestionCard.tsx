@@ -10,7 +10,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import type { QueueTrack } from '../types';
 
@@ -30,21 +30,21 @@ export function SuggestionCard({ track, onApprove, onReject }: SuggestionCardPro
         <Image source={{ uri: track.albumArt }} style={styles.art} />
       ) : (
         <View style={[styles.art, styles.artPlaceholder]}>
-          <Ionicons name="musical-note" size={16} color={colors.text.muted} />
+          <Ionicons name="musical-note" size={16} color={palette.slate} />
         </View>
       )}
 
       {/* Track info */}
       <View style={styles.info}>
-        <Text variant="label" color={colors.text.primary} numberOfLines={1}>
+        <Text variant="label" color={palette.frost} numberOfLines={1}>
           {track.title}
         </Text>
-        <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
+        <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
           {track.artist}
         </Text>
         <View style={styles.suggestedRow}>
-          <Ionicons name="person-outline" size={10} color={colors.text.muted} />
-          <Text variant="labelSmall" color={colors.text.muted} style={{ marginLeft: 3 }}>
+          <Ionicons name="person-outline" size={10} color={palette.slate} />
+          <Text variant="labelSmall" color={palette.slate} style={{ marginLeft: 3 }}>
             {addedByName}
           </Text>
         </View>
@@ -58,7 +58,7 @@ export function SuggestionCard({ track, onApprove, onReject }: SuggestionCardPro
         accessibilityRole="button"
         accessibilityLabel={`Approve ${track.title} by ${track.artist}, suggested by ${addedByName}`}
       >
-        <Ionicons name="checkmark" size={20} color={colors.action.primary} />
+        <Ionicons name="checkmark" size={20} color={palette.orange} />
       </TouchableOpacity>
 
       {/* Reject */}
@@ -69,7 +69,7 @@ export function SuggestionCard({ track, onApprove, onReject }: SuggestionCardPro
         accessibilityRole="button"
         accessibilityLabel={`Reject ${track.title} by ${track.artist}`}
       >
-        <Ionicons name="close" size={20} color={colors.action.destructive} />
+        <Ionicons name="close" size={20} color={palette.red} />
       </TouchableOpacity>
     </View>
   );
@@ -79,18 +79,18 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.sm,
+    padding: spacing.md,
     borderRadius: spacing.radius.md,
     borderWidth: 1,
-    borderColor: colors.action.primary + '20',
+    borderColor: palette.orange + '20',
     borderStyle: 'dashed',
-    backgroundColor: colors.action.primary + '06',
-    marginBottom: spacing.sm,
+    backgroundColor: palette.orange + '06',
+    marginBottom: spacing.md,
   },
   art: {
-    width: 40, height: 40, borderRadius: spacing.radius.sm,
-    backgroundColor: colors.bg.input,
-    marginRight: spacing.sm,
+    width: 48, height: 48, borderRadius: spacing.radius.sm,
+    backgroundColor: palette.steel,
+    marginRight: spacing.md,
   },
   artPlaceholder: {
     alignItems: 'center',
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-    marginRight: spacing.sm,
+    marginRight: spacing.md,
   },
   suggestedRow: {
     flexDirection: 'row',
@@ -107,13 +107,13 @@ const styles = StyleSheet.create({
   },
   approveBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.action.primary + '18',
+    backgroundColor: palette.orange + '18',
     alignItems: 'center', justifyContent: 'center',
     marginRight: spacing.xs,
   },
   rejectBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.action.destructive + '18',
+    backgroundColor: palette.red + '18',
     alignItems: 'center', justifyContent: 'center',
   },
 });

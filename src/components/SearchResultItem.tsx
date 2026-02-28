@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import type { Track } from '../types';
 
@@ -31,14 +31,14 @@ export function SearchResultItem({ track, onAdd }: SearchResultItemProps) {
         <Image source={{ uri: track.albumArt }} style={searchStyles.art} />
       ) : (
         <View style={[searchStyles.art, { alignItems: 'center', justifyContent: 'center' }]}>
-          <Text variant="labelSmall" color={colors.text.muted}>{track.artist.charAt(0)}</Text>
+          <Text variant="labelSmall" color={palette.slate}>{track.artist.charAt(0)}</Text>
         </View>
       )}
       <View style={searchStyles.info}>
-        <Text variant="label" color={colors.text.primary} numberOfLines={1}>{track.title}</Text>
-        <Text variant="bodySmall" color={colors.text.muted} numberOfLines={1}>{track.artist}</Text>
+        <Text variant="label" color={palette.frost} numberOfLines={1}>{track.title}</Text>
+        <Text variant="bodySmall" color={palette.slate} numberOfLines={1}>{track.artist}</Text>
       </View>
-      <Text variant="labelLarge" color={added ? colors.text.muted : colors.action.primary}>
+      <Text variant="labelLarge" color={added ? palette.slate : palette.orange}>
         {added ? 'Added' : '+'}
       </Text>
     </TouchableOpacity>
@@ -48,15 +48,15 @@ export function SearchResultItem({ track, onAdd }: SearchResultItemProps) {
 const searchStyles = StyleSheet.create({
   item: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: spacing.sm, paddingHorizontal: spacing.xs,
-    borderBottomWidth: 1, borderBottomColor: colors.border.subtle,
+    paddingVertical: spacing.md, paddingHorizontal: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: palette.chromeBorder,
   },
   art: {
-    width: 36, height: 36, borderRadius: spacing.radius.sm,
-    backgroundColor: colors.bg.input, alignItems: 'center',
-    justifyContent: 'center', marginRight: spacing.sm,
+    width: 48, height: 48, borderRadius: spacing.radius.sm,
+    backgroundColor: palette.steel, alignItems: 'center',
+    justifyContent: 'center', marginRight: spacing.md,
   },
-  info: { flex: 1, marginRight: spacing.sm },
+  info: { flex: 1, marginRight: spacing.md },
 });
 
 export default SearchResultItem;

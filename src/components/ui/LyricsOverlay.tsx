@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Track } from '../../types';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import api from '../../services/api';
 
@@ -55,7 +55,7 @@ export function LyricsOverlay({ track, visible, onClose }: LyricsOverlayProps) {
                 {/* ─── Header ────────────────────────────────────────────── */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close lyrics">
-                        <Ionicons name="chevron-down" size={28} color={colors.text.primary} />
+                        <Ionicons name="chevron-down" size={28} color={palette.frost} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
                         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -70,12 +70,12 @@ export function LyricsOverlay({ track, visible, onClose }: LyricsOverlayProps) {
                 {/* ─── Content ───────────────────────────────────────────── */}
                 {loading ? (
                     <View style={styles.center}>
-                        <ActivityIndicator size="large" color={colors.action.primary} />
+                        <ActivityIndicator size="large" color={palette.orange} />
                         <Text style={styles.loadingText}>Fetching lyrics...</Text>
                     </View>
                 ) : error ? (
                     <View style={styles.center}>
-                        <Ionicons name="alert-circle-outline" size={48} color={colors.action.destructive} />
+                        <Ionicons name="alert-circle-outline" size={48} color={palette.red} />
                         <Text style={styles.errorText}>{error}</Text>
                     </View>
                 ) : (
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.md,
         paddingBottom: spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: colors.chrome.border,
+        borderBottomColor: palette.chromeBorder,
         backgroundColor: 'rgba(15, 17, 21, 0.8)',
         zIndex: 10,
     },
@@ -116,13 +116,13 @@ const styles = StyleSheet.create({
         paddingRight: 36, // Counter-balance closeBtn
     },
     headerTitle: {
-        color: colors.text.primary,
+        color: palette.frost,
         fontSize: 14,
         fontWeight: '800',
         letterSpacing: 1,
     },
     headerArtist: {
-        color: colors.chrome.text,
+        color: palette.slate,
         fontSize: 10,
         letterSpacing: 0.5,
         marginTop: 2,
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
         opacity: 0.8,
     },
     lyricsText: {
-        color: colors.text.primary,
+        color: palette.frost,
         fontSize: 20,
         lineHeight: 34,
         fontWeight: '500',
@@ -153,13 +153,13 @@ const styles = StyleSheet.create({
         padding: spacing.xl,
     },
     loadingText: {
-        color: colors.chrome.text,
+        color: palette.slate,
         marginTop: spacing.sm,
         fontSize: 12,
         letterSpacing: 1,
     },
     errorText: {
-        color: colors.action.destructive,
+        color: palette.red,
         marginTop: spacing.md,
         textAlign: 'center',
         fontSize: 14,

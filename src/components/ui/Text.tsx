@@ -6,7 +6,7 @@
 import React from 'react';
 import { Text as RNText, TextProps as RNTextProps, StyleSheet, TextStyle } from 'react-native';
 import { typography } from '../../theme/typography';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 
 /** Only the keys that map to TextStyle presets (exclude utility exports) */
 type Variant =
@@ -24,7 +24,7 @@ interface TextProps extends RNTextProps {
 
 export function Text({
   variant = 'body',
-  color = colors.text.primary,
+  color = palette.frost,
   align = 'left',
   style,
   children,

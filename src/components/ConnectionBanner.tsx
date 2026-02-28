@@ -11,7 +11,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { useSocketHealth } from '../hooks/useSocketHealth';
 import { reconnectSocket } from '../services/socket';
@@ -65,7 +65,7 @@ export function ConnectionBanner() {
         {/* Signal indicator dot */}
         <View style={[styles.dot, showRetry ? styles.dotDead : styles.dotReconnecting]} />
 
-        <Text variant="labelSmall" color={colors.text.primary} style={styles.message} numberOfLines={1}>
+        <Text variant="labelSmall" color={palette.frost} style={styles.message} numberOfLines={1}>
           {message}
         </Text>
 
@@ -76,7 +76,7 @@ export function ConnectionBanner() {
             accessibilityRole="button"
             accessibilityLabel="Retry connection"
           >
-            <Text variant="labelSmall" color={colors.action.primary}>
+            <Text variant="labelSmall" color={palette.orange}>
               RETRY
             </Text>
           </TouchableOpacity>
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: colors.action.primary + '40',
+    borderColor: palette.orange + '40',
   },
 });
 

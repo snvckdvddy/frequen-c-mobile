@@ -15,7 +15,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 
 // ─── Optional native module (crashes in Expo Go) ───────────
 // Graceful degrade: if missing → fall back to void palette.
@@ -49,7 +49,7 @@ interface DynamicGradientBgProps {
 
 // ─── Defaults ──────────────────────────────────────────────
 
-const VOID = colors.bg.primary;  // #06080F — deepest dark
+const VOID = palette.void;  // #06080F — deepest dark
 const DEFAULT_PALETTE: GradientPalette = {
   primary: VOID,
   secondary: VOID,
@@ -164,7 +164,7 @@ export function DynamicGradientBg({
         }).start();
       } catch (err) {
         // Silent fail — just stay dark. No gradient is fine.
-        console.warn('DynamicGradientBg: color extraction failed', err);
+        console.log('[DynamicGradientBg] Color extraction failed:', err);
       }
     })();
 

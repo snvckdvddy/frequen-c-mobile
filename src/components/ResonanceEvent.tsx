@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Text } from './ui/Text';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { tapHeavy, notifySuccess } from '../utils/haptics';
 
@@ -54,19 +54,19 @@ const RESONANCE_CONFIG: Record<ResonanceType, {
   waveIntensity: number;
 }> = {
   harmonic: {
-    color: colors.action.primary,
+    color: palette.orange,
     glow: 'rgba(0, 229, 255, 0.3)',
     label: 'HARMONIC RESONANCE',
     waveIntensity: 1,
   },
   octave: {
-    color: colors.session.live,
+    color: palette.green,
     glow: 'rgba(57, 255, 20, 0.3)',
     label: 'OCTAVE LOCK',
     waveIntensity: 1.5,
   },
   feedback: {
-    color: colors.voltage.charge,
+    color: palette.ice,
     glow: 'rgba(192, 223, 255, 0.3)',
     label: 'FEEDBACK LOOP',
     waveIntensity: 0.8,
@@ -292,11 +292,11 @@ export function ResonanceEvent({
         <Text variant="labelSmall" color={config.color} style={styles.typeLabel}>
           {config.label}
         </Text>
-        <Text variant="h1" color={colors.text.primary} style={styles.message}>
+        <Text variant="h1" color={palette.frost} style={styles.message}>
           {message}
         </Text>
         {cvBonus != null && cvBonus > 0 && (
-          <Text variant="labelLarge" color={colors.cv.positive} style={styles.cvLabel}>
+          <Text variant="labelLarge" color={palette.green} style={styles.cvLabel}>
             +{cvBonus} CV
           </Text>
         )}

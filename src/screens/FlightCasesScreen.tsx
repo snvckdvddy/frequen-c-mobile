@@ -1,27 +1,33 @@
 /**
- * Flight Cases Screen — Modular Synthesis Library
+ * Flight Cases Screen — "Signal Matrix" (Gemini V7)
  *
- * Replaces flat Library with collapsible "cases":
- *   Liked Tracks — heart icon, favorited tracks
- *   Session History — clock icon, past sessions
- *   Collections — user-created groups (future)
- *   Master Bounces — session receipts (future)
- *
- * Each case has a brushed-metal header with latch visual.
+ * Structure:
+ *   Signal Matrix                         ← Title (bold)
+ *   PHYSICAL PATCH BAY ROUTING            ← Subtitle (monospace)
+ *   ┌─────────────────────────────────┐
+ *   │  OUTPUTS          INPUTS        │
+ *   │  (○) SPOTIFY      (○) LIVE ROOM │   ← Patch bay jack connectors
+ *   │  (○) TAPE 01      (○) BOUNCE    │
+ *   │  CLICK JACKS TO PATCH SIGNALS   │
+ *   └─────────────────────────────────┘
+ *   DATA CARTRIDGES                       ← Section label
+ *   [archive card] [archive card]         ← Saved sessions / liked tracks
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, LayoutAnimation, Platform, UIManager,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, ADSRFadeIn, TrackListItem } from '../components/ui';
-import { WaveformIcon } from '../components/ui/WaveformIcon';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
-import { colors } from '../theme/colors';
+import { sessionApi } from '../services/api';
 import { spacing } from '../theme/spacing';
-import type { Track, FavoriteTrack, RoomMode } from '../types';
+import { VoidSurface } from '../design/components';
+import { palette } from '../design/tokens/materials';
+import type { Session, Track, FavoriteTrack, RoomMode } from '../types';
 
 // Enable layout animation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -34,17 +40,67 @@ interface FlightCasesScreenProps {
   onOpenRoom?: (sessionId: string) => void;
 }
 
-// ─── Flight Case Container ──────────────────────────────────
+// ─── Patch Bay Jack ─────────────────────────────────────────
 
-interface FlightCaseProps {
-  title: string;
-  icon: React.ReactNode;
-  count: number;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
+function PatchJack({ label, connected = false }: { label: string; connected?: boolean }) {
+  return (
+    <View style={jackStyles.container}>
+      <View style={[jackStyles.jack, connected && jackStyles.jackConnected]}>
+        <View style={[jackStyles.jackHole, connected && jackStyles.jackHoleConnected]} />
+      </View>
+      <Text style={jackStyles.label}>{label}</Text>
+    </View>
+  );
 }
 
-function FlightCase({ title, icon, count, children, defaultOpen = false }: FlightCaseProps) {
+const jackStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  jack: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: palette.midnight,
+    borderWidth: 2,
+    borderColor: palette.chromeBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  jackConnected: {
+    borderColor: palette.ice,
+  },
+  jackHole: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: palette.slate,
+    backgroundColor: 'transparent',
+  },
+  jackHoleConnected: {
+    borderColor: palette.ice,
+    backgroundColor: 'rgba(0, 229, 255, 0.10)',
+  },
+  label: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 9,
+    color: palette.slate,
+    letterSpacing: 1.5,
+  },
+});
+
+// ─── Session History (from API) ─────────────────────────────
+// Archived sessions (isLive=false) become "Data Cartridges"
+
+// ─── Collapsible Section ────────────────────────────────────
+
+function CollapsibleSection({
+  title, count, children, defaultOpen = false,
+}: {
+  title: string; count: number; children: React.ReactNode; defaultOpen?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   const toggle = () => {
@@ -53,257 +109,242 @@ function FlightCase({ title, icon, count, children, defaultOpen = false }: Fligh
   };
 
   return (
-    <View style={caseStyles.container}>
-      {/* Chrome header with latches */}
+    <View style={sectionStyles.container}>
       <TouchableOpacity
-        style={caseStyles.header}
+        style={sectionStyles.header}
         onPress={toggle}
         activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={`${title}, ${count} items${isOpen ? ', expanded' : ', collapsed'}`}
-        accessibilityState={{ expanded: isOpen }}
       >
-        {/* Left latch */}
-        <View style={caseStyles.latch} />
-
-        <View style={caseStyles.headerContent}>
-          {icon}
-          <Text variant="labelLarge" color={colors.text.primary} style={caseStyles.title}>
-            {title}
-          </Text>
-          <View style={caseStyles.countBadge}>
-            <Text variant="labelSmall" color={colors.chrome.text} style={{ fontSize: 10 }}>
-              {count}
-            </Text>
-          </View>
+        <Text style={sectionStyles.title}>{title}</Text>
+        <View style={sectionStyles.countBadge}>
+          <Text style={sectionStyles.countText}>{count}</Text>
         </View>
-
         <Ionicons
           name={isOpen ? 'chevron-up' : 'chevron-down'}
-          size={16}
-          color={colors.text.muted}
+          size={14}
+          color={palette.slate}
         />
-
-        {/* Right latch */}
-        <View style={caseStyles.latch} />
       </TouchableOpacity>
-
-      {/* Case contents — Melody Channel styling */}
-      {isOpen && (
-        <View style={caseStyles.body}>
-          {children}
-        </View>
-      )}
+      {isOpen && <View style={sectionStyles.body}>{children}</View>}
     </View>
   );
 }
 
-const caseStyles = StyleSheet.create({
+const sectionStyles = StyleSheet.create({
   container: {
-    marginBottom: spacing.md,
-    borderRadius: 12,
+    marginBottom: 10,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    // Brushed metal effect via subtle gradient
-    borderBottomWidth: 1,
-    borderBottomColor: colors.chrome.border,
-  },
-  headerContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   title: {
-    fontSize: 13,
-    letterSpacing: 0.5,
+    flex: 1,
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 11,
+    color: palette.silver,
+    letterSpacing: 1.5,
   },
   countBadge: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
-    backgroundColor: colors.chrome.surface,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
   },
-  latch: {
-    width: 3,
-    height: 12,
-    borderRadius: 1.5,
-    backgroundColor: colors.chrome.border,
-    marginHorizontal: 4,
+  countText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.slate,
   },
   body: {
-    backgroundColor: colors.bg.surface,
+    backgroundColor: palette.steel,
     padding: 12,
   },
 });
 
-// ─── Mock Session History (until backend supports it) ───────
-
-const mockHistory = [
-  { id: 'hist_1', name: 'Friday Night Vibes', roomMode: 'campfire' as RoomMode, date: '2 hours ago', trackCount: 12, duration: '45 min' },
-  { id: 'hist_2', name: 'Studio Session', roomMode: 'spotlight' as RoomMode, date: 'Yesterday', trackCount: 8, duration: '30 min' },
-  { id: 'hist_3', name: 'Open Aux', roomMode: 'openFloor' as RoomMode, date: '3 days ago', trackCount: 24, duration: '1.5 hrs' },
-];
-
 // ─── Main Screen ────────────────────────────────────────────
 
 export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
-  const { favorites, toggleFavorite } = useFavoritesContext();
+  const { favorites } = useFavoritesContext();
   const [refreshing, setRefreshing] = useState(false);
+  const [sessionHistory, setSessionHistory] = useState<Session[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const { sessions } = await sessionApi.myRooms();
+      // Archived sessions (not live) = Data Cartridges
+      // Live sessions are shown on HomeScreen, so filter them out here
+      const archived = sessions.filter((s) => !s.isLive);
+      setSessionHistory(archived);
+    } catch {
+      // Silently fail — history is non-critical
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Future: re-fetch from server
-    setTimeout(() => setRefreshing(false), 500);
-  }, []);
+    await fetchHistory();
+    setRefreshing(false);
+  }, [fetchHistory]);
 
-  // FavoriteTrack wraps Track in .track property
   const favTracks: Track[] = favorites.map((f: FavoriteTrack) => f.track);
 
   return (
     <SafeScreen>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.action.primary}
-          />
-        }
-      >
-        {/* Header */}
-        <ADSRFadeIn index={0}>
-          <View style={styles.header}>
-            <Text variant="h2" color={colors.text.primary}>
-              Library
-            </Text>
-            <Text variant="bodySmall" color={colors.text.secondary}>
-              Your gear, organized
-            </Text>
-          </View>
-        </ADSRFadeIn>
+      <VoidSurface style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={palette.orange}
+            />
+          }
+        >
+          {/* ═══ Header ════════════════════════════════════ */}
+          <ADSRFadeIn index={0}>
+            <Text style={styles.title}>Signal Matrix</Text>
+            <Text style={styles.subtitle}>PHYSICAL PATCH BAY ROUTING</Text>
+          </ADSRFadeIn>
 
-        {/* Case: Liked Tracks */}
-        <ADSRFadeIn index={1}>
-          <FlightCase
-            title="Liked Tracks"
-            icon={<Ionicons name="heart" size={16} color={colors.action.primary} />}
-            count={favTracks.length}
-            defaultOpen={true}
-          >
-            {favTracks.length === 0 ? (
-              <View style={styles.emptyCase}>
-                <Ionicons name="heart-outline" size={28} color={colors.text.muted} />
-                <Text variant="bodySmall" color={colors.text.muted} align="center">
-                  No liked tracks yet.
-                </Text>
-                <Text variant="labelSmall" color={colors.text.secondary} align="center">
-                  Heart tracks during a session to save them here.
-                </Text>
+          {/* ═══ Patch Bay Panel ═══════════════════════════ */}
+          <ADSRFadeIn index={1}>
+            <View style={styles.patchBayPanel}>
+              {/* Column headers */}
+              <View style={styles.patchBayHeaders}>
+                <Text style={styles.patchBayHeaderText}>OUTPUTS</Text>
+                <Text style={styles.patchBayHeaderText}>INPUTS</Text>
               </View>
-            ) : (
-              <View style={{ gap: 4 }}>
-                {favTracks.map((track) => (
-                  <TrackListItem
-                    key={track.id}
-                    title={track.title}
-                    artist={track.artist}
-                    albumArt={track.albumArt}
-                    duration={track.duration}
-                    onPress={() => {}}
-                  />
+
+              {/* Row 1 */}
+              <View style={styles.patchBayRow}>
+                <PatchJack label="SPOTIFY" connected />
+                <PatchJack label="LIVE ROOM" connected />
+              </View>
+
+              {/* Row 2 */}
+              <View style={styles.patchBayRow}>
+                <PatchJack label="TAPE 01" />
+                <PatchJack label="BOUNCE" />
+              </View>
+
+              {/* Instruction */}
+              <Text style={styles.patchBayInstruction}>
+                CLICK JACKS TO PATCH SIGNALS
+              </Text>
+            </View>
+          </ADSRFadeIn>
+
+          {/* ═══ DATA CARTRIDGES (Session History) ════════ */}
+          <ADSRFadeIn index={2}>
+            <Text style={styles.sectionLabel}>DATA CARTRIDGES</Text>
+
+            {historyLoading ? (
+              <View style={styles.loadingCenter}>
+                <ActivityIndicator color={palette.orange} size="small" />
+              </View>
+            ) : sessionHistory.length > 0 ? (
+              <View style={{ gap: 8 }}>
+                {sessionHistory.map((session) => (
+                  <TouchableOpacity
+                    key={session.id}
+                    style={styles.cartridgeCard}
+                    onPress={() => onOpenRoom?.(session.id)}
+                    activeOpacity={0.8}
+                  >
+                    {/* Red left accent */}
+                    <View style={styles.cartridgeAccent} />
+                    <View style={styles.cartridgeContent}>
+                      <Text style={styles.cartridgeName}>{session.name}</Text>
+                      <Text style={styles.cartridgeMeta}>
+                        SAVED: {session.createdAt?.split('T')[0] || 'Unknown'} · {session.queue?.length || 0} TRACKS
+                      </Text>
+                    </View>
+                    <TouchableOpacity style={styles.loreBadge} activeOpacity={0.7}>
+                      <Ionicons name="sparkles" size={10} color={palette.orange} />
+                      <Text style={styles.loreBadgeText}>SESSION LORE</Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
                 ))}
               </View>
+            ) : (
+              <View style={styles.emptyCartridges}>
+                <Ionicons name="disc-outline" size={28} color={palette.slate} />
+                <Text style={styles.emptyText}>No data cartridges yet.</Text>
+                <Text style={styles.emptySubtext}>
+                  Session archives will appear here after completed sessions.
+                </Text>
+              </View>
             )}
-          </FlightCase>
-        </ADSRFadeIn>
+          </ADSRFadeIn>
 
-        {/* Case: Session History */}
-        <ADSRFadeIn index={2}>
-          <FlightCase
-            title="Session History"
-            icon={<Ionicons name="time-outline" size={16} color={colors.chrome.text} />}
-            count={mockHistory.length}
-          >
-            <View style={{ gap: 8 }}>
-              {mockHistory.map((session) => (
-                <TouchableOpacity
-                  key={session.id}
-                  style={styles.historyCard}
-                  onPress={() => onOpenRoom?.(session.id)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${session.name}, ${session.trackCount} tracks, ${session.duration}, ${session.date}`}
-                >
-                  <WaveformIcon mode={session.roomMode} size={16} />
-                  <View style={{ flex: 1 }}>
-                    <Text variant="label" color={colors.text.primary}>
-                      {session.name}
-                    </Text>
-                    <Text variant="labelSmall" color={colors.text.muted}>
-                      {session.trackCount} tracks / {session.duration}
-                    </Text>
-                  </View>
-                  <Text variant="labelSmall" color={colors.text.muted}>
-                    {session.date}
+          {/* ═══ LIKED TRACKS ═════════════════════════════ */}
+          <ADSRFadeIn index={3}>
+            <CollapsibleSection
+              title="LIKED TRACKS"
+              count={favTracks.length}
+              defaultOpen={favTracks.length > 0}
+            >
+              {favTracks.length === 0 ? (
+                <View style={styles.emptySection}>
+                  <Ionicons name="heart-outline" size={24} color={palette.slate} />
+                  <Text style={styles.emptySubtext}>
+                    Heart tracks during a session to save them here.
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </FlightCase>
-        </ADSRFadeIn>
+                </View>
+              ) : (
+                <View style={{ gap: 4 }}>
+                  {favTracks.map((track) => (
+                    <TrackListItem
+                      key={track.id}
+                      title={track.title}
+                      artist={track.artist}
+                      albumArt={track.albumArt}
+                      duration={track.duration}
+                      onPress={() => {}}
+                    />
+                  ))}
+                </View>
+              )}
+            </CollapsibleSection>
+          </ADSRFadeIn>
 
-        {/* Case: Collections (placeholder) */}
-        <ADSRFadeIn index={3}>
-          <FlightCase
-            title="Collections"
-            icon={<Ionicons name="folder-outline" size={16} color={colors.chrome.text} />}
-            count={0}
-          >
-            <View style={styles.emptyCase}>
-              <Ionicons name="folder-open-outline" size={28} color={colors.text.muted} />
-              <Text variant="bodySmall" color={colors.text.muted} align="center">
-                Organize your favorite sessions and tracks into collections.
-              </Text>
-              <Text variant="labelSmall" color={colors.chrome.text} align="center" style={styles.comingSoonTag}>
-                COMING SOON
-              </Text>
-            </View>
-          </FlightCase>
-        </ADSRFadeIn>
+          {/* ═══ COLLECTIONS (Coming Soon) ════════════════ */}
+          <ADSRFadeIn index={4}>
+            <CollapsibleSection title="COLLECTIONS" count={0}>
+              <View style={styles.emptySection}>
+                <Ionicons name="folder-open-outline" size={24} color={palette.slate} />
+                <Text style={styles.emptySubtext}>
+                  Organize sessions and tracks into collections.
+                </Text>
+                <View style={styles.comingSoonBadge}>
+                  <Text style={styles.comingSoonText}>COMING SOON</Text>
+                </View>
+              </View>
+            </CollapsibleSection>
+          </ADSRFadeIn>
 
-        {/* Case: Master Bounces (placeholder) */}
-        <ADSRFadeIn index={4}>
-          <FlightCase
-            title="Master Bounces"
-            icon={<Ionicons name="pulse-outline" size={16} color={colors.chrome.text} />}
-            count={0}
-          >
-            <View style={styles.emptyCase}>
-              <WaveformIcon mode="campfire" size={28} />
-              <Text variant="bodySmall" color={colors.text.muted} align="center">
-                Session receipts will appear here after completed sessions.
-              </Text>
-              <Text variant="labelSmall" color={colors.chrome.text} align="center" style={styles.comingSoonTag}>
-                COMING SOON
-              </Text>
-            </View>
-          </FlightCase>
-        </ADSRFadeIn>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+          <View style={{ height: 120 }} />
+        </ScrollView>
+      </VoidSurface>
     </SafeScreen>
   );
 }
@@ -313,38 +354,162 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing['2xl'],
-    paddingBottom: 120,
+    paddingTop: spacing['3xl'],
   },
-  header: {
+  title: {
+    fontFamily: 'ChakraPetch-Bold',
+    fontSize: 28,
+    color: palette.frost,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.slate,
+    letterSpacing: 2,
     marginBottom: spacing.lg,
   },
-  emptyCase: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.lg,
-  },
-  comingSoonTag: {
-    fontSize: 8,
-    letterSpacing: 2,
-    marginTop: spacing.xs,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    backgroundColor: colors.chrome.surface,
+
+  // Patch Bay Panel
+  patchBayPanel: {
+    backgroundColor: palette.midnight,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
-    overflow: 'hidden',
+    borderColor: palette.chromeBorder,
+    padding: 20,
+    marginBottom: spacing.xl,
   },
-  historyCard: {
+  patchBayHeaders: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  patchBayHeaderText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.slate,
+    letterSpacing: 2,
+  },
+  patchBayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  patchBayInstruction: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 8,
+    color: palette.slate,
+    letterSpacing: 1.5,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+
+  // Section labels
+  sectionLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 11,
+    color: palette.slate,
+    letterSpacing: 2,
+    marginBottom: 12,
+    marginTop: spacing.md,
+  },
+
+  // Data Cartridge cards
+  cartridgeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
+    overflow: 'hidden',
+  },
+  cartridgeAccent: {
+    width: 3,
+    height: '100%',
+    backgroundColor: palette.red,
+  },
+  cartridgeContent: {
+    flex: 1,
+    padding: 14,
+  },
+  cartridgeName: {
+    fontFamily: 'ChakraPetch-Bold',
+    fontSize: 15,
+    color: palette.frost,
+    marginBottom: 4,
+  },
+  cartridgeMeta: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 9,
+    color: palette.slate,
+    letterSpacing: 1,
+  },
+  loreBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 107, 53, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 53, 0.20)',
+    marginRight: 12,
+  },
+  loreBadgeText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 8,
+    color: palette.orange,
+    letterSpacing: 1,
+  },
+
+  // Empty states
+  emptyCartridges: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
+    borderStyle: 'dashed',
+  },
+  emptyText: {
+    fontFamily: 'ChakraPetch-SemiBold',
+    fontSize: 15,
+    color: palette.silver,
+    marginTop: 10,
+  },
+  emptySubtext: {
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 12,
+    color: palette.slate,
+    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  emptySection: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  comingSoonBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: palette.steel,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
+    marginTop: 4,
+  },
+  comingSoonText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 8,
+    color: palette.slate,
+    letterSpacing: 2,
+  },
+  loadingCenter: {
+    paddingVertical: 32,
+    alignItems: 'center',
   },
 });
 

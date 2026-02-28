@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { Text } from './ui/Text';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { tapLight } from '../utils/haptics';
 
@@ -172,10 +172,10 @@ export function TransientEnter({
 
       {/* Username */}
       <View style={styles.textContainer}>
-        <Text variant="labelSmall" color={colors.text.muted} style={styles.actionLabel}>
+        <Text variant="labelSmall" color={palette.slate} style={styles.actionLabel}>
           SIGNAL DETECTED
         </Text>
-        <Text variant="body" color={colors.text.primary} style={styles.username}>
+        <Text variant="body" color={palette.frost} style={styles.username}>
           {username}
         </Text>
       </View>
@@ -185,7 +185,7 @@ export function TransientEnter({
         <Svg width={waveWidth} height={waveHeight} viewBox={`0 0 ${waveWidth} ${waveHeight}`}>
           <Path
             d={generateTransientPath(waveWidth, waveHeight)}
-            stroke={colors.action.primary}
+            stroke={palette.orange}
             strokeWidth={1.5}
             fill="none"
           />
@@ -202,9 +202,9 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.chrome.surface,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
     borderRightWidth: 0,
     borderTopLeftRadius: 8,
     borderBottomLeftRadius: 8,
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.lg,
     zIndex: 900,
     // Subtle shadow
-    shadowColor: colors.action.primary,
+    shadowColor: palette.orange,
     shadowOffset: { width: -2, height: 0 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.session.live,
+    backgroundColor: palette.green,
     marginRight: spacing.sm,
   },
   textContainer: {

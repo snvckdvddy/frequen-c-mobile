@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
 import { RoomModeBadge } from './RoomModeBadge';
 import { LivePulse } from './LivePulse';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import type { RoomMode } from '../../types';
 
@@ -74,7 +74,7 @@ export function RoomCard({
           {isLive && (
             <View style={styles.liveIndicator}>
               <LivePulse size={6} showLabel={false} />
-              <Text variant="label" color={colors.text.primary} style={{ fontSize: 12 }}>
+              <Text variant="label" color={palette.frost} style={{ fontSize: 12 }}>
                 {listenerCount}
               </Text>
             </View>
@@ -83,16 +83,16 @@ export function RoomCard({
 
         {/* Room info */}
         <View style={styles.roomInfo}>
-          <Text variant="h3" color={colors.text.primary} numberOfLines={1}>
+          <Text variant="h3" color={palette.frost} numberOfLines={1}>
             {roomName}
           </Text>
-          <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
+          <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
             @{hostUsername}{genre ? ` · ${genre}` : ''}
           </Text>
           {currentTrack && (
             <View style={styles.nowPlayingRow}>
-              <Ionicons name="musical-note" size={12} color={colors.action.primary} />
-              <Text variant="label" color={colors.action.primary} numberOfLines={1} style={{ fontSize: 12 }}>
+              <Ionicons name="musical-note" size={12} color={palette.orange} />
+              <Text variant="label" color={palette.orange} numberOfLines={1} style={{ fontSize: 12 }}>
                 {currentTrack.artist} – {currentTrack.title}
               </Text>
             </View>
@@ -103,10 +103,10 @@ export function RoomCard({
         <View style={styles.bottomRow}>
           <View style={{ flex: 1 }} />
           <TouchableOpacity style={styles.joinBtn} onPress={onJoin} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={`Join ${roomName}`}>
-            <Text variant="labelLarge" color={colors.action.primaryText} style={{ fontSize: 13 }}>
+            <Text variant="labelLarge" color={palette.void} style={{ fontSize: 13 }}>
               Join
             </Text>
-            <Ionicons name="arrow-forward" size={14} color={colors.action.primaryText} />
+            <Ionicons name="arrow-forward" size={14} color={palette.void} />
           </TouchableOpacity>
         </View>
       </View>
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   card: {
     height: 160,
     borderRadius: 12,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     overflow: 'hidden',
     marginHorizontal: spacing.screenPadding,
     marginBottom: spacing.sm,
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     height: 36,
     paddingHorizontal: 16,
     borderRadius: spacing.radius.full,
-    backgroundColor: colors.action.primary,
+    backgroundColor: palette.ice,
     gap: 4,
   },
 });

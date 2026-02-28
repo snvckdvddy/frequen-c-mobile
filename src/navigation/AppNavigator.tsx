@@ -20,9 +20,10 @@ import * as Linking from 'expo-linking';
 import { useAuth } from '../contexts/AuthContext';
 import { onNotificationResponse, getInitialNotification } from '../services/notifications';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Text } from '../components/ui';
+// ─── Design System: Rack × Chrome visual language ──────────
+import { palette } from '../design/tokens/materials';
 
 // Screens
 import { LoginScreen } from '../screens/LoginScreen';
@@ -72,6 +73,10 @@ const Tab = createBottomTabNavigator<TabParamList>();
  * "Create — Elevated CTA (floating circle or distinct icon)"
  * 44×44pt circular, palette.ice bg, void icon.
  */
+/**
+ * Create Tab Button — Gemini V7 elevated center CTA
+ * Rounded square (not circle), orange/red background matching Gemini screenshots.
+ */
 function CreateTabButton({ onPress }: { onPress: () => void }) {
   return (
     <TouchableOpacity
@@ -82,7 +87,7 @@ function CreateTabButton({ onPress }: { onPress: () => void }) {
       accessibilityLabel="Create a new session"
     >
       <View style={createBtnStyles.button}>
-        <Ionicons name="add" size={24} color={colors.bg.primary} />
+        <Ionicons name="stop" size={22} color={palette.frost} />
       </View>
     </TouchableOpacity>
   );
@@ -90,29 +95,29 @@ function CreateTabButton({ onPress }: { onPress: () => void }) {
 
 const createBtnStyles = StyleSheet.create({
   container: {
-    top: -12, // Elevate above tab bar
+    top: -12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   button: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.action.primary,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: palette.orange,
     alignItems: 'center',
     justifyContent: 'center',
-    // Glow
-    shadowColor: colors.action.primary,
+    // Orange glow
+    shadowColor: palette.orange,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
     elevation: 8,
   },
 });
 
 // ─── Placeholder screen for the Create tab (never rendered) ──
 function CreatePlaceholder() {
-  return <View style={{ flex: 1, backgroundColor: colors.bg.primary }} />;
+  return <View style={{ flex: 1, backgroundColor: palette.void }} />;
 }
 
 // ─── Tab Navigator ──────────────────────────────────────────
@@ -125,20 +130,19 @@ function TabNavigator() {
         // §7: 200ms ease-in-out cross-fade on tab switch
         animation: 'fade',
         tabBarStyle: {
-          backgroundColor: colors.bg.surface,
-          borderTopColor: colors.border.default,      // Dark steel divider — §1.1
+          backgroundColor: palette.midnight,             // Dark rack surface
+          borderTopColor: 'rgba(192, 223, 255, 0.08)',   // Chrome divider line
           borderTopWidth: 1,
           height: 80,
           paddingBottom: 24,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: colors.action.primary,  // ice cyan — §1.3
-        tabBarInactiveTintColor: colors.text.muted,    // slate — §8
+        tabBarActiveTintColor: palette.orange,             // Orange active (Gemini V7)
+        tabBarInactiveTintColor: palette.slate,          // Slate inactive
         tabBarLabelStyle: {
-          fontFamily: typography.fontFamily,
-          fontSize: 10,                                // §1.9: Micro 10pt
-          fontWeight: typography.weight.medium,
-          letterSpacing: 0.5,
+          fontFamily: 'ChakraPetch-Medium',              // Rack label font
+          fontSize: 10,
+          letterSpacing: 1,
         },
       }}
     >
@@ -279,7 +283,7 @@ function MainNavigator() {
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
-        contentStyle: { backgroundColor: colors.bg.primary },
+        contentStyle: { backgroundColor: palette.void },
       }}
     >
       <MainStack.Screen name="Tabs" component={TabNavigator} />
@@ -383,7 +387,7 @@ export function AppNavigator() {
   if (isLoading) {
     return (
       <View style={styles.loading}>
-        <Text variant="label" color={colors.text.muted}>Loading...</Text>
+        <Text variant="label" color={palette.slate}>Loading...</Text>
       </View>
     );
   }
@@ -402,7 +406,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.void,
   },
 });
 

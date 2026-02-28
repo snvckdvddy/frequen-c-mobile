@@ -127,7 +127,7 @@ export const authApi = {
     }
     return apiFetch<{ message: string }>('/auth/push-token', {
       method: 'POST',
-      body: JSON.stringify({ pushToken }),
+      body: JSON.stringify({ token: pushToken }),
     });
   },
 
@@ -146,7 +146,22 @@ export const authApi = {
     }
     return apiFetch<{ noiseGate: string }>('/auth/noise-gate', {
       method: 'PUT',
-      body: JSON.stringify({ noiseGate }),
+      body: JSON.stringify({ value: noiseGate }),
+    });
+  },
+
+  /** Bulk update user preferences */
+  setPreferences: async (prefs: {
+    noiseGate?: 'off' | 'medium' | 'high';
+    socialBattery?: 'low' | 'unity' | 'hot';
+    walkOnTransient?: string;
+  }) => {
+    if (USE_MOCKS) {
+      return { success: true };
+    }
+    return apiFetch<{ user: any }>('/auth/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(prefs),
     });
   },
 };
@@ -162,15 +177,17 @@ const myRoomIds: Set<string> = new Set();
 // ─── Session Endpoints ──────────────────────────────────────
 
 export const sessionApi = {
-  create: async (data: { name: string; genre?: string; roomMode?: string; isPublic?: boolean }) => {
+  create: async (data: { name: string; genre?: string; roomMode?: string; isPublic?: boolean; behaviors?: import('../types').RoomBehaviors }) => {
     if (USE_MOCKS) {
       await mockDelay();
+      const { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } = require('../types');
+      const mode = (data.roomMode || 'campfire') as import('../types').RoomMode;
       const session: import('../types').Session = {
         id: 'ses_new_' + Date.now(),
         name: data.name,
         hostId: mockUser.id,
         hostUsername: mockUser.username,
-        roomMode: (data.roomMode || 'campfire') as import('../types').RoomMode,
+        roomMode: mode,
         genre: data.genre || 'Mixed',
         isPublic: data.isPublic ?? true,
         isLive: true,
@@ -180,6 +197,7 @@ export const sessionApi = {
         currentTrack: undefined,
         queue: [],
         createdAt: new Date().toISOString(),
+        behaviors: data.behaviors || { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[mode] },
       };
       // Persist in mock store so get() can find it later
       mockSessionStore.set(session.id, session);
@@ -257,7 +275,7 @@ export const sessionApi = {
       });
       return { sessions: rooms };
     }
-    return apiFetch<{ sessions: import('../types').Session[] }>('/sessions/mine');
+    return apiFetch<{ sessions: import('../types').Session[] }>('/sessions/user');
   },
 
   discover: async () => {

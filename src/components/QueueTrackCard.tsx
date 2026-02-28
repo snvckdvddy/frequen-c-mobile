@@ -12,9 +12,10 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Image, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './ui';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
-import type { QueueTrack, Track, RoomMode } from '../types';
+import type { QueueTrack, Track, RoomMode, RoomBehaviors } from '../types';
+import { DEFAULT_BEHAVIORS } from '../types';
 
 // ─── Queue Track Card ────────────────────────────────────────
 
@@ -23,7 +24,9 @@ export interface QueueTrackCardProps {
   isNowPlaying: boolean;
   onVote: (trackId: string, direction: 1 | -1) => void;
   userId?: string;
+  /** @deprecated Use behaviors instead */
   roomMode?: RoomMode;
+  behaviors?: RoomBehaviors;
   isHost?: boolean;
   isFavorite?: boolean;
   onToggleFavorite?: (track: Track) => void;
@@ -39,25 +42,23 @@ export interface QueueTrackCardProps {
 }
 
 export function QueueTrackCard({
-  track, isNowPlaying, onVote, userId, roomMode = 'campfire',
+  track, isNowPlaying, onVote, userId, behaviors,
   isHost = false, isFavorite, onToggleFavorite,
   onMoveUp, onMoveDown, showReorder = false, onLongPress,
   showDragHandle = false, isDragging = false,
 }: QueueTrackCardProps) {
-  const borderColor = isNowPlaying ? colors.queue.nowPlaying : colors.border.subtle;
-  const bg = isNowPlaying ? colors.queue.nowPlaying + '10' : colors.bg.elevated;
+  const borderColor = isNowPlaying ? palette.green : palette.chromeBorder;
+  const bg = isNowPlaying ? palette.green + '10' : palette.steel;
   const isOwn = track.addedById === userId;
   const votes = track.votes ?? 0;
   const userVote = userId ? (track.votedBy?.[userId] ?? 0) : 0;
   const voltageBoost = track.voltageBoost ?? 0;
   const addedByName = track.addedBy?.username || 'someone';
 
-  // Mode-specific flags
-  const isOpenFloor = roomMode === 'openFloor';
-  const isSpotlight = roomMode === 'spotlight';
-  const isCampfire = roomMode === 'campfire';
-  const showVotes = !isSpotlight; // Spotlight hides votes entirely
-  const votesAreCosmetic = isCampfire; // Campfire votes don't reorder
+  // Behavior-driven flags (replacing rigid mode checks)
+  const b = behaviors || DEFAULT_BEHAVIORS;
+  const showVotes = true; // Always show votes — they may or may not reorder
+  const votesAreCosmetic = !b.voteReordersQueue; // When votes don't reorder, they're cosmetic
 
   return (
     <Pressable
@@ -75,7 +76,7 @@ export function QueueTrackCard({
       {/* §5.1: Drag handle grip — visible when reorder enabled */}
       {showDragHandle && (
         <View style={trackStyles.dragHandle} accessibilityLabel="Drag to reorder" accessibilityRole="adjustable">
-          <Ionicons name="reorder-three" size={20} color={isDragging ? colors.action.primary : colors.text.muted} />
+          <Ionicons name="reorder-three" size={20} color={isDragging ? palette.orange : palette.slate} />
         </View>
       )}
 
@@ -83,39 +84,39 @@ export function QueueTrackCard({
       {track.albumArt ? (
         <Image source={{ uri: track.albumArt }} style={trackStyles.art} />
       ) : (
-        <View style={[trackStyles.art, { backgroundColor: colors.bg.input, alignItems: 'center', justifyContent: 'center' }]}>
-          <Text variant="labelSmall" color={colors.text.muted}>{track.artist.charAt(0)}</Text>
+        <View style={[trackStyles.art, { backgroundColor: palette.steel, alignItems: 'center', justifyContent: 'center' }]}>
+          <Text variant="labelSmall" color={palette.slate}>{track.artist.charAt(0)}</Text>
         </View>
       )}
 
       <View style={trackStyles.body}>
         <View style={trackStyles.info}>
           <View style={trackStyles.titleRow}>
-            <Text variant="labelLarge" color={colors.text.primary} numberOfLines={1} style={{ flex: 1 }}>
+            <Text variant="labelLarge" color={palette.frost} numberOfLines={1} style={{ flex: 1 }}>
               {track.title}
             </Text>
             {isNowPlaying && (
               <View style={trackStyles.nowPlayingBadge}>
-                <Text variant="labelSmall" color={colors.queue.nowPlaying}>NOW</Text>
+                <Text variant="labelSmall" color={palette.green}>NOW</Text>
               </View>
             )}
           </View>
-          <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
+          <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
             {track.artist}{track.album ? ` · ${track.album}` : ''}
           </Text>
           <View style={trackStyles.metaRow}>
-            <Text variant="labelSmall" color={isOwn ? colors.queue.myTrack : colors.contribution.recent}>
+            <Text variant="labelSmall" color={isOwn ? palette.silver : palette.orange}>
               {isOwn ? 'You added this' : `Added by ${addedByName}`}
             </Text>
             {voltageBoost > 0 && (
               <View style={trackStyles.voltageBadge}>
-                <Text variant="labelSmall" color={colors.voltage.charge}>+{voltageBoost}</Text>
+                <Text variant="labelSmall" color={palette.orange}>+{voltageBoost}</Text>
               </View>
             )}
             {/* Spotlight: pending status for tracks awaiting approval */}
             {track.status === 'pending' && (
               <View style={trackStyles.pendingBadge}>
-                <Text variant="labelSmall" color={colors.text.muted}>Pending</Text>
+                <Text variant="labelSmall" color={palette.slate}>Pending</Text>
               </View>
             )}
           </View>
@@ -126,12 +127,12 @@ export function QueueTrackCard({
           <View style={trackStyles.reorderRow}>
             {onMoveUp && (
               <TouchableOpacity style={trackStyles.reorderBtn} onPress={() => onMoveUp(track.id)} activeOpacity={0.6}>
-                <Text variant="labelSmall" color={colors.text.secondary}>Move Up</Text>
+                <Text variant="labelSmall" color={palette.silver}>Move Up</Text>
               </TouchableOpacity>
             )}
             {onMoveDown && (
               <TouchableOpacity style={trackStyles.reorderBtn} onPress={() => onMoveDown(track.id)} activeOpacity={0.6}>
-                <Text variant="labelSmall" color={colors.text.secondary}>Move Down</Text>
+                <Text variant="labelSmall" color={palette.silver}>Move Down</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -157,15 +158,15 @@ export function QueueTrackCard({
                 <Ionicons
                   name="chevron-up"
                   size={16}
-                  color={userVote === 1 ? colors.action.primary : (votesAreCosmetic ? colors.text.muted + '80' : colors.text.muted)}
+                  color={userVote === 1 ? palette.orange : (votesAreCosmetic ? palette.slate + '80' : palette.slate)}
                 />
               </TouchableOpacity>
               <Text
                 variant="labelSmall"
                 color={
-                  votes > 0 ? colors.action.primary
-                    : votes < 0 ? colors.action.destructive
-                    : colors.text.muted
+                  votes > 0 ? palette.orange
+                    : votes < 0 ? palette.red
+                      : palette.slate
                 }
                 style={votesAreCosmetic ? { opacity: 0.6 } : undefined}
               >
@@ -186,20 +187,20 @@ export function QueueTrackCard({
                 <Ionicons
                   name="chevron-down"
                   size={16}
-                  color={userVote === -1 ? colors.action.destructive : (votesAreCosmetic ? colors.text.muted + '80' : colors.text.muted)}
+                  color={userVote === -1 ? palette.red : (votesAreCosmetic ? palette.slate + '80' : palette.slate)}
                 />
               </TouchableOpacity>
 
-              {/* Mode hint — only on Open Floor */}
-              {isOpenFloor && votes !== 0 && (
-                <Ionicons name="swap-vertical" size={12} color={colors.text.muted} style={{ marginLeft: 4, opacity: 0.5 }} />
+              {/* Reorder hint — shown when votes actually reorder queue */}
+              {b.voteReordersQueue && votes !== 0 && (
+                <Ionicons name="swap-vertical" size={12} color={palette.slate} style={{ marginLeft: 4, opacity: 0.5 }} />
               )}
             </View>
           ) : (
             /* Spotlight: no votes, show curated indicator */
             <View style={trackStyles.curatedIndicator}>
-              <Ionicons name="shield-checkmark-outline" size={14} color={colors.text.muted} />
-              <Text variant="labelSmall" color={colors.text.muted} style={{ marginLeft: 4 }}>
+              <Ionicons name="shield-checkmark-outline" size={14} color={palette.slate} />
+              <Text variant="labelSmall" color={palette.slate} style={{ marginLeft: 4 }}>
                 {isHost ? 'Curated' : 'Host curated'}
               </Text>
             </View>
@@ -218,7 +219,7 @@ export function QueueTrackCard({
               <Ionicons
                 name={isFavorite ? 'heart' : 'heart-outline'}
                 size={18}
-                color={isFavorite ? colors.action.primary : colors.text.muted}
+                color={isFavorite ? palette.orange : palette.slate}
               />
             </TouchableOpacity>
           )}
@@ -230,35 +231,35 @@ export function QueueTrackCard({
 
 const trackStyles = StyleSheet.create({
   card: {
-    flexDirection: 'row', padding: spacing.sm, minHeight: 72,
+    flexDirection: 'row', padding: spacing.md, minHeight: 80,
     borderRadius: spacing.radius.md, borderWidth: 1,
-    marginBottom: 0,                         // Use divider instead of gap
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default, // Visible 1pt dark steel divider between items
+    marginBottom: spacing.xs,
+    borderColor: 'transparent',
+    backgroundColor: palette.steel,
   },
   dragHandle: {
     width: 28, height: '100%' as any, alignItems: 'center', justifyContent: 'center',
     marginRight: 4, opacity: 0.6,
   },
   art: {
-    width: 48, height: 48, borderRadius: spacing.radius.sm,
-    alignItems: 'center', justifyContent: 'center', marginRight: spacing.sm,
+    width: 56, height: 56, borderRadius: spacing.radius.md,
+    alignItems: 'center', justifyContent: 'center', marginRight: spacing.md,
   },
   body: { flex: 1 },
-  info: { marginBottom: spacing.xs },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  info: { marginBottom: spacing.sm },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 2 },
   nowPlayingBadge: {
     paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4,
-    backgroundColor: colors.queue.nowPlaying + '20',
+    backgroundColor: palette.green + '20',
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 2 },
   voltageBadge: {
     paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8,
-    backgroundColor: colors.voltage.charge + '15',
+    backgroundColor: palette.orange + '15',
   },
   pendingBadge: {
     paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8,
-    backgroundColor: colors.text.muted + '15',
+    backgroundColor: palette.slate + '15',
   },
   actionsRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -286,7 +287,7 @@ const trackStyles = StyleSheet.create({
   reorderRow: {
     flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.xs,
     paddingVertical: spacing.xs,
-    borderTopWidth: 1, borderTopColor: colors.border.subtle,
+    borderTopWidth: 1, borderTopColor: palette.chromeBorder,
   },
   reorderBtn: {
     flex: 1, alignItems: 'center', paddingVertical: 6,

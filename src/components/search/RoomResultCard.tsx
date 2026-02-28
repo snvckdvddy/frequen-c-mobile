@@ -9,7 +9,7 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Text } from '../ui';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import type { Session } from '../../types';
 
@@ -37,25 +37,25 @@ export function RoomResultCard({ session, onPress }: RoomResultCardProps) {
       <View style={styles.header}>
         <View style={styles.titleRow}>
           {session.isLive && <View style={styles.liveDot} />}
-          <Text variant="label" color={colors.text.primary} numberOfLines={1} style={{ flex: 1 }}>
+          <Text variant="label" color={palette.frost} numberOfLines={1} style={{ flex: 1 }}>
             {session.name}
           </Text>
         </View>
-        <Text variant="labelSmall" color={colors.text.muted}>
+        <Text variant="labelSmall" color={palette.slate}>
           {mode}
         </Text>
       </View>
 
       <View style={styles.meta}>
-        <Text variant="bodySmall" color={colors.text.secondary}>
+        <Text variant="bodySmall" color={palette.silver}>
           {session.hostUsername}
         </Text>
         {session.genre ? (
-          <Text variant="labelSmall" color={colors.text.muted}>
+          <Text variant="labelSmall" color={palette.slate}>
             · {session.genre}
           </Text>
         ) : null}
-        <Text variant="labelSmall" color={colors.text.muted}>
+        <Text variant="labelSmall" color={palette.slate}>
           · {listenerCount} listening
         </Text>
       </View>
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
+    borderBottomColor: palette.chromeBorder,
   },
   header: {
     flexDirection: 'row',
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.session.live,
+    backgroundColor: palette.red,
   },
   modeBadge: {
     paddingHorizontal: 8,

@@ -8,7 +8,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 
 interface SafeScreenProps {
   children: React.ReactNode;
@@ -23,7 +23,7 @@ interface SafeScreenProps {
 export function SafeScreen({
   children,
   edges = ['top', 'bottom', 'left', 'right'],
-  backgroundColor = colors.bg.primary,
+  backgroundColor = palette.midnight,
   style,
 }: SafeScreenProps) {
   return (

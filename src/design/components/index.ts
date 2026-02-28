@@ -27,3 +27,12 @@ export { RackRails, ModuleFaceplate } from './rack';
 
 // Layer 3: Display
 export { LEDReadout, VUMeter, PatchPoint } from './display';
+
+// Layer 4: Controls
+export {
+  ChromeButton,
+  HardwareSlider,
+  FaderKnob,
+  StatusLight,
+  ScrewHead,
+} from './controls';

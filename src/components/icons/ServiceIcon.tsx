@@ -9,7 +9,7 @@
 import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 
 // ─── Brand icon registry ────────────────────────────────────
 // Only services with Glass Logo assets get image sources.
@@ -57,7 +57,7 @@ export function ServiceIcon({ service, size = 20, connected = false }: ServiceIc
     <Ionicons
       name={fallbackName as any}
       size={size * 0.7}
-      color={connected ? colors.action.primary : colors.text.muted}
+      color={connected ? palette.orange : palette.slate}
     />
   );
 }

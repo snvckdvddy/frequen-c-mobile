@@ -1,58 +1,51 @@
 /**
- * Create Session Screen — Patch In Modal
+ * Create Session Screen — "Initialize Patch" (Gemini V7)
  *
- * "Initialize a new signal" — select waveform mode (room mode),
- * name the session, set frequency band (genre), toggle visibility.
- * Uses WaveformIcon SVGs instead of generic Ionicons.
+ * Visual: Signal routing diagram
+ *   SIGNAL OUT ─ ─ ─ → CV IN
+ *   [SOURCE]           [VIBE]
+ *
+ * + Room name input
+ * + Mode selector (CAMPFIRE / SPOTLIGHT / OPEN FLOOR)
+ * + EXECUTE PATCH big orange button
  */
 
 import React, { useState } from 'react';
 import {
-  View, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  View, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeScreen, Text, Button, Input, WaveformIcon, ADSRTransition } from '../components/ui';
+import { SafeScreen, Text, Button, WaveformIcon, ADSRTransition } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { sessionApi } from '../services/api';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
-import type { RoomMode } from '../types';
+import { VoidSurface } from '../design/components';
+import { palette } from '../design/tokens/materials';
+import type { RoomMode, RoomBehaviors } from '../types';
+import { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } from '../types';
 
-// ─── Frequency Bands (Genre) ────────────────────────────────
+// ─── Sources & Vibes ────────────────────────────────────────
 
-const FREQ_BANDS = [
-  'Mixed', 'Hip-Hop', 'R&B', 'Pop', 'Rock', 'Electronic',
-  'Indie', 'Jazz', 'Lo-Fi', 'Latin', 'Country', 'Classical',
-  'Metal', 'Punk', 'Soul', 'Reggae', 'House', 'Techno',
+const SOURCES = ['SPOTIFY', 'SNDCLOUD', 'YOUTUBE', 'LOCAL'] as const;
+const VIBES = ['CHILL', 'HYPE', 'CHAOS', 'FOCUS', 'AMBIENT'] as const;
+
+const ROOM_PRESETS: { key: RoomMode; label: string; desc: string }[] = [
+  { key: 'campfire', label: 'CAMPFIRE', desc: 'Equal turns. Round-robin queue.' },
+  { key: 'spotlight', label: 'SPOTLIGHT', desc: 'Host curates. Approval required.' },
+  { key: 'openFloor', label: 'OPEN FLOOR', desc: 'Votes reorder the queue.' },
 ];
 
-// ─── Signal Types (Room Modes) ──────────────────────────────
+const QUEUE_ORDERING_OPTIONS: { key: RoomBehaviors['queueOrdering']; label: string }[] = [
+  { key: 'fifo', label: 'FIFO' },
+  { key: 'roundRobin', label: 'ROUND ROBIN' },
+  { key: 'voteWeighted', label: 'VOTE WEIGHTED' },
+];
 
-const SIGNAL_TYPES: {
-  key: RoomMode;
-  label: string;
-  waveform: string;
-  desc: string;
-}[] = [
-  {
-    key: 'campfire',
-    label: 'Sine',
-    waveform: 'CAMPFIRE',
-    desc: 'Equal turns. Round-robin queue. Everyone gets a voice.',
-  },
-  {
-    key: 'spotlight',
-    label: 'Square',
-    waveform: 'SPOTLIGHT',
-    desc: 'Host curates. You control the signal, others suggest.',
-  },
-  {
-    key: 'openFloor',
-    label: 'Sawtooth',
-    waveform: 'OPEN FLOOR',
-    desc: 'Democratic queue. Votes move tracks up. Free-for-all.',
-  },
+const SKIP_ACCESS_OPTIONS: { key: RoomBehaviors['skipAccess']; label: string }[] = [
+  { key: 'anyone', label: 'ANYONE' },
+  { key: 'hostOnly', label: 'HOST ONLY' },
+  { key: 'voteRequired', label: 'VOTE REQ.' },
 ];
 
 // ─── Component ──────────────────────────────────────────────
@@ -63,12 +56,30 @@ export function CreateSessionScreen() {
   const [name, setName] = useState('');
   const [genre, setGenre] = useState('Mixed');
   const [roomMode, setRoomMode] = useState<RoomMode>('campfire');
+  const [behaviors, setBehaviors] = useState<RoomBehaviors>({
+    ...DEFAULT_BEHAVIORS,
+    ...BEHAVIOR_PRESETS.campfire,
+  });
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [source, setSource] = useState<typeof SOURCES[number]>('SPOTIFY');
+  const [vibe, setVibe] = useState<typeof VIBES[number]>('CHILL');
   const [isPublic, setIsPublic] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  /** Select a preset template — applies its defaults but keeps user overrides. */
+  function selectPreset(preset: RoomMode) {
+    setRoomMode(preset);
+    setBehaviors({ ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[preset] });
+  }
+
+  /** Toggle a single boolean behavior. */
+  function toggleBehavior(key: keyof RoomBehaviors) {
+    setBehaviors((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
   async function handleCreate() {
     if (!name.trim()) {
-      Alert.alert('Name your signal', 'Give your session a name so others can find it.');
+      Alert.alert('Name your patch', 'Give your session a signal name.');
       return;
     }
     setLoading(true);
@@ -78,10 +89,11 @@ export function CreateSessionScreen() {
         genre,
         roomMode,
         isPublic,
+        behaviors,
       });
       navigation.replace('SessionRoom', { sessionId: session.id });
     } catch (err: any) {
-      Alert.alert('Signal failed', err.message || 'Something went wrong.');
+      Alert.alert('Patch failed', err.message || 'Something went wrong.');
     } finally {
       setLoading(false);
     }
@@ -89,137 +101,227 @@ export function CreateSessionScreen() {
 
   return (
     <ADSRTransition preset="modalReveal" slideFrom="bottom" slideDistance={30}>
-    <SafeScreen style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-            <Ionicons name="close" size={22} color={colors.text.muted} />
-          </TouchableOpacity>
-          <Text variant="h1" color={colors.text.primary}>
-            Initialize Signal
-          </Text>
-          <Text variant="bodySmall" color={colors.text.secondary} style={styles.subtitle}>
-            Configure your session parameters.
-          </Text>
-        </View>
-
-        {/* Session Name */}
-        <Input
-          label="Signal Name"
-          placeholder="Friday Night Vibes..."
-          value={name}
-          onChangeText={setName}
-          returnKeyType="done"
-        />
-
-        {/* Frequency Band (Genre) */}
-        <Text variant="label" color={colors.text.secondary} style={styles.sectionLabel}>
-          FREQUENCY BAND
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bandScroll}>
-          {FREQ_BANDS.map((band) => {
-            const isActive = genre === band;
-            return (
+      <SafeScreen>
+        <VoidSurface style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={styles.content}>
+            {/* Header */}
+            <View style={styles.header}>
               <TouchableOpacity
-                key={band}
-                style={[styles.bandChip, isActive && styles.bandChipActive]}
-                onPress={() => setGenre(band)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`${band} genre${isActive ? ', selected' : ''}`}
-                accessibilityState={{ selected: isActive }}
+                onPress={() => navigation.goBack()}
+                style={styles.closeBtn}
               >
-                <Text
-                  variant="labelSmall"
-                  color={isActive ? colors.text.primary : colors.text.muted}
-                  style={styles.bandText}
-                >
-                  {band.toUpperCase()}
-                </Text>
+                <Ionicons name="close" size={20} color={palette.silver} />
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+              <Text style={styles.title}>Initialize Patch</Text>
+            </View>
 
-        {/* Signal Type (Room Mode) */}
-        <Text variant="label" color={colors.text.secondary} style={styles.sectionLabel}>
-          WAVEFORM MODE
-        </Text>
-        <View style={styles.modeGrid}>
-          {SIGNAL_TYPES.map((mode) => {
-            const isSelected = roomMode === mode.key;
-            return (
-              <TouchableOpacity
-                key={mode.key}
-                style={[styles.modeCard, isSelected && styles.modeCardActive]}
-                onPress={() => setRoomMode(mode.key)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`${mode.label} mode, ${mode.waveform}. ${mode.desc}${isSelected ? ', selected' : ''}`}
-                accessibilityState={{ selected: isSelected }}
-              >
-                {/* Waveform header strip */}
-                <View style={[styles.modeHeader, isSelected && styles.modeHeaderActive]}>
-                  <WaveformIcon mode={mode.key} size={18} />
-                  <Text
-                    variant="labelLarge"
-                    color={isSelected ? colors.action.primary : colors.text.primary}
-                    style={styles.modeLabel}
-                  >
-                    {mode.label}
-                  </Text>
-                  <Text
-                    variant="labelSmall"
-                    color={colors.chrome.text}
-                    style={styles.modeTag}
-                  >
-                    {mode.waveform}
-                  </Text>
+            {/* Session Name */}
+            <Text style={styles.inputLabel}>SIGNAL NAME</Text>
+            <TextInput
+              style={styles.nameInput}
+              placeholder="Friday Night Vibes..."
+              placeholderTextColor={palette.slate}
+              value={name}
+              onChangeText={setName}
+              returnKeyType="done"
+              autoCapitalize="words"
+            />
+
+            {/* Signal Routing Diagram */}
+            <View style={styles.routingDiagram}>
+              {/* SIGNAL OUT */}
+              <View style={styles.routingNode}>
+                <Text style={styles.routingNodeLabel}>SIGNAL OUT</Text>
+                <View style={styles.routingJack}>
+                  <View style={styles.jackHole} />
                 </View>
-                {/* Description */}
-                <Text variant="bodySmall" color={colors.text.muted} style={styles.modeDesc}>
-                  {mode.desc}
+                {/* Source selector */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.sourceRow}>
+                    {SOURCES.map((s) => (
+                      <TouchableOpacity
+                        key={s}
+                        style={[styles.sourceChip, source === s && styles.sourceChipActive]}
+                        onPress={() => setSource(s)}
+                      >
+                        <Text style={[styles.sourceText, source === s && styles.sourceTextActive]}>
+                          {s}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+
+              {/* Dashed cable line */}
+              <View style={styles.cableLine}>
+                <View style={styles.cableDash} />
+                <View style={styles.cableDash} />
+                <View style={styles.cableDash} />
+                <View style={styles.cableDash} />
+                <Ionicons name="arrow-forward" size={14} color={palette.orange} />
+              </View>
+
+              {/* CV IN */}
+              <View style={styles.routingNode}>
+                <Text style={styles.routingNodeLabel}>CV IN</Text>
+                <View style={styles.routingJack}>
+                  <View style={[styles.jackHole, { borderColor: palette.orange }]} />
+                </View>
+                {/* Vibe selector */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.sourceRow}>
+                    {VIBES.map((v) => (
+                      <TouchableOpacity
+                        key={v}
+                        style={[styles.sourceChip, vibe === v && styles.vibeChipActive]}
+                        onPress={() => setVibe(v)}
+                      >
+                        <Text style={[styles.sourceText, vibe === v && styles.vibeTextActive]}>
+                          {v}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            </View>
+
+            {/* Preset Templates */}
+            <Text style={styles.sectionLabel}>PRESET TEMPLATE</Text>
+            <View style={styles.modeRow}>
+              {ROOM_PRESETS.map((mode) => {
+                const isActive = roomMode === mode.key;
+                return (
+                  <TouchableOpacity
+                    key={mode.key}
+                    style={[styles.modePill, isActive && styles.modePillActive]}
+                    onPress={() => selectPreset(mode.key)}
+                  >
+                    <Text style={[styles.modePillText, isActive && styles.modePillTextActive]}>
+                      {mode.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.modeDesc}>
+              {ROOM_PRESETS.find((m) => m.key === roomMode)?.desc}
+            </Text>
+
+            {/* Advanced Toggles (expandable) */}
+            <TouchableOpacity
+              style={styles.advancedToggle}
+              onPress={() => setShowAdvanced(!showAdvanced)}
+            >
+              <Text style={styles.advancedToggleText}>CUSTOMIZE BEHAVIORS</Text>
+              <Ionicons
+                name={showAdvanced ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={palette.silver}
+              />
+            </TouchableOpacity>
+
+            {showAdvanced && (
+              <View style={styles.advancedSection}>
+                {/* Queue Ordering */}
+                <Text style={styles.toggleSectionLabel}>QUEUE ORDERING</Text>
+                <View style={styles.modeRow}>
+                  {QUEUE_ORDERING_OPTIONS.map((opt) => {
+                    const isActive = behaviors.queueOrdering === opt.key;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[styles.modePill, isActive && styles.modePillActive]}
+                        onPress={() => setBehaviors((b) => ({ ...b, queueOrdering: opt.key }))}
+                      >
+                        <Text style={[styles.modePillText, isActive && styles.modePillTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Skip Access */}
+                <Text style={styles.toggleSectionLabel}>SKIP ACCESS</Text>
+                <View style={styles.modeRow}>
+                  {SKIP_ACCESS_OPTIONS.map((opt) => {
+                    const isActive = behaviors.skipAccess === opt.key;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[styles.modePill, isActive && styles.modePillActive]}
+                        onPress={() => setBehaviors((b) => ({ ...b, skipAccess: opt.key }))}
+                      >
+                        <Text style={[styles.modePillText, isActive && styles.modePillTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Boolean Toggles */}
+                {([
+                  { key: 'voteReordersQueue' as const, label: 'Votes Reorder Queue', desc: 'Higher-voted tracks rise to the top.' },
+                  { key: 'requiresApproval' as const, label: 'Require Approval', desc: 'Non-host additions need host OK.' },
+                  { key: 'allowOverdrive' as const, label: 'Allow Overdrive', desc: 'Force a track to the top (25 CV).' },
+                  { key: 'allowPhaseCancel' as const, label: 'Allow Phase Cancel', desc: 'Block the next skip (15 CV).' },
+                  { key: 'allowPhantomPower' as const, label: 'Allow Phantom Power', desc: 'Boost a track +48V (5 CV).' },
+                  { key: 'forecastEnabled' as const, label: 'Frequency Forecast', desc: 'Predict the next track for CV.' },
+                  { key: 'duelEnabled' as const, label: 'Crossfader Duel', desc: 'Head-to-head track battles.' },
+                ]).map((toggle) => (
+                  <View key={toggle.key} style={styles.behaviorToggleRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.behaviorToggleLabel}>{toggle.label}</Text>
+                      <Text style={styles.behaviorToggleDesc}>{toggle.desc}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.toggle, behaviors[toggle.key] && styles.toggleActive]}
+                      onPress={() => toggleBehavior(toggle.key)}
+                    >
+                      <View style={[styles.toggleKnob, behaviors[toggle.key] && styles.toggleKnobActive]} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Public/Private toggle */}
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.toggleLabel}>
+                  {isPublic ? 'Public Signal' : 'Private Signal'}
                 </Text>
+                <Text style={styles.toggleDesc}>
+                  {isPublic
+                    ? 'Visible on Live Sonar. Anyone can patch in.'
+                    : 'Invite-only. Share the join code to connect.'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.toggle, isPublic && styles.toggleActive]}
+                onPress={() => setIsPublic(!isPublic)}
+              >
+                <View style={[styles.toggleKnob, isPublic && styles.toggleKnobActive]} />
               </TouchableOpacity>
-            );
-          })}
-        </View>
+            </View>
 
-        {/* Visibility — Public/Private toggle */}
-        <View style={styles.toggleRow}>
-          <View style={{ flex: 1 }}>
-            <Text variant="labelLarge" color={colors.text.primary}>
-              {isPublic ? 'Public Room' : 'Private Room'}
-            </Text>
-            <Text variant="bodySmall" color={colors.text.muted}>
-              {isPublic
-                ? 'Visible on Discover. Anyone can join.'
-                : 'Invite-only. Share the join code to connect.'}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.toggle, isPublic && styles.toggleActive]}
-            onPress={() => setIsPublic(!isPublic)}
-            accessibilityRole="switch"
-            accessibilityLabel={isPublic ? 'Public signal' : 'Private signal'}
-            accessibilityState={{ checked: isPublic }}
-          >
-            <View style={[styles.toggleKnob, isPublic && styles.toggleKnobActive]} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Create */}
-        <Button
-          title="Patch In"
-          onPress={handleCreate}
-          loading={loading}
-          fullWidth
-          size="lg"
-          style={styles.createBtn}
-        />
-      </ScrollView>
-    </SafeScreen>
+            {/* EXECUTE PATCH — big orange CTA */}
+            <TouchableOpacity
+              style={[styles.executePatch, loading && { opacity: 0.6 }]}
+              onPress={handleCreate}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.executePatchText}>
+                {loading ? 'PATCHING...' : 'EXECUTE PATCH'}
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </VoidSurface>
+      </SafeScreen>
     </ADSRTransition>
   );
 }
@@ -227,139 +329,298 @@ export function CreateSessionScreen() {
 // ─── Styles ─────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg.primary,
-  },
   content: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: spacing['2xl'],
     paddingBottom: spacing['3xl'],
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     marginBottom: spacing.xl,
   },
   closeBtn: {
-    marginBottom: spacing.md,
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.bg.elevated,
-    borderWidth: 1,
-    borderColor: colors.chrome.border,
+    backgroundColor: 'rgba(148, 163, 184, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  subtitle: {
-    marginTop: spacing.xs,
+  title: {
+    fontFamily: 'ChakraPetch-Bold',
+    fontSize: 22,
+    color: palette.frost,
+    letterSpacing: 0.5,
   },
-  sectionLabel: {
-    marginBottom: spacing.sm,
-    marginTop: spacing.lg,
-    letterSpacing: 1.5,
+
+  // Name input
+  inputLabel: {
+    fontFamily: 'SpaceMono-Regular',
     fontSize: 10,
+    color: palette.slate,
+    letterSpacing: 1.5,
+    marginBottom: 6,
   },
-  // ─── Frequency Band Chips ───
-  bandScroll: {
-    marginBottom: spacing.md,
-  },
-  bandChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 6,
-    backgroundColor: colors.bg.elevated,
+  nameInput: {
+    height: 48,
+    backgroundColor: palette.steel,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 16,
+    color: palette.frost,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
-    marginRight: 6,
-  },
-  bandChipActive: {
-    backgroundColor: colors.highlight.iceSubtle,
-    borderColor: colors.action.primary,
-  },
-  bandText: {
-    fontSize: 9,
-    letterSpacing: 1,
-  },
-  // ─── Mode Cards ───
-  modeGrid: {
-    gap: 10,
+    borderColor: palette.chromeBorder,
     marginBottom: spacing.xl,
   },
-  modeCard: {
-    borderRadius: 10,
+
+  // Signal routing diagram
+  routingDiagram: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xl,
+    paddingVertical: 16,
+  },
+  routingNode: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  routingNodeLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.silver,
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  routingJack: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: palette.midnight,
+    borderWidth: 2,
+    borderColor: palette.chromeBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  jackHole: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: palette.ice,
+    backgroundColor: 'transparent',
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  sourceChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.chrome.border,
-    backgroundColor: colors.bg.elevated,
-    overflow: 'hidden',
+    borderColor: palette.chromeBorder,
   },
-  modeCardActive: {
-    borderColor: colors.action.primary,
+  sourceChipActive: {
+    borderColor: palette.ice,
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
   },
-  modeHeader: {
+  sourceText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 8,
+    color: palette.slate,
+    letterSpacing: 1,
+  },
+  sourceTextActive: {
+    color: palette.ice,
+  },
+  vibeChipActive: {
+    borderColor: palette.orange,
+    backgroundColor: 'rgba(255, 107, 53, 0.08)',
+  },
+  vibeTextActive: {
+    color: palette.orange,
+  },
+
+  // Cable
+  cableLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: colors.chrome.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.chrome.border,
+    gap: 4,
+    marginTop: 32,
+    paddingHorizontal: 4,
   },
-  modeHeaderActive: {
-    backgroundColor: colors.highlight.iceFaint,
+  cableDash: {
+    width: 8,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255, 107, 53, 0.30)',
   },
-  modeLabel: {
-    fontSize: 13,
-  },
-  modeTag: {
-    marginLeft: 'auto',
-    fontSize: 8,
+
+  // Mode selector
+  sectionLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.slate,
     letterSpacing: 1.5,
-    opacity: 0.7,
+    marginBottom: 10,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  modePill: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
+    alignItems: 'center',
+  },
+  modePillActive: {
+    borderColor: palette.orange,
+    backgroundColor: 'rgba(255, 107, 53, 0.08)',
+  },
+  modePillText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 9,
+    color: palette.slate,
+    letterSpacing: 1,
+  },
+  modePillTextActive: {
+    color: palette.orange,
   },
   modeDesc: {
-    padding: 14,
-    lineHeight: 18,
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 13,
+    color: palette.silver,
+    marginBottom: spacing.xl,
+    textAlign: 'center',
   },
-  // ─── Toggle ───
+
+  // Advanced toggles section
+  advancedToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    marginBottom: 4,
+    borderTopWidth: 1,
+    borderTopColor: palette.chromeBorder,
+  },
+  advancedToggleText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 10,
+    color: palette.silver,
+    letterSpacing: 1.5,
+  },
+  advancedSection: {
+    marginBottom: spacing.lg,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.chromeBorder,
+  },
+  toggleSectionLabel: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 9,
+    color: palette.slate,
+    letterSpacing: 1.2,
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  behaviorToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(148, 163, 184, 0.08)',
+  },
+  behaviorToggleLabel: {
+    fontFamily: 'ChakraPetch-SemiBold',
+    fontSize: 13,
+    color: palette.frost,
+  },
+  behaviorToggleDesc: {
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 11,
+    color: palette.slate,
+    marginTop: 1,
+  },
+
+  // Toggle
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: 4,
-    marginBottom: spacing.lg,
+    paddingVertical: 14,
+    marginBottom: spacing.xl,
     borderTopWidth: 1,
-    borderTopColor: colors.chrome.border,
+    borderTopColor: palette.chromeBorder,
     borderBottomWidth: 1,
-    borderBottomColor: colors.chrome.border,
+    borderBottomColor: palette.chromeBorder,
+  },
+  toggleLabel: {
+    fontFamily: 'ChakraPetch-SemiBold',
+    fontSize: 14,
+    color: palette.frost,
+  },
+  toggleDesc: {
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 12,
+    color: palette.slate,
+    marginTop: 2,
   },
   toggle: {
     width: 48,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.bg.input,
+    backgroundColor: palette.steel,
     padding: 2,
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.chrome.border,
+    borderColor: palette.chromeBorder,
   },
   toggleActive: {
-    backgroundColor: colors.action.primary,
-    borderColor: colors.action.primary,
+    backgroundColor: palette.orange,
+    borderColor: palette.orange,
   },
   toggleKnob: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: colors.text.muted,
+    backgroundColor: palette.slate,
   },
   toggleKnobActive: {
-    backgroundColor: colors.text.primary,
+    backgroundColor: palette.frost,
     alignSelf: 'flex-end',
   },
-  createBtn: {
-    marginTop: spacing.sm,
+
+  // Execute button
+  executePatch: {
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: palette.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Orange glow
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  executePatchText: {
+    fontFamily: 'SpaceMono-Regular',
+    fontSize: 14,
+    color: palette.void,
+    letterSpacing: 2,
+    fontWeight: '700',
   },
 });
 

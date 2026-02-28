@@ -15,7 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, ADSRFadeIn, TrackListItem, ErrorState, TrackCardSkeleton } from '../components/ui';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
-import { colors } from '../theme/colors';
+import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import type { Track, FavoriteTrack, Session, RoomMode } from '../types';
 
@@ -39,11 +39,11 @@ function SegmentTabs({ active, onChange }: SegmentTabsProps) {
         <Ionicons
           name={active === 'liked' ? 'heart' : 'heart-outline'}
           size={16}
-          color={active === 'liked' ? colors.action.primary : colors.text.muted}
+          color={active === 'liked' ? palette.orange : palette.slate}
         />
         <Text
           variant="label"
-          color={active === 'liked' ? colors.action.primary : colors.text.muted}
+          color={active === 'liked' ? palette.orange : palette.slate}
           style={{ marginLeft: 6 }}
         >
           Liked
@@ -57,11 +57,11 @@ function SegmentTabs({ active, onChange }: SegmentTabsProps) {
         <Ionicons
           name={active === 'history' ? 'time' : 'time-outline'}
           size={16}
-          color={active === 'history' ? colors.action.primary : colors.text.muted}
+          color={active === 'history' ? palette.orange : palette.slate}
         />
         <Text
           variant="label"
-          color={active === 'history' ? colors.action.primary : colors.text.muted}
+          color={active === 'history' ? palette.orange : palette.slate}
           style={{ marginLeft: 6 }}
         >
           History
@@ -85,13 +85,13 @@ const segStyles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: spacing.sm,
     borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
   },
   tabActive: {
-    borderColor: colors.action.primary,
-    backgroundColor: colors.highlight.iceFaint,
+    borderColor: palette.orange,
+    backgroundColor: 'rgba(100, 200, 255, 0.10)',
   },
 });
 
@@ -129,17 +129,17 @@ function HistoryCard({ session, onPress }: { session: PastSession; onPress?: () 
       disabled={!onPress}
     >
       <View style={histStyles.iconWrap}>
-        <Ionicons name={modeIcons[session.roomMode]} size={20} color={colors.text.secondary} />
+        <Ionicons name={modeIcons[session.roomMode]} size={20} color={palette.silver} />
       </View>
       <View style={histStyles.info}>
-        <Text variant="label" color={colors.text.primary} numberOfLines={1}>
+        <Text variant="label" color={palette.frost} numberOfLines={1}>
           {session.name}
         </Text>
-        <Text variant="bodySmall" color={colors.text.secondary} numberOfLines={1}>
+        <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
           {session.hostUsername} · {session.tracksPlayed} tracks
         </Text>
       </View>
-      <Text variant="labelSmall" color={colors.text.muted}>{session.date}</Text>
+      <Text variant="labelSmall" color={palette.slate}>{session.date}</Text>
     </TouchableOpacity>
   );
 }
@@ -150,14 +150,14 @@ const histStyles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.sm,
     borderRadius: spacing.radius.md,
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
     marginBottom: spacing.sm,
   },
   iconWrap: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: colors.bg.surface,
+    backgroundColor: palette.midnight,
     alignItems: 'center', justifyContent: 'center',
     marginRight: spacing.sm,
   },
@@ -205,9 +205,9 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
     <SafeScreen>
       {/* Header */}
       <View style={styles.header}>
-        <Text variant="h2" color={colors.text.primary}>Library</Text>
+        <Text variant="h2" color={palette.frost}>Library</Text>
         {favorites.length > 0 && (
-          <Text variant="labelSmall" color={colors.text.muted}>
+          <Text variant="labelSmall" color={palette.slate}>
             {favorites.length} liked
           </Text>
         )}
@@ -223,7 +223,7 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.action.primary}
+            tintColor={palette.orange}
           />
         }
       >
@@ -244,11 +244,11 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
               </View>
             ) : sortedFavorites.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="heart-outline" size={48} color={colors.text.muted} />
-                <Text variant="body" color={colors.text.secondary} align="center" style={{ marginTop: spacing.sm }}>
+                <Ionicons name="heart-outline" size={48} color={palette.slate} />
+                <Text variant="body" color={palette.silver} align="center" style={{ marginTop: spacing.sm }}>
                   No liked tracks yet
                 </Text>
-                <Text variant="bodySmall" color={colors.text.muted} align="center" style={{ marginTop: spacing.xs }}>
+                <Text variant="bodySmall" color={palette.slate} align="center" style={{ marginTop: spacing.xs }}>
                   Tap the heart on any track to save it here
                 </Text>
               </View>
@@ -267,7 +267,7 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
                           style={styles.removeBtn}
                           activeOpacity={0.6}
                         >
-                          <Ionicons name="heart" size={18} color={colors.action.primary} />
+                          <Ionicons name="heart" size={18} color={palette.orange} />
                         </TouchableOpacity>
                       }
                     />
@@ -295,11 +295,11 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
               </View>
             ) : MOCK_HISTORY.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="time-outline" size={48} color={colors.text.muted} />
-                <Text variant="body" color={colors.text.secondary} align="center" style={{ marginTop: spacing.sm }}>
+                <Ionicons name="time-outline" size={48} color={palette.slate} />
+                <Text variant="body" color={palette.silver} align="center" style={{ marginTop: spacing.sm }}>
                   No session history yet
                 </Text>
-                <Text variant="bodySmall" color={colors.text.muted} align="center" style={{ marginTop: spacing.xs }}>
+                <Text variant="bodySmall" color={palette.slate} align="center" style={{ marginTop: spacing.xs }}>
                   Sessions you join will appear here
                 </Text>
               </View>
@@ -342,11 +342,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing['2xl'],
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.steel,
     borderRadius: spacing.radius.md,
     paddingHorizontal: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
   },
   trackList: {
     gap: 0,

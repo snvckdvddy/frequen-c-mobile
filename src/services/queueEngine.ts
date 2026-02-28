@@ -1,18 +1,28 @@
 /**
- * Queue Engine — Room Mode Physics
+ * Queue Engine — Behavioral Toggles Architecture
  *
  * Pure functions that govern how tracks enter, move, and leave the queue
- * based on the active room mode. No side effects, no state — fully testable.
+ * based on granular behavioral toggles (not rigid room modes).
+ * No side effects, no state — fully testable.
  *
- * Campfire 🔥  — Round-robin interleaving by contributor
- * Spotlight 🎤 — Host curates; non-host additions go to suggestions
- * Open Floor ⚡ — Votes reorder the queue; democratic free-for-all
+ * Queue Ordering Strategies:
+ *   roundRobin   — Interleave tracks by contributor (fair turns)
+ *   voteWeighted — Votes reorder the queue (democratic)
+ *   fifo         — First in, first out (position order)
+ *
+ * Approval Gate:
+ *   requiresApproval=true — Non-host additions go to suggestedQueue
+ *   requiresApproval=false — All additions go directly to queue
+ *
+ * Skip Access:
+ *   anyone       — Any participant can skip
+ *   hostOnly     — Only the host can skip
+ *   voteRequired — Skip requires majority vote (future)
  */
 
-import type { QueueTrack, RoomMode } from '../types';
+import type { QueueTrack, RoomBehaviors, DEFAULT_BEHAVIORS } from '../types';
 
 // ─── Result type for addTrackToQueue ────────────────────────
-// Spotlight mode may return a track in suggestedQueue instead of mainQueue.
 export interface AddTrackResult {
   queue: QueueTrack[];
   suggestedQueue: QueueTrack[];
@@ -22,54 +32,40 @@ export interface AddTrackResult {
 
 // ─── Add Track ──────────────────────────────────────────────
 /**
- * Insert a track into the queue according to room mode rules.
+ * Insert a track into the queue according to behavioral toggles.
  *
- * Campfire:   Append then interleave round-robin by contributor.
- * Spotlight:  Host → direct to queue. Non-host → suggested queue (pending).
- * Open Floor: Straight append (votes handle ordering separately).
+ * requiresApproval=true + non-host → suggested queue (pending).
+ * Otherwise → main queue, ordered by queueOrdering strategy.
  */
 export function addTrackToQueue(
   queue: QueueTrack[],
   suggestedQueue: QueueTrack[],
   track: QueueTrack,
-  roomMode: RoomMode,
+  behaviors: RoomBehaviors,
   hostId: string
 ): AddTrackResult {
-  switch (roomMode) {
-    case 'campfire': {
-      const appended = [...queue, track];
-      return {
-        queue: interleaveRoundRobin(appended),
-        suggestedQueue,
-        destination: 'queue',
-      };
-    }
+  // Approval gate: non-host adds need approval when toggle is on
+  if (behaviors.requiresApproval && track.addedById !== hostId) {
+    const pendingTrack: QueueTrack = { ...track, status: 'pending' };
+    return {
+      queue,
+      suggestedQueue: [...suggestedQueue, pendingTrack],
+      destination: 'suggested',
+    };
+  }
 
-    case 'spotlight': {
-      if (track.addedById === hostId) {
-        // Host additions go directly to the queue
-        return {
-          queue: [...queue, track],
-          suggestedQueue,
-          destination: 'queue',
-        };
-      }
-      // Non-host additions go to the suggested queue as pending
-      const pendingTrack: QueueTrack = { ...track, status: 'pending' };
-      return {
-        queue,
-        suggestedQueue: [...suggestedQueue, pendingTrack],
-        destination: 'suggested',
-      };
-    }
+  // Track goes directly to queue
+  const appended = [...queue, track];
 
-    case 'openFloor':
+  // Apply ordering strategy
+  switch (behaviors.queueOrdering) {
+    case 'roundRobin':
+      return { queue: interleaveRoundRobin(appended), suggestedQueue, destination: 'queue' };
+    case 'voteWeighted':
+      return { queue: appended, suggestedQueue, destination: 'queue' }; // votes handle sorting separately
+    case 'fifo':
     default:
-      return {
-        queue: [...queue, track],
-        suggestedQueue,
-        destination: 'queue',
-      };
+      return { queue: appended, suggestedQueue, destination: 'queue' };
   }
 }
 
@@ -77,49 +73,45 @@ export function addTrackToQueue(
 /**
  * Toggle-aware voting. One vote per user per track.
  *
- * - Same direction again → undo (remove vote)
- * - Opposite direction → switch vote
- * - No prior vote → add vote
- *
- * In Open Floor mode, re-sort by votes after update.
- * Campfire & Spotlight: votes are cosmetic only (no reorder).
+ * When voteReordersQueue is true, re-sort by votes after update.
+ * When false, votes are still tracked (cosmetic/social signal) but don't reorder.
  */
 export function applyVote(
   queue: QueueTrack[],
   trackId: string,
   userId: string,
   direction: 1 | -1,
-  roomMode: RoomMode
+  behaviors: RoomBehaviors
 ): QueueTrack[] {
   const updated = queue.map((t) => {
     if (t.id !== trackId) return t;
 
     const votedBy = { ...(t.votedBy || {}) };
-    const prev = votedBy[userId]; // undefined | 1 | -1
+    const prev = votedBy[userId];
     let delta = 0;
 
     if (prev === direction) {
       // Same direction again → undo vote
       delete votedBy[userId];
-      delta = -direction; // reverse the prior vote
+      delta = -direction;
     } else if (prev === undefined) {
       // No prior vote → add
       votedBy[userId] = direction;
       delta = direction;
     } else {
-      // Opposite direction → just undo current vote (tap again to vote new direction)
+      // Opposite direction → undo current vote
       delete votedBy[userId];
-      delta = -prev; // remove the old vote, don't auto-apply new one
+      delta = -prev;
     }
 
     return { ...t, votes: (t.votes ?? 0) + delta, votedBy };
   });
 
-  if (roomMode === 'openFloor') {
+  // Only re-sort if the toggle says votes have queue impact
+  if (behaviors.voteReordersQueue) {
     return sortByVotes(updated);
   }
 
-  // Campfire & Spotlight: votes don't reorder
   return updated;
 }
 
@@ -127,28 +119,35 @@ export function applyVote(
 /**
  * Remove the first track from the queue.
  *
- * Campfire & Open Floor: Anyone can skip.
- * Spotlight: Only the host can skip. Non-host calls are no-ops.
- *
- * Returns { queue, skipped } so the caller knows if the skip happened.
+ * Checks skipAccess toggle:
+ *   'anyone' — any participant can skip
+ *   'hostOnly' — only the host
+ *   'voteRequired' — host can force-skip; others must use vote-skip
  */
 export function skipCurrentTrack(
   queue: QueueTrack[],
   userId: string,
   hostId: string,
-  roomMode: RoomMode
-): { queue: QueueTrack[]; skipped: boolean } {
+  behaviors: RoomBehaviors
+): { queue: QueueTrack[]; skipped: boolean; reason?: string } {
   if (queue.length === 0) return { queue, skipped: false };
 
-  if (roomMode === 'spotlight' && userId !== hostId) {
-    // Non-host can't skip in Spotlight mode
-    return { queue, skipped: false };
+  if (behaviors.skipAccess === 'hostOnly' && userId !== hostId) {
+    return { queue, skipped: false, reason: 'hostOnly' };
+  }
+
+  if (behaviors.skipAccess === 'voteRequired') {
+    // Host can force-skip; everyone else uses the vote-skip system
+    if (userId === hostId) {
+      return { queue: queue.slice(1), skipped: true, reason: 'hostForce' };
+    }
+    return { queue, skipped: false, reason: 'voteRequired' };
   }
 
   return { queue: queue.slice(1), skipped: true };
 }
 
-// ─── Approve Track (Spotlight only) ─────────────────────────
+// ─── Approve Track (when requiresApproval is on) ────────────
 /**
  * Move a track from suggestedQueue → mainQueue.
  * Sets status to 'approved'.
@@ -168,7 +167,7 @@ export function approveTrack(
   };
 }
 
-// ─── Reject Track (Spotlight only) ──────────────────────────
+// ─── Reject Track ───────────────────────────────────────────
 /**
  * Remove a track from suggestedQueue entirely.
  */
@@ -183,7 +182,6 @@ export function rejectTrack(
 /**
  * Move a track up or down in the queue.
  * Cannot move past position 0 (now playing stays put).
- * Returns the new queue.
  */
 export function moveTrack(
   queue: QueueTrack[],
@@ -192,15 +190,10 @@ export function moveTrack(
 ): QueueTrack[] {
   const idx = queue.findIndex((t) => t.id === trackId);
   if (idx < 0) return queue;
-
-  // Can't move now-playing (index 0)
   if (idx === 0) return queue;
 
   const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
-
-  // Can't move above now-playing (idx 1 can't go to 0)
   if (targetIdx <= 0) return queue;
-  // Can't move past end
   if (targetIdx >= queue.length) return queue;
 
   const next = [...queue];
@@ -211,13 +204,11 @@ export function moveTrack(
 // ─── Internal: Round-Robin Interleave ───────────────────────
 /**
  * Interleave tracks so contributors take turns.
- * If Alice added 3 and Bob added 1: Alice → Bob → Alice → Alice
  * Preserves relative order within each contributor's tracks.
  */
 function interleaveRoundRobin(queue: QueueTrack[]): QueueTrack[] {
   if (queue.length <= 1) return queue;
 
-  // Group tracks by contributor, preserving order within each group
   const groups = new Map<string, QueueTrack[]>();
   const contributorOrder: string[] = [];
 
@@ -230,10 +221,8 @@ function interleaveRoundRobin(queue: QueueTrack[]): QueueTrack[] {
     groups.get(key)!.push(track);
   }
 
-  // If only one contributor, nothing to interleave
   if (groups.size <= 1) return queue;
 
-  // Round-robin: pick one track from each contributor in order, repeat
   const result: QueueTrack[] = [];
   let remaining = queue.length;
 
@@ -250,7 +239,7 @@ function interleaveRoundRobin(queue: QueueTrack[]): QueueTrack[] {
   return result;
 }
 
-// ─── Internal: Sort by Votes (Open Floor) ───────────────────
+// ─── Internal: Sort by Votes ────────────────────────────────
 /**
  * Sort queue by votes descending. Tiebreaker: earlier addedAt wins.
  * The first track (now playing) stays in place — only sort queue[1..n].
@@ -258,13 +247,11 @@ function interleaveRoundRobin(queue: QueueTrack[]): QueueTrack[] {
 function sortByVotes(queue: QueueTrack[]): QueueTrack[] {
   if (queue.length <= 2) return queue;
 
-  // Keep the first track (now playing) in place
   const [nowPlaying, ...rest] = queue;
 
   rest.sort((a, b) => {
     const votesDiff = (b.votes ?? 0) - (a.votes ?? 0);
     if (votesDiff !== 0) return votesDiff;
-    // Tiebreaker: earlier addedAt stays higher
     return new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime();
   });
 

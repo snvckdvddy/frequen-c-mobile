@@ -10,12 +10,14 @@
  */
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import type { RoomBehaviors } from '../types';
 
 interface ActiveSession {
   sessionId: string;
   sessionName: string;
   roomMode: string;
   hostId: string;
+  behaviors?: RoomBehaviors;
 }
 
 interface ActiveSessionContextValue {

@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
-import { colors } from '../../theme/colors';
+import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import type { Track, QueueTrack } from '../../types';
 
@@ -125,14 +125,14 @@ export function TrackContextMenu({
                 <Image source={{ uri: track.albumArt }} style={styles.artThumb} />
               ) : (
                 <View style={[styles.artThumb, styles.artPlaceholder]}>
-                  <Ionicons name="musical-notes" size={20} color={colors.text.muted} />
+                  <Ionicons name="musical-notes" size={20} color={palette.slate} />
                 </View>
               )}
               <View style={styles.trackMeta}>
-                <Text variant="body" color={colors.text.primary} numberOfLines={1}>
+                <Text variant="body" color={palette.frost} numberOfLines={1}>
                   {track.title}
                 </Text>
-                <Text variant="labelSmall" color={colors.text.secondary} numberOfLines={1}>
+                <Text variant="labelSmall" color={palette.silver} numberOfLines={1}>
                   {track.artist}{track.album ? ` · ${track.album}` : ''}
                 </Text>
               </View>
@@ -157,11 +157,11 @@ export function TrackContextMenu({
                 <Ionicons
                   name={action.icon}
                   size={22}
-                  color={action.destructive ? colors.action.destructive : colors.text.secondary}
+                  color={action.destructive ? palette.red : palette.silver}
                 />
                 <Text
                   variant="body"
-                  color={action.destructive ? colors.action.destructive : colors.text.primary}
+                  color={action.destructive ? palette.red : palette.frost}
                   style={styles.actionLabel}
                 >
                   {action.label}
@@ -171,7 +171,7 @@ export function TrackContextMenu({
 
             {/* Cancel */}
             <TouchableOpacity style={styles.cancelRow} onPress={onClose} activeOpacity={0.6} accessibilityRole="button" accessibilityLabel="Cancel">
-              <Text variant="body" color={colors.text.muted} align="center">
+              <Text variant="body" color={palette.slate} align="center">
                 Cancel
               </Text>
             </TouchableOpacity>
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: colors.bg.elevated,
+    backgroundColor: palette.midnight,
     borderTopLeftRadius: spacing.radius.lg,
     borderTopRightRadius: spacing.radius.lg,
     paddingBottom: 34, // safe area
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.text.muted,
+    backgroundColor: palette.slate,
     opacity: 0.5,
   },
 
@@ -219,11 +219,11 @@ const styles = StyleSheet.create({
     borderRadius: spacing.radius.sm,
   },
   artPlaceholder: {
-    backgroundColor: colors.bg.primary,
+    backgroundColor: palette.midnight,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border.subtle,
+    borderColor: palette.chromeBorder,
   },
   trackMeta: {
     flex: 1,
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
 
   divider: {
     height: 1,
-    backgroundColor: colors.border.subtle,
+    backgroundColor: palette.chromeBorder,
     marginHorizontal: spacing.screenPadding,
   },
 
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     marginTop: spacing.xs,
     borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
+    borderTopColor: palette.chromeBorder,
   },
 });
 
