@@ -8,7 +8,11 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "jest",
-    "test:verbose": "jest --verbose"
+    "test:verbose": "jest --verbose",
+    "smoke:backend": "node test-backend.js",
+    "smoke:create-session": "node test-create-session.js",
+    "smoke:spotify": "node test-spotify.js",
+    "smoke:all": "npm run smoke:backend && npm run smoke:create-session && npm run smoke:spotify"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

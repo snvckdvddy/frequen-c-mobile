@@ -1,6 +1,23 @@
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXJfMTc3MjI0Mjk1MzE4NF9maWRoanBocWMiLCJ1c2VybmFtZSI6InRlc3Rib3QiLCJlbWFpbCI6InRlc3Rib3RAZnJlcS5sb2NhbCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzcyMjQ0MTI1LCJleHAiOjE3NzI4NDg5MjV9.fB8CL_5Ud1Hj8eYp8cl2CjLz5oi2ZniJx_aN-FsrzaE';
-
 async function testCreateSession() {
+    const API_BASE_URL = process.env.TEST_API_BASE_URL || 'http://127.0.0.1:5000/api';
+    const TEST_EMAIL = process.env.TEST_EMAIL || 'testbot@freq.local';
+    const TEST_PASSWORD = process.env.TEST_PASSWORD || 'password123';
+
+    const loginRes = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: TEST_EMAIL, password: TEST_PASSWORD }),
+    });
+
+    const loginData = await loginRes.json();
+    if (loginData.status !== 'success') {
+        console.error('Login failed:', loginData);
+        process.exitCode = 1;
+        return;
+    }
+
+    const token = loginData.data.token;
+
     const payload = {
         name: "Friday Night Vibes",
         genre: "Mixed",
@@ -20,7 +37,7 @@ async function testCreateSession() {
     };
 
     try {
-        const res = await fetch('http://127.0.0.1:5000/api/sessions', {
+        const res = await fetch(`${API_BASE_URL}/sessions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -34,7 +51,11 @@ async function testCreateSession() {
         console.log("Response:", text);
     } catch (err) {
         console.error("Fetch failed:", err);
+        process.exitCode = 1;
     }
 }
 
-testCreateSession();
+testCreateSession().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+});

@@ -1,14 +1,20 @@
-const http = require('http');
-
 async function runTests() {
+    const API_BASE_URL = process.env.TEST_API_BASE_URL || 'http://127.0.0.1:5000/api';
+    const SOCKET_URL =
+        process.env.TEST_SOCKET_URL || API_BASE_URL.replace(/\/api\/?$/, '');
+    const TEST_EMAIL = process.env.TEST_EMAIL || 'testbot@freq.local';
+    const TEST_PASSWORD = process.env.TEST_PASSWORD || 'password123';
+
     console.log('--- Frequen-C Backend API Tests ---');
+    console.log('API:', API_BASE_URL);
+    console.log('Socket:', SOCKET_URL);
 
     // 1. Login to get a token
     console.log('\n[1] Testing Authentication (Login)...');
-    const loginRes = await fetch('http://127.0.0.1:5000/api/auth/login', {
+    const loginRes = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'testbot@freq.local', password: 'password123' })
+        body: JSON.stringify({ email: TEST_EMAIL, password: TEST_PASSWORD })
     });
 
     const loginData = await loginRes.json();
@@ -23,7 +29,7 @@ async function runTests() {
 
     // 2. Create a Session
     console.log('\n[2] Testing Session Creation...');
-    const sessionRes = await fetch('http://127.0.0.1:5000/api/sessions', {
+    const sessionRes = await fetch(`${API_BASE_URL}/sessions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -49,7 +55,7 @@ async function runTests() {
     // 3. Connect via WebSocket
     console.log('\n[3] Testing WebSocket Connection...');
     const io = require('socket.io-client');
-    const socket = io('http://127.0.0.1:5000', {
+    const socket = io(SOCKET_URL, {
         auth: { token },
         query: { token },
         reconnection: false
@@ -85,4 +91,7 @@ async function runTests() {
     console.log('\n✅ All backend tests completed successfully!');
 }
 
-runTests().catch(console.error);
+runTests().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+});
