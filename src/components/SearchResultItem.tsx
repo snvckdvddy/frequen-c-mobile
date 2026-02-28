@@ -14,14 +14,15 @@ import type { Track } from '../types';
 
 export interface SearchResultItemProps {
   track: Track;
-  onAdd: (t: Track) => void;
+  onAdd: (t: Track) => boolean | void;
 }
 
 export function SearchResultItem({ track, onAdd }: SearchResultItemProps) {
   const [added, setAdded] = useState(false);
   const handlePress = () => {
     if (added) return;
-    onAdd(track);
+    const accepted = onAdd(track);
+    if (accepted === false) return;
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };

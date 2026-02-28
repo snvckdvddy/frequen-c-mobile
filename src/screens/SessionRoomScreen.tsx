@@ -14,7 +14,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  TextInput, Alert, Share, Keyboard, Modal, KeyboardAvoidingView, Platform,
+  TextInput, Alert, Share, Keyboard, Modal,
   ScrollView, Dimensions, Image, Animated, PanResponder,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -786,8 +786,8 @@ export function SessionRoomScreen() {
 
   // ─── Handlers ─────────────────────────────────────────
   const handleAddTrack = useCallback((track: Track) => {
-    if (!user || !session) return;
-    if (!getGlobalLimiter().canDo('addTrack')) return;
+    if (!user || !session) return false;
+    if (!getGlobalLimiter().canDo('addTrack')) return false;
     const queueTrack: QueueTrack = {
       ...track,
       addedBy: { userId: user.id, username: user.username },
@@ -800,6 +800,7 @@ export function SessionRoomScreen() {
     addToQueue(sessionId, queueTrack);
     notifySuccess();
     if (query.trim()) saveRecentSearch(query.trim());
+    return true;
   }, [user, session, sessionId, query, saveRecentSearch]);
 
   const handleVote = useCallback((trackId: string, direction: 1 | -1) => {
@@ -1132,10 +1133,7 @@ export function SessionRoomScreen() {
   return (
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <View style={{ flex: 1 }}>
           {/* ─── Connection Status ──────────────────────── */}
           <OfflineBanner visible={!isConnected} />
           <ConnectionBanner />
@@ -1384,11 +1382,7 @@ export function SessionRoomScreen() {
             transparent
             onRequestClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
           >
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'height' : undefined}
-              keyboardVerticalOffset={0}
-              style={styles.sheetBackdrop}
-            >
+            <View style={styles.sheetBackdrop}>
               <TouchableOpacity
                 style={styles.sheetBackdropTouch}
                 onPress={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
@@ -1552,7 +1546,7 @@ export function SessionRoomScreen() {
                   />
                 )}
               </VoidSurface>
-            </KeyboardAvoidingView>
+            </View>
           </Modal>
 
           {/* ═══ OVERFLOW BOTTOM SHEET ═════════════════════ */}
@@ -1726,7 +1720,7 @@ export function SessionRoomScreen() {
             />
           ))}
 
-        </KeyboardAvoidingView>
+        </View>
       </VoidSurface>
 
       {/* ─── Master Bounce Receipt (session end) ──────── */}

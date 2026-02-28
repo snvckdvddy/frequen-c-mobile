@@ -18,7 +18,7 @@ const DEFAULT_LIMITS: RateLimiterConfig = {
   chat: 500,          // 1 message per 500ms
   reaction: 300,      // 1 reaction per 300ms
   vote: 1000,         // 1 vote per second
-  addTrack: 2000,     // 1 track add per 2s
+  addTrack: 350,      // allow quick multi-add while preventing spam taps
   skip: 1500,         // 1 skip per 1.5s (replaces existing cooldown)
   cvSpend: 3000,      // 1 CV spend per 3s
   duelVote: 5000,     // 1 duel vote per 5s (should only vote once anyway)
