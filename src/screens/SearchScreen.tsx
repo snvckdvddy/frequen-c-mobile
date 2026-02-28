@@ -11,7 +11,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import {
   View, StyleSheet, FlatList, TextInput, TouchableOpacity,
-  ScrollView, ActivityIndicator, Keyboard, Alert,
+  ScrollView, ActivityIndicator, Keyboard, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Text, SafeScreen, ErrorState } from '../components/ui';
 import { TrackCardSkeleton } from '../components/ui/Skeleton';
@@ -426,7 +426,11 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
 
   return (
     <SafeScreen>
-      <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'height' : undefined}
+        keyboardVerticalOffset={0}
+      >
         {/* Search Bar */}
         <View style={styles.searchBarRow}>
           <TextInput
@@ -472,7 +476,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
           onBrowseRooms={onBrowseRooms}
           onCreateRoom={onCreateRoom}
         />
-      </View>
+      </KeyboardAvoidingView>
     </SafeScreen>
   );
 }
@@ -599,6 +603,7 @@ const styles = StyleSheet.create({
   },
   resultsList: {
     paddingHorizontal: spacing.screenPadding,
+    paddingBottom: spacing['2xl'],
   },
 });
 

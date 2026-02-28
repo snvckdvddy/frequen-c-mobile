@@ -216,7 +216,7 @@ export const sessionApi = {
       // 1. Check dynamic store first (user-created/joined sessions)
       const stored = mockSessionStore.get(sessionId);
       if (stored) {
-        return { session: { ...stored, queue: stored.queue.length ? stored.queue : mockQueue } };
+        return { session: { ...stored } };
       }
       // 2. Fall back to static mock data
       const staticSession = mockSessions.find((s) => s.id === sessionId);
@@ -254,7 +254,7 @@ export const sessionApi = {
       }
       if (!session) throw new ApiError(404, 'No room found with that code');
       // Persist in store + track as user's room
-      mockSessionStore.set(session.id, session);
+      mockSessionStore.set(session.id, { ...session, queue: [...(session.queue || [])] });
       myRoomIds.add(session.id);
       return { session };
     }
@@ -297,6 +297,26 @@ export const sessionApi = {
       return { message: 'Session ended' };
     }
     return apiFetch<{ message: string }>(`/sessions/${sessionId}/end`, { method: 'POST' });
+  },
+
+  /**
+   * Mock-only local state sync so session state survives leave/re-enter
+   * during mobile UI testing without a backend source of truth.
+   */
+  syncLocalSession: async (
+    sessionId: string,
+    patch: Partial<import('../types').Session>
+  ) => {
+    if (!USE_MOCKS) return;
+    const existing = mockSessionStore.get(sessionId) || mockSessions.find((s) => s.id === sessionId);
+    if (!existing) return;
+    const merged: import('../types').Session = {
+      ...existing,
+      ...patch,
+      queue: patch.queue ? [...patch.queue] : [...(existing.queue || [])],
+    };
+    mockSessionStore.set(sessionId, merged);
+    myRoomIds.add(sessionId);
   },
 };
 

@@ -16,8 +16,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeScreen, Text, Button, WaveformIcon, ADSRTransition } from '../components/ui';
-import { useAuth } from '../contexts/AuthContext';
+import { SafeScreen, Text, ADSRTransition } from '../components/ui';
 import { sessionApi } from '../services/api';
 import { spacing } from '../theme/spacing';
 import { VoidSurface } from '../design/components';
@@ -52,7 +51,6 @@ const SKIP_ACCESS_OPTIONS: { key: RoomBehaviors['skipAccess']; label: string }[]
 
 export function CreateSessionScreen() {
   const navigation = useNavigation<any>();
-  const { user } = useAuth();
   const [name, setName] = useState('');
   const [genre, setGenre] = useState('Mixed');
   const [roomMode, setRoomMode] = useState<RoomMode>('campfire');
@@ -112,7 +110,10 @@ export function CreateSessionScreen() {
               >
                 <Ionicons name="close" size={20} color={palette.silver} />
               </TouchableOpacity>
-              <Text style={styles.title}>Initialize Patch</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>Initialize Patch</Text>
+                <Text style={styles.subtitle}>Build your room signal flow first, then execute.</Text>
+              </View>
             </View>
 
             {/* Session Name */}
@@ -130,60 +131,56 @@ export function CreateSessionScreen() {
             {/* Signal Routing Diagram */}
             <View style={styles.routingDiagram}>
               {/* SIGNAL OUT */}
-              <View style={styles.routingNode}>
+              <View style={styles.routingNodeCard}>
                 <Text style={styles.routingNodeLabel}>SIGNAL OUT</Text>
                 <View style={styles.routingJack}>
                   <View style={styles.jackHole} />
                 </View>
-                {/* Source selector */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={styles.sourceRow}>
-                    {SOURCES.map((s) => (
-                      <TouchableOpacity
-                        key={s}
-                        style={[styles.sourceChip, source === s && styles.sourceChipActive]}
-                        onPress={() => setSource(s)}
-                      >
-                        <Text style={[styles.sourceText, source === s && styles.sourceTextActive]}>
-                          {s}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
+                <View style={styles.sourceRow}>
+                  {SOURCES.map((s) => (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.sourceChip, source === s && styles.sourceChipActive]}
+                      onPress={() => setSource(s)}
+                    >
+                      <Text style={[styles.sourceText, source === s && styles.sourceTextActive]}>
+                        {s}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
-              {/* Dashed cable line */}
+              {/* Cable bridge */}
               <View style={styles.cableLine}>
-                <View style={styles.cableDash} />
-                <View style={styles.cableDash} />
-                <View style={styles.cableDash} />
-                <View style={styles.cableDash} />
-                <Ionicons name="arrow-forward" size={14} color={palette.orange} />
+                <Ionicons name="arrow-down" size={14} color={palette.orange} />
+                <View style={styles.cableDashRow}>
+                  <View style={styles.cableDash} />
+                  <View style={styles.cableDash} />
+                  <View style={styles.cableDash} />
+                  <View style={styles.cableDash} />
+                </View>
               </View>
 
               {/* CV IN */}
-              <View style={styles.routingNode}>
+              <View style={[styles.routingNodeCard, styles.routingNodeCardDest]}>
                 <Text style={styles.routingNodeLabel}>CV IN</Text>
                 <View style={styles.routingJack}>
                   <View style={[styles.jackHole, { borderColor: palette.orange }]} />
                 </View>
-                {/* Vibe selector */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={styles.sourceRow}>
-                    {VIBES.map((v) => (
-                      <TouchableOpacity
-                        key={v}
-                        style={[styles.sourceChip, vibe === v && styles.vibeChipActive]}
-                        onPress={() => setVibe(v)}
-                      >
-                        <Text style={[styles.sourceText, vibe === v && styles.vibeTextActive]}>
-                          {v}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
+                <View style={styles.sourceRow}>
+                  {VIBES.map((v) => (
+                    <TouchableOpacity
+                      key={v}
+                      style={[styles.sourceChip, vibe === v && styles.vibeChipActive]}
+                      onPress={() => setVibe(v)}
+                    >
+                      <Text style={[styles.sourceText, vibe === v && styles.vibeTextActive]}>
+                        {v}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             </View>
 
@@ -336,7 +333,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     marginBottom: spacing.xl,
   },
@@ -353,6 +350,12 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: palette.frost,
     letterSpacing: 0.5,
+  },
+  subtitle: {
+    marginTop: 3,
+    fontFamily: 'ChakraPetch-Regular',
+    fontSize: 12,
+    color: palette.slate,
   },
 
   // Name input
@@ -378,15 +381,23 @@ const styles = StyleSheet.create({
 
   // Signal routing diagram
   routingDiagram: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    alignItems: 'stretch',
     marginBottom: spacing.xl,
-    paddingVertical: 16,
+    paddingVertical: 12,
+    gap: 10,
   },
-  routingNode: {
-    flex: 1,
+  routingNodeCard: {
+    backgroundColor: palette.midnight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     alignItems: 'center',
+  },
+  routingNodeCardDest: {
+    borderColor: 'rgba(255, 107, 53, 0.26)',
   },
   routingNodeLabel: {
     fontFamily: 'SpaceMono-Regular',
@@ -416,7 +427,10 @@ const styles = StyleSheet.create({
   },
   sourceRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 4,
+    rowGap: 6,
   },
   sourceChip: {
     paddingHorizontal: 8,
@@ -448,11 +462,14 @@ const styles = StyleSheet.create({
 
   // Cable
   cableLine: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     gap: 4,
-    marginTop: 32,
-    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  cableDashRow: {
+    flexDirection: 'row',
+    gap: 4,
   },
   cableDash: {
     width: 8,
@@ -471,11 +488,13 @@ const styles = StyleSheet.create({
   },
   modeRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 8,
   },
   modePill: {
-    flex: 1,
+    minWidth: 98,
+    flexGrow: 1,
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,

@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, StyleSheet, FlatList, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Animated, Keyboard,
+  KeyboardAvoidingView, Platform, Animated, Keyboard, PanResponder,
 } from 'react-native';
 import { Text } from './ui';
 import { palette } from '../design/tokens/materials';
@@ -140,6 +140,17 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const closePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        gestureState.dy > 12 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 80 || (gestureState.dy > 35 && gestureState.vy > 0.9)) {
+          onClose();
+        }
+      },
+    })
+  ).current;
 
   // ─── Slide animation ──────────────────────────────────
   useEffect(() => {
@@ -205,7 +216,7 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
   return (
     <Animated.View style={[styles.container, { transform: [{ translateY }] }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={styles.header} {...closePanResponder.panHandlers}>
         <View style={styles.handle} />
         <View style={styles.headerRow}>
           <Text variant="labelLarge" color={palette.frost}>Chat</Text>

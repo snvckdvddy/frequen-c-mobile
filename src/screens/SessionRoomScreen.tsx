@@ -24,7 +24,7 @@ import { Text, SafeScreen, RoomModeBadge } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import api, { sessionApi } from '../services/api';
 import {
-  connectSocket, joinSession, leaveSession, quitSession, addToQueue,
+  connectSocket, joinSession, leaveSession, addToQueue,
   voteTrack, sendReaction, skipTrack, voteSkip, trackEnded,
   approveTrackEvent, rejectTrackEvent, changeModeEvent, endSessionEvent,
   updateBehaviors, onSessionEvent, spendCV, duelVote, submitForecast, phantomPower,
@@ -136,6 +136,11 @@ export function SessionRoomScreen() {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [cvExpanded, setCvExpanded] = useState(false);
   const [searchInSheet, setSearchInSheet] = useState(false);
+  const searchInSheetRef = useRef(false);
+
+  useEffect(() => {
+    searchInSheetRef.current = searchInSheet;
+  }, [searchInSheet]);
 
   // ─── App state recovery (background → foreground) ──
   useAppState({
@@ -232,11 +237,18 @@ export function SessionRoomScreen() {
   const sheetPanResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only claim the gesture if user is swiping down significantly
-        return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        // Only claim clear vertical close swipes (avoid fighting list scroll / text input)
+        if (searchInSheetRef.current) return false;
+        return (
+          gestureState.dy > 18 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.35
+        );
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 50) {
+        const shouldClose =
+          gestureState.dy > 90 ||
+          (gestureState.dy > 40 && gestureState.vy > 0.9);
+        if (shouldClose) {
           setQueueSheetOpen(false);
           setSearchInSheet(false);
           Keyboard.dismiss();
@@ -274,6 +286,16 @@ export function SessionRoomScreen() {
       return next;
     });
   }, [sessionId]);
+
+  // In mock/testing mode, persist local queue state so it survives leave/re-enter.
+  useEffect(() => {
+    if (!USE_MOCKS || !sessionId || !session) return;
+    sessionApi.syncLocalSession(sessionId, {
+      queue,
+      currentTrack: queue[0],
+      listeners,
+    }).catch(() => { });
+  }, [queue, listeners, sessionId, session]);
 
   // ─── Load session & connect socket ──────────────────────
   const socketUnsubsRef = useRef<Array<() => void>>([]);
@@ -1036,7 +1058,7 @@ export function SessionRoomScreen() {
             style: 'destructive',
             onPress: () => {
               tapHeavy();
-              quitSession(sessionId, user.id);
+              leaveSession(sessionId, user.id);
               clearActiveSession();
               navigation.goBack();
             },
@@ -1363,7 +1385,8 @@ export function SessionRoomScreen() {
             onRequestClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
           >
             <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              behavior={Platform.OS === 'ios' ? 'height' : undefined}
+              keyboardVerticalOffset={0}
               style={styles.sheetBackdrop}
             >
               <TouchableOpacity
