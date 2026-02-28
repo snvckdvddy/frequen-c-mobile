@@ -7,7 +7,7 @@
 
 import { mockUser, mockSessions, mockQueue, mockSearchResults, mockUsers, mockDelay } from './mockData';
 import { User, Session, Track, MockUser, ConnectedServices } from '../types';
-import { USE_MOCKS } from './config';
+import { USE_MOCKS, AI_USE_REAL_BACKEND } from './config';
 
 // Re-export from fetchClient so existing consumers don't break
 export { apiFetch, getStoredToken, storeToken, clearToken, ApiError } from './fetchClient';
@@ -155,6 +155,7 @@ export const authApi = {
     noiseGate?: 'off' | 'medium' | 'high';
     socialBattery?: 'low' | 'unity' | 'hot';
     walkOnTransient?: string;
+    isIncognito?: boolean;
   }) => {
     if (USE_MOCKS) {
       return { success: true };
@@ -174,10 +175,22 @@ const mockSessionStore: Map<string, import('../types').Session> = new Map();
 // Track which sessions the current user has created or joined
 const myRoomIds: Set<string> = new Set();
 
+function mergeUniqueSessions(
+  ...groups: import('../types').Session[][]
+): import('../types').Session[] {
+  const byId = new Map<string, import('../types').Session>();
+  groups.flat().forEach((session) => {
+    if (!byId.has(session.id)) {
+      byId.set(session.id, session);
+    }
+  });
+  return Array.from(byId.values());
+}
+
 // ─── Session Endpoints ──────────────────────────────────────
 
 export const sessionApi = {
-  create: async (data: { name: string; genre?: string; roomMode?: string; isPublic?: boolean; behaviors?: import('../types').RoomBehaviors }) => {
+  create: async (data: { name: string; genre?: string; roomMode?: string; isPublic?: boolean; behaviors?: import('../types').RoomBehaviors; source?: string; vibe?: string }) => {
     if (USE_MOCKS) {
       await mockDelay();
       const { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } = require('../types');
@@ -198,6 +211,8 @@ export const sessionApi = {
         queue: [],
         createdAt: new Date().toISOString(),
         behaviors: data.behaviors || { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[mode] },
+        source: data.source,
+        vibe: data.vibe,
       };
       // Persist in mock store so get() can find it later
       mockSessionStore.set(session.id, session);
@@ -234,7 +249,7 @@ export const sessionApi = {
       await mockDelay();
       // Merge static + dynamic sessions
       const dynamic = Array.from(mockSessionStore.values());
-      return { sessions: [...mockSessions, ...dynamic] };
+      return { sessions: mergeUniqueSessions(dynamic, mockSessions) };
     }
     return apiFetch<{ sessions: import('../types').Session[] }>('/sessions');
   },
@@ -283,7 +298,7 @@ export const sessionApi = {
       await mockDelay();
       // Include dynamic sessions in discover too
       const dynamic = Array.from(mockSessionStore.values()).filter((s) => s.isPublic);
-      return { sessions: [...mockSessions, ...dynamic] };
+      return { sessions: mergeUniqueSessions(dynamic, mockSessions) };
     }
     return apiFetch<{ sessions: import('../types').Session[] }>('/sessions/discover');
   },
@@ -404,8 +419,456 @@ export const integrationsApi = {
       body: JSON.stringify({ track, artist, timestamp }),
     });
   },
+
+  /** Update "Now Playing" on Last.fm when a track starts */
+  updateNowPlaying: async (track: string, artist: string, duration?: number) => {
+    if (USE_MOCKS) {
+      return { message: 'Mocked now playing' };
+    }
+    return apiFetch<{ message: string }>('/user/scrobble/now-playing', {
+      method: 'POST',
+      body: JSON.stringify({ track, artist, duration }),
+    });
+  },
+};
+
+// ─── AI Endpoints ─────────────────────────────────────────────
+
+export interface SonicAestheticResult {
+  aestheticDescription: string;
+  nextTrack: string;
+  nextArtist: string;
+}
+
+export interface SonicLineageResult {
+  lineage: string;
+}
+
+export interface QueueTrackInput {
+  title: string;
+  artist: string;
+  album?: string;
+}
+
+export interface OracleModeResult {
+  tracks: Array<{ title: string; artist: string }>;
+}
+
+export interface TransitionMatrixResult {
+  rating: string;
+  critique: string;
+}
+
+export interface GlobalForecastResult {
+  manifesto: string;
+  trackSuggestion: string;
+}
+
+export interface SonicAuraResult {
+  auraName: string;
+  reading: string;
+}
+
+export interface SonicAuraInput {
+  roomsHosted: number;
+  duelWinRate: number;
+  topArtists: string[];
+}
+
+const shouldUseMockAi = () => USE_MOCKS && !AI_USE_REAL_BACKEND;
+
+export const aiApi = {
+  /**
+   * Sonic Aesthetic — analyzes the room queue and generates an editorial
+   * vibe description + one curated track suggestion.
+   */
+  sonicAesthetic: async (queue: QueueTrackInput[]): Promise<SonicAestheticResult> => {
+    if (shouldUseMockAi()) {
+      await mockDelay(800, 1500);
+      const first = queue[0];
+      const last = queue[queue.length - 1];
+      return {
+        aestheticDescription: first && last
+          ? `A dim, late-hour tension links ${first.artist}'s emotional grain to ${last.artist}'s low-burn atmosphere, shaping the room into a slow, introspective drift.`
+          : 'A nocturnal current of hazy introspection permeates the room, where urban melancholy meets slow-burning, emotive textures.',
+        nextTrack: 'Cranes in the Sky',
+        nextArtist: 'Solange'
+      };
+    }
+    return apiFetch<SonicAestheticResult>('/ai/sonic-aesthetic', {
+      method: 'POST',
+      body: JSON.stringify({ queue }),
+    });
+  },
+
+  /**
+   * Sonic Lineage — generates a museum-plaque style editorial breakdown
+   * of a specific track's cultural lineage and sonic texture.
+   */
+  sonicLineage: async (title: string, artist: string): Promise<SonicLineageResult> => {
+    if (shouldUseMockAi()) {
+      await mockDelay(600, 1200);
+      return {
+        lineage: `"${title}" by ${artist} reads as an intimate study in negative space: restrained low-end, patient harmonic movement, and vocal detail carrying the emotional weight. Its lineage sits between confessional R&B and internet-era minimalism, where texture replaces spectacle and mood becomes the argument.`,
+      };
+    }
+    return apiFetch<SonicLineageResult>('/ai/sonic-lineage', {
+      method: 'POST',
+      body: JSON.stringify({ title, artist }),
+    });
+  },
+
+  /**
+   * Oracle Mode — semantic music search using abstract feelings/aesthetics.
+   * Returns 3 track recommendations matching the described mood.
+   */
+  oracle: async (feeling: string): Promise<OracleModeResult> => {
+    if (shouldUseMockAi()) {
+      await mockDelay(700, 1400);
+      return {
+        tracks: [
+          { title: 'Teardrop', artist: 'Massive Attack' },
+          { title: 'Everything In Its Right Place', artist: 'Radiohead' },
+          { title: 'Dissolve', artist: 'Absrdst' },
+        ],
+      };
+    }
+    return apiFetch<OracleModeResult>('/ai/oracle', {
+      method: 'POST',
+      body: JSON.stringify({ feeling }),
+    });
+  },
+
+  /**
+   * Global Network Forecast — daily "horoscope" style vibe recommendation.
+   */
+  globalForecast: async (): Promise<GlobalForecastResult> => {
+    if (shouldUseMockAi()) {
+      await mockDelay(500, 1000);
+      return {
+        manifesto: 'The satellite hum demands a descent into glacial ambient — something crystalline, something that breathes in frequencies below human comfort.',
+        trackSuggestion: 'An Ending (Ascent) - Brian Eno',
+      };
+    }
+    return apiFetch<GlobalForecastResult>('/ai/global-forecast', {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Transition Matrix — analyzes the energy blend between current and next track.
+   */
+  transitionMatrix: async (
+    currentTitle: string, currentArtist: string,
+    nextTitle: string, nextArtist: string
+  ): Promise<TransitionMatrixResult> => {
+    if (shouldUseMockAi()) {
+      await mockDelay(600, 1200);
+      return {
+        rating: 'Tonal Drift',
+        critique: `${currentArtist}'s emotional contour hands off to ${nextArtist} with a measurable shift in energy; the blend works when the room is leaning introspective, but it risks whiplash if listeners expect momentum.`,
+      };
+    }
+    return apiFetch<TransitionMatrixResult>('/ai/transition-matrix', {
+      method: 'POST',
+      body: JSON.stringify({ currentTitle, currentArtist, nextTitle, nextArtist }),
+    });
+  },
+
+  /**
+   * Sonic Aura — personalized user profile "aura" reading.
+   */
+  sonicAura: async (input: SonicAuraInput): Promise<SonicAuraResult> => {
+    if (shouldUseMockAi()) {
+      await mockDelay(800, 1500);
+      const topArtist = input.topArtists[0] || 'their core influences';
+      return {
+        auraName: input.duelWinRate >= 60 ? 'Sapphire Precision' : 'Velvet Drift',
+        reading: `Anchored by ${topArtist}, this listener curates with deliberate restraint: fewer gimmicks, stronger atmosphere. Their room behavior suggests a taste for emotional continuity over shock cuts, with confidence that grows as the set unfolds.`,
+      };
+    }
+    return apiFetch<SonicAuraResult>('/ai/sonic-aura', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+};
+
+// ─── Friend Types ────────────────────────────────────────────
+
+export interface FriendUser {
+  id: string;
+  username: string;
+  avatarUrl: string | null;
+  sessionsHosted?: number;
+  tracksAdded?: number;
+}
+
+export interface FriendRequest extends FriendUser {
+  requestedAt: string;
+}
+
+export interface OnlineFriend extends FriendUser {
+  sessionId: string;
+  sessionName: string;
+}
+
+export type FriendshipStatus = 'none' | 'friends' | 'pending_sent' | 'pending_received' | 'blocked';
+
+// ─── User Profile Types ──────────────────────────────────────
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  avatarUrl: string | null;
+  sessionsHosted: number;
+  tracksAdded: number;
+  totalListeningTime: number;
+  friendCount: number;
+  friendshipStatus: FriendshipStatus;
+  liveSession: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+// ─── Activity Types ──────────────────────────────────────────
+
+export interface ActivityEvent {
+  id: number;
+  eventType: string;
+  actor: { id: string; username: string; avatarUrl: string | null };
+  targetUser: { id: string; username: string } | null;
+  sessionId: string | null;
+  track: { title: string; artist: string } | null;
+  metadata: Record<string, any>;
+  createdAt: string;
+}
+
+export interface Notification {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  data: Record<string, any>;
+  read: boolean;
+  createdAt: string;
+}
+
+// ─── Friend API ──────────────────────────────────────────────
+
+export const friendApi = {
+  /** Send friend request */
+  sendRequest: async (targetUserId: string) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { status: 'pending', message: 'Friend request sent' };
+    }
+    return apiFetch<{ status: string; message: string }>('/friends/request', {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId }),
+    });
+  },
+
+  /** Accept incoming request */
+  accept: async (targetId: string) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { status: 'accepted' };
+    }
+    return apiFetch<{ status: string }>(`/friends/accept/${targetId}`, { method: 'POST' });
+  },
+
+  /** Reject incoming request */
+  reject: async (targetId: string) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { status: 'rejected' };
+    }
+    return apiFetch<{ status: string }>(`/friends/reject/${targetId}`, { method: 'POST' });
+  },
+
+  /** Remove an existing friend */
+  remove: async (targetId: string) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { status: 'removed' };
+    }
+    return apiFetch<{ status: string }>(`/friends/${targetId}`, { method: 'DELETE' });
+  },
+
+  /** List all friends */
+  list: async (): Promise<{ friends: FriendUser[] }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return {
+        friends: mockUsers.map((u) => ({
+          id: u.id, username: u.username, avatarUrl: null,
+          sessionsHosted: 5, tracksAdded: 23,
+        })),
+      };
+    }
+    return apiFetch<{ friends: FriendUser[] }>('/friends');
+  },
+
+  /** Pending incoming requests */
+  pending: async (): Promise<{ requests: FriendRequest[] }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { requests: [] };
+    }
+    return apiFetch<{ requests: FriendRequest[] }>('/friends/pending');
+  },
+
+  /** Pending outgoing requests */
+  sent: async (): Promise<{ requests: FriendRequest[] }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { requests: [] };
+    }
+    return apiFetch<{ requests: FriendRequest[] }>('/friends/sent');
+  },
+
+  /** Get friendship status with a user */
+  status: async (targetId: string): Promise<{ status: FriendshipStatus }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { status: 'none' };
+    }
+    return apiFetch<{ status: FriendshipStatus }>(`/friends/status/${targetId}`);
+  },
+
+  /** Friends currently in live sessions */
+  online: async (): Promise<{ online: OnlineFriend[] }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { online: [] };
+    }
+    return apiFetch<{ online: OnlineFriend[] }>('/friends/online');
+  },
+
+  /** Block a user */
+  block: async (targetId: string) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { status: 'blocked' };
+    }
+    return apiFetch<{ status: string }>(`/friends/block/${targetId}`, { method: 'POST' });
+  },
+
+  /** Unblock a user */
+  unblock: async (targetId: string) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { status: 'unblocked' };
+    }
+    return apiFetch<{ status: string }>(`/friends/block/${targetId}`, { method: 'DELETE' });
+  },
+};
+
+// ─── Activity & Notification API ─────────────────────────────
+
+export const activityApi = {
+  /** Get friends' activity feed */
+  feed: async (limit = 50, before?: string): Promise<{ events: ActivityEvent[]; hasMore: boolean }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { events: [], hasMore: false };
+    }
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before) params.set('before', before);
+    return apiFetch<{ events: ActivityEvent[]; hasMore: boolean }>(`/activity/feed?${params}`);
+  },
+
+  /** Get own activity */
+  myActivity: async (limit = 50): Promise<{ events: ActivityEvent[] }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { events: [] };
+    }
+    return apiFetch<{ events: ActivityEvent[] }>(`/activity/me?limit=${limit}`);
+  },
+};
+
+export const notificationApi = {
+  /** Get notifications */
+  list: async (limit = 50): Promise<{ notifications: Notification[] }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { notifications: [] };
+    }
+    return apiFetch<{ notifications: Notification[] }>(`/notifications?limit=${limit}`);
+  },
+
+  /** Mark specific notifications as read */
+  markRead: async (notificationIds: number[]) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { status: 'ok' };
+    }
+    return apiFetch<{ status: string }>('/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify({ notificationIds }),
+    });
+  },
+
+  /** Mark all as read */
+  markAllRead: async () => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { status: 'ok' };
+    }
+    return apiFetch<{ status: string }>('/notifications/read-all', { method: 'POST' });
+  },
+
+  /** Get unread count */
+  unreadCount: async (): Promise<{ count: number }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { count: 0 };
+    }
+    return apiFetch<{ count: number }>('/notifications/unread-count');
+  },
+};
+
+// ─── User Profile API ────────────────────────────────────────
+
+export const userApi = {
+  /** Get user profile */
+  getProfile: async (userId: string): Promise<{ user: UserProfile }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return {
+        user: {
+          id: userId,
+          username: 'mock_user',
+          avatarUrl: null,
+          sessionsHosted: 12,
+          tracksAdded: 87,
+          totalListeningTime: 54000,
+          friendCount: 23,
+          friendshipStatus: 'none',
+          liveSession: null,
+          createdAt: new Date().toISOString(),
+        },
+      };
+    }
+    return apiFetch<{ user: UserProfile }>(`/users/${userId}`);
+  },
+
+  /** Get user's public activity */
+  getActivity: async (userId: string, limit = 20): Promise<{ events: ActivityEvent[] }> => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { events: [] };
+    }
+    return apiFetch<{ events: ActivityEvent[] }>(`/users/${userId}/activity?limit=${limit}`);
+  },
 };
 
 // ─── Exports ────────────────────────────────────────────────
 
-export default { auth: authApi, session: sessionApi, search: searchApi, integrations: integrationsApi };
+export default {
+  auth: authApi, session: sessionApi, search: searchApi,
+  integrations: integrationsApi, ai: aiApi,
+  friends: friendApi, activity: activityApi,
+  notifications: notificationApi, users: userApi,
+};
