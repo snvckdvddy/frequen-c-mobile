@@ -12,7 +12,10 @@
     "smoke:backend": "node test-backend.js",
     "smoke:create-session": "node test-create-session.js",
     "smoke:spotify": "node test-spotify.js",
-    "smoke:all": "npm run smoke:backend && npm run smoke:create-session && npm run smoke:spotify"
+    "smoke:all": "npm run smoke:backend && npm run smoke:create-session && npm run smoke:spotify",
+    "qa:preflight": "npx tsc --noEmit && npm test",
+    "qa:backend": "npm run smoke:all",
+    "qa:baseline": "npm run qa:preflight && npm run qa:backend"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

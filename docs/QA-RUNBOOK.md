@@ -13,8 +13,7 @@ Use this runbook for every QA cycle so results are consistent across devices, bu
 ## Preflight
 1. In `Frequen-C-Mobile`, run:
 ```bash
-npx tsc --noEmit
-npm test
+npm run qa:preflight
 ```
 2. Confirm both commands pass.
 3. Confirm `.env` is not committed.
@@ -50,7 +49,7 @@ npm run dev
 3. In another terminal, run mobile smoke checks:
 ```bash
 cd ../Frequen-C-Mobile
-npm run smoke:all
+npm run qa:backend
 ```
 4. Start app:
 ```bash
@@ -106,3 +105,7 @@ eas build --profile preview:apk --platform android
 2. If P0 exists: fail signoff.
 3. If no P0 and acceptable P1/P2: signoff with noted follow-ups.
 
+## Helpful Commands
+- `npm run qa:preflight` -> TypeScript + Jest
+- `npm run qa:backend` -> backend smoke suite
+- `npm run qa:baseline` -> preflight + backend smoke suite
