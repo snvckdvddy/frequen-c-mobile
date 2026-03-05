@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   },
   scannerContainer: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: palette.void,
   },
   camera: {
     flex: 1,

@@ -23,12 +23,15 @@ import {
   RefreshControl, TextInput, Dimensions, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen, RoomCard, ErrorState } from '../components/ui';
+import { Text, SafeScreen, RoomCard, ErrorState, ADSRFadeIn } from '../components/ui';
 import { sessionApi } from '../services/api';
 import { spacing } from '../theme/spacing';
 import type { Session, RoomMode } from '../types';
 import { VoidSurface, StatusLight } from '../design/components';
 import { palette } from '../design/tokens/materials';
+import { useTheme } from '../contexts/ThemeContext';
+import { colors } from '../design/tokens/colors';
+import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SONAR_SIZE = SCREEN_WIDTH - 64;
@@ -94,8 +97,11 @@ function SonarRadar({ rooms, onRoomPress }: { rooms: Session[]; onRoomPress?: (i
           style={[sonarStyles.roomDot, { left: room.x, top: room.y }]}
           onPress={() => onRoomPress?.(room.id)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Room: ${room.name}`}
+          accessibilityHint={`${room.hostUsername}'s ${room.roomMode} room. Double tap to join.`}
         >
-          <View style={sonarStyles.roomDotInner} />
+          <View style={sonarStyles.roomDotInner} accessible={false} />
         </TouchableOpacity>
       ))}
 
@@ -111,15 +117,15 @@ const sonarStyles = StyleSheet.create({
     height: SONAR_SIZE,
     alignSelf: 'center',
     borderRadius: SONAR_SIZE / 2,
-    backgroundColor: 'rgba(14, 18, 25, 0.8)',
+    backgroundColor: colors.surfaceOverlay,
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.08)',
+    borderColor: colors.accentSecondarySubtle,
     overflow: 'hidden',
   },
   ring: {
     position: 'absolute',
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.06)',
+    borderColor: colors.accentSecondarySubtle,
     borderRadius: 999,
   },
   ringOuter: {
@@ -145,14 +151,14 @@ const sonarStyles = StyleSheet.create({
     width: '100%',
     height: 1,
     top: '50%',
-    backgroundColor: 'rgba(0, 229, 255, 0.05)',
+    backgroundColor: palette.iceGlow,
   },
   crossV: {
     position: 'absolute',
     height: '100%',
     width: 1,
     left: '50%',
-    backgroundColor: 'rgba(0, 229, 255, 0.05)',
+    backgroundColor: palette.iceGlow,
   },
   sweepArm: {
     position: 'absolute',
@@ -163,7 +169,7 @@ const sonarStyles = StyleSheet.create({
   sweepLine: {
     width: 2,
     height: SONAR_SIZE / 2,
-    backgroundColor: 'rgba(0, 229, 255, 0.20)',
+    backgroundColor: palette.iceGlow,
     borderRadius: 1,
   },
   roomDot: {
@@ -203,6 +209,7 @@ const sonarStyles = StyleSheet.create({
 // ─── Main Screen ────────────────────────────────────────────
 
 export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
+  const { accent } = useTheme();
   const [rooms, setRooms] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -254,7 +261,7 @@ export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={palette.orange}
+              tintColor={accent}
             />
           }
           contentContainerStyle={styles.content}
@@ -297,9 +304,11 @@ export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
                   returnKeyType="search"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  accessibilityLabel="Search rooms and frequencies"
+                  accessibilityHint="Enter keywords to find sessions"
                 />
                 {search.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearch('')}>
+                  <TouchableOpacity onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear search" accessibilityHint="Double tap to clear the search field">
                     <Ionicons name="close-circle" size={16} color={palette.slate} />
                   </TouchableOpacity>
                 )}
@@ -312,33 +321,35 @@ export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
 
               {loading && (
                 <View style={styles.loadingCenter}>
-                  <ActivityIndicator color={palette.orange} size="large" />
+                  <ActivityIndicator color={accent} size="large" />
                 </View>
               )}
             </>
           }
-          renderItem={({ item }) => (
-            <View style={styles.roomCardWrapper}>
-              <RoomCard
-                roomName={item.name}
-                hostUsername={item.hostUsername}
-                roomMode={(item.roomMode || 'campfire') as RoomMode}
-                isLive={item.isLive ?? true}
-                listenerCount={item.listeners?.length || 0}
-                genre={item.genre}
-                currentTrack={
-                  item.currentTrack
-                    ? {
-                        title: item.currentTrack.title,
-                        artist: item.currentTrack.artist,
-                        albumArt: item.currentTrack.albumArt,
-                      }
-                    : undefined
-                }
-                onJoin={() => onOpenRoom?.(item.id)}
-                onPress={() => onOpenRoom?.(item.id)}
-              />
-            </View>
+          renderItem={({ item, index }) => (
+            <ADSRFadeIn index={index} staggerMs={50}>
+              <View style={styles.roomCardWrapper}>
+                <RoomCard
+                  roomName={item.name}
+                  hostUsername={item.hostUsername}
+                  roomMode={(item.roomMode || 'campfire') as RoomMode}
+                  isLive={item.isLive ?? true}
+                  listenerCount={item.listeners?.length || 0}
+                  genre={item.genre}
+                  currentTrack={
+                    item.currentTrack
+                      ? {
+                          title: item.currentTrack.title,
+                          artist: item.currentTrack.artist,
+                          albumArt: item.currentTrack.albumArt,
+                        }
+                      : undefined
+                  }
+                  onJoin={() => onOpenRoom?.(item.id)}
+                  onPress={() => onOpenRoom?.(item.id)}
+                />
+              </View>
+            </ADSRFadeIn>
           )}
           ListEmptyComponent={
             !loading ? (
@@ -366,16 +377,16 @@ const styles = StyleSheet.create({
     paddingTop: spacing['3xl'],
   },
   title: {
-    fontFamily: 'ChakraPetch-Bold',
-    fontSize: 28,
+    fontFamily: fontFamily.displayBold,
+    fontSize: fontSize['4xl'],
     color: palette.frost,
     marginBottom: 4,
   },
   subtitle: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 10,
     color: palette.slate,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
     marginBottom: spacing.lg,
   },
   sonarContainer: {
@@ -394,10 +405,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   knobLabel: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 9,
     color: palette.slate,
-    letterSpacing: 1.5,
+    letterSpacing: ls.wide,
     marginBottom: 8,
   },
   knobDial: {
@@ -405,7 +416,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: 'rgba(148, 163, 184, 0.20)',
+    borderColor: colors.skeletonHighlight,
     backgroundColor: palette.steel,
     alignItems: 'center',
     justifyContent: 'flex-start',
@@ -429,21 +440,21 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: spacing.xl,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.10)',
+    borderColor: colors.divider,
   },
   searchInput: {
     flex: 1,
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 13,
     color: palette.frost,
   },
 
   // Section
   sectionLabel: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 11,
     color: palette.slate,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
     marginBottom: 12,
   },
 
@@ -464,13 +475,13 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   emptyText: {
-    fontFamily: 'ChakraPetch-SemiBold',
+    fontFamily: fontFamily.display,
     fontSize: 16,
     color: palette.silver,
     marginTop: 12,
   },
   emptySubtext: {
-    fontFamily: 'ChakraPetch-Regular',
+    fontFamily: fontFamily.body,
     fontSize: 13,
     color: palette.slate,
     marginTop: 4,

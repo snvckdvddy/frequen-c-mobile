@@ -18,8 +18,10 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Text, Button, Input } from '../components/ui';
+import { VoidSurface } from '../design/components';
 import { useAuth } from '../contexts/AuthContext';
 import { palette } from '../design/tokens/materials';
+import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
 import { spacing } from '../theme/spacing';
 
 interface RegisterScreenProps {
@@ -137,16 +139,17 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <VoidSurface style={styles.container}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Sawtooth brand mark */}
-        <SignalBuild />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Sawtooth brand mark */}
+          <SignalBuild />
 
         {/* Header */}
         <View style={styles.header}>
@@ -172,6 +175,7 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="next"
+            accessibilityLabel="Username or handle input"
           />
           <Input
             label="Email"
@@ -183,6 +187,7 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="next"
+            accessibilityLabel="Email address input"
           />
           <Input
             label="Password"
@@ -192,6 +197,7 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
             error={errors.password}
             secureTextEntry
             returnKeyType="next"
+            accessibilityLabel="Password input"
           />
           <Input
             label="Confirm"
@@ -202,6 +208,7 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
             secureTextEntry
             returnKeyType="done"
             onSubmitEditing={handleRegister}
+            accessibilityLabel="Confirm password input"
           />
 
           <Button
@@ -230,15 +237,15 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
         <Text variant="labelSmall" color={palette.slate} style={styles.buildTag}>
           DESN 374-040
         </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </VoidSurface>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.midnight,
   },
   scrollContent: {
     flexGrow: 1,
@@ -251,7 +258,7 @@ const styles = StyleSheet.create({
   },
   brandTag: {
     marginBottom: spacing.sm,
-    letterSpacing: 4,
+    letterSpacing: ls.ultraWide,
   },
   subtitle: {
     marginTop: spacing.sm,
@@ -271,7 +278,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing['2xl'],
     opacity: 0.3,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
     fontSize: 9,
   },
 });

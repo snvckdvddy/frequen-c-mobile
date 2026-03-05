@@ -18,8 +18,10 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { SafeScreen, Text, Button, Input } from '../components/ui';
+import { VoidSurface } from '../design/components';
 import { useAuth } from '../contexts/AuthContext';
 import { palette } from '../design/tokens/materials';
+import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
 import { spacing } from '../theme/spacing';
 
 interface LoginScreenProps {
@@ -132,16 +134,17 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
 
   return (
     <SafeScreen>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Signal waveform brand mark */}
-        <SignalMark />
+      <VoidSurface style={styles.container}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Signal waveform brand mark */}
+          <SignalMark />
 
         {/* Brand */}
         <View style={styles.brandArea}>
@@ -179,6 +182,7 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="next"
+            accessibilityLabel="Email address input"
           />
           <Input
             label="Password"
@@ -189,6 +193,7 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
             secureTextEntry
             returnKeyType="done"
             onSubmitEditing={handleLogin}
+            accessibilityLabel="Password input"
           />
 
           <Button
@@ -217,8 +222,9 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
         <Text variant="labelSmall" color={palette.slate} style={styles.buildTag}>
           DESN 374-040
         </Text>
-      </ScrollView>
-      </KeyboardAvoidingView>
+        </ScrollView>
+        </KeyboardAvoidingView>
+      </VoidSurface>
     </SafeScreen>
   );
 }
@@ -226,7 +232,6 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.midnight,
   },
   scrollContent: {
     flexGrow: 1,
@@ -241,12 +246,12 @@ const styles = StyleSheet.create({
   brandLetter: {
     fontSize: 64,
     lineHeight: 72,
-    fontWeight: '200',
-    letterSpacing: -2,
+    fontWeight: fontWeight.thin,
+    letterSpacing: ls.tighter,
   },
   brandTag: {
     marginTop: spacing.xs,
-    letterSpacing: 6,
+    letterSpacing: ls.heroWide,
   },
   header: {
     marginBottom: spacing['2xl'],
@@ -269,7 +274,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing['2xl'],
     opacity: 0.3,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
     fontSize: 9,
   },
 });

@@ -1,8 +1,9 @@
 /**
- * LEDReadout — Monospaced data display with glow backdrop.
+ * LEDReadout — Clean monospaced data display.
  * ─────────────────────────────────────────────────────────────
- * Renders technical data (time, BPM, dB, etc.) in Space Mono
- * with a subtle backlit glow, simulating an LED/VFD hardware display.
+ * Renders data in Space Mono with a subtle colored tint.
+ * No longer simulates a glowing LED/VFD — just clean text
+ * with a soft color accent.
  *
  * Usage:
  *   <LEDReadout value="03:42" label="ELAPSED" />
@@ -12,21 +13,17 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { fontFamily, fontSize, letterSpacing } from '../../tokens/typography';
-import { palette, glow } from '../../tokens/materials';
+import { palette } from '../../tokens/materials';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 type LEDVariant = 'ice' | 'amber';
 type LEDSize = 'sm' | 'md' | 'lg';
 
 interface LEDReadoutProps {
-  /** The data value to display */
   value: string;
-  /** Small label above/below the value */
   label?: string;
-  /** Color variant. Default: 'ice' */
   variant?: LEDVariant;
-  /** Size preset. Default: 'md' */
   size?: LEDSize;
-  /** Label position. Default: 'above' */
   labelPosition?: 'above' | 'below';
   style?: StyleProp<ViewStyle>;
 }
@@ -40,55 +37,35 @@ const sizeMap = {
 export function LEDReadout({
   value,
   label,
-  variant = 'ice',
+  variant: variantProp = 'ice',
   size = 'md',
   labelPosition = 'above',
   style,
 }: LEDReadoutProps) {
-  const glowConfig = glow[variant];
+  const { isVoltageSag } = useTheme();
+  const variant = isVoltageSag ? 'amber' : variantProp;
   const sizes = sizeMap[size];
   const color = variant === 'ice' ? palette.ice : palette.amber;
 
   return (
     <View style={[styles.container, style]}>
-      {/* Label (above) */}
       {label && labelPosition === 'above' && (
         <Text style={[styles.label, { fontSize: sizes.label }]}>{label}</Text>
       )}
 
-      {/* Value with glow backdrop */}
-      <View style={styles.valueContainer}>
-        {/* Glow backdrop — semi-transparent colored rectangle behind text */}
-        <View
-          style={[
-            styles.glowBackdrop,
-            {
-              backgroundColor: glowConfig.ambient,
-              shadowColor: glowConfig.core,
-              shadowOffset: { width: 0, height: 0 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-            },
-          ]}
-        />
-        <Text
-          style={[
-            styles.value,
-            {
-              fontSize: sizes.value,
-              color,
-              textShadowColor: glowConfig.inner,
-              textShadowOffset: { width: 0, height: 0 },
-              textShadowRadius: 6,
-            },
-          ]}
-          numberOfLines={1}
-        >
-          {value}
-        </Text>
-      </View>
+      <Text
+        style={[
+          styles.value,
+          {
+            fontSize: sizes.value,
+            color,
+          },
+        ]}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
 
-      {/* Label (below) */}
       {label && labelPosition === 'below' && (
         <Text style={[styles.label, { fontSize: sizes.label }]}>{label}</Text>
       )}
@@ -108,19 +85,10 @@ const styles = StyleSheet.create({
     color: palette.textDim,
     marginBottom: 2,
   },
-  valueContainer: {
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  glowBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 2,
-    opacity: 0.6,
-  },
   value: {
     fontFamily: fontFamily.mono,
     letterSpacing: letterSpacing.normal,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
     paddingVertical: 1,
   },
 });

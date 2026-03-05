@@ -10,6 +10,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, Button, Input, ADSRTransition } from '../components/ui';
+import { VoidSurface } from '../design/components';
 import { QRScanner } from '../components/QRScanner';
 import { sessionApi } from '../services/api';
 import { palette } from '../design/tokens/materials';
@@ -52,7 +53,8 @@ export function JoinSessionScreen() {
   return (
     <ADSRTransition preset="modalReveal" slideFrom="bottom" slideDistance={30}>
     <SafeScreen style={styles.container}>
-      <View style={styles.content}>
+      <VoidSurface style={{ flex: 1 }}>
+        <View style={styles.content}>
         {/* Close button */}
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
           <Ionicons name="close" size={22} color={palette.slate} />
@@ -95,7 +97,8 @@ export function JoinSessionScreen() {
             Scan QR Code
           </Text>
         </TouchableOpacity>
-      </View>
+        </View>
+      </VoidSurface>
     </SafeScreen>
     </ADSRTransition>
   );
@@ -104,7 +107,6 @@ export function JoinSessionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.midnight,
   },
   content: {
     flex: 1,

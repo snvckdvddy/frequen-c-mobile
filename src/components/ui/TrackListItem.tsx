@@ -80,7 +80,7 @@ export function TrackListItem({
 
       {/* Album art */}
       {albumArt ? (
-        <Image source={{ uri: albumArt }} style={styles.art} />
+        <Image source={{ uri: albumArt }} style={styles.art} accessible={false} />
       ) : (
         <View style={[styles.art, styles.artPlaceholder]}>
           <Ionicons name="musical-note" size={20} color={palette.slate} />

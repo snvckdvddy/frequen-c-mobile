@@ -43,6 +43,15 @@ let state: PlaybackState = {
 let progressListeners: ProgressListener[] = [];
 let trackEndListeners: TrackEndListener[] = [];
 
+// ─── Voltage Sag audio degradation ──────────────────────────
+// When active: volume drops to 75%, rate dips to 0.98 (subtle wobble).
+// Simulates "power drain" — the UI already shows MONO | 128KBPS.
+let voltageSagActive = false;
+const SAG_VOLUME = 0.75;
+const SAG_RATE = 0.98;
+const NORMAL_VOLUME = 1.0;
+const NORMAL_RATE = 1.0;
+
 // ─── Audio mode (configure once) ────────────────────────────
 
 let audioModeSet = false;
@@ -165,7 +174,13 @@ export async function loadTrack(
         }
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: previewUrl },
-          { shouldPlay: true, progressUpdateIntervalMillis: 250 },
+          {
+            shouldPlay: true,
+            progressUpdateIntervalMillis: 250,
+            volume: voltageSagActive ? SAG_VOLUME : NORMAL_VOLUME,
+            rate: voltageSagActive ? SAG_RATE : NORMAL_RATE,
+            shouldCorrectPitch: true,
+          },
           onPlaybackStatusUpdate
         );
         sound = newSound;
@@ -348,7 +363,32 @@ function stopTimerFallback(): void {
   }
 }
 
+// ─── Voltage Sag Control ─────────────────────────────────────
+
+/**
+ * Enable or disable Voltage Sag audio degradation.
+ * When enabled: volume drops to 75%, playback rate slows to 0.98.
+ * Call from ThemeContext or wherever battery state is monitored.
+ */
+export async function setVoltageSag(active: boolean): Promise<void> {
+  voltageSagActive = active;
+  if (sound) {
+    try {
+      await sound.setVolumeAsync(active ? SAG_VOLUME : NORMAL_VOLUME);
+      await sound.setRateAsync(active ? SAG_RATE : NORMAL_RATE, true);
+    } catch {
+      // Non-fatal — some platforms may not support rate changes
+    }
+  }
+}
+
+/** Get current Voltage Sag state */
+export function isVoltageSagActive(): boolean {
+  return voltageSagActive;
+}
+
 export default {
   loadTrack, togglePlayPause, pause, play, seekTo,
   getState, stop, onProgress, onTrackEnd, formatTime,
+  setVoltageSag, isVoltageSagActive,
 };

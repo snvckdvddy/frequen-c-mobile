@@ -31,11 +31,15 @@ import { useNavigation } from '@react-navigation/native';
 import { Text, Button, SafeScreen } from '../components/ui';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { authApi } from '../services/api';
 import { config } from '../config';
 import { spacing } from '../theme/spacing';
-import { VoidSurface } from '../design/components';
+import { VoidSurface, ModuleFaceplate, ChromeButton } from '../design/components';
 import { palette } from '../design/tokens/materials';
+import { colors } from '../design/tokens/colors';
+import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
+import { SonicAuraCard } from '../components/profile/SonicAuraCard';
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -49,20 +53,9 @@ function formatListenTime(minutes: number | undefined): string {
 
 // ─── Hardware Setting Card ──────────────────────────────────
 
-function HardwareCard({ children }: { children: React.ReactNode }) {
-  return <View style={hwStyles.card}>{children}</View>;
+function HardwareCard({ children, label }: { children: React.ReactNode; label?: string }) {
+  return <ModuleFaceplate label={label} style={{ marginBottom: 12 }}>{children}</ModuleFaceplate>;
 }
-
-const hwStyles = StyleSheet.create({
-  card: {
-    backgroundColor: palette.midnight,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    padding: 18,
-    marginBottom: 12,
-  },
-});
 
 // ─── Service Jack Row ────────────────────────────────────────
 
@@ -86,9 +79,7 @@ function ServiceJack({
         </View>
       </View>
       {!connected ? (
-        <TouchableOpacity onPress={onConnect} style={sjStyles.patchBtn}>
-          <Text style={sjStyles.patchBtnText}>PATCH</Text>
-        </TouchableOpacity>
+        <ChromeButton onPress={onConnect} size="sm" accessibilityLabel={`Connect ${name}`} accessibilityHint={`Double tap to connect your ${name} account`}>PATCH</ChromeButton>
       ) : (
         <View style={sjStyles.activeDot} />
       )}
@@ -122,18 +113,18 @@ const sjStyles = StyleSheet.create({
   },
   jackActive: {
     borderColor: palette.ice,
-    backgroundColor: 'rgba(0, 229, 255, 0.06)',
+    backgroundColor: colors.accentSecondarySubtle,
   },
   name: {
-    fontFamily: 'ChakraPetch-Regular',
+    fontFamily: fontFamily.body,
     fontSize: 13,
     color: palette.frost,
   },
   status: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 9,
     color: palette.slate,
-    letterSpacing: 1,
+    letterSpacing: ls.normal,
   },
   patchBtn: {
     paddingHorizontal: 10,
@@ -144,10 +135,10 @@ const sjStyles = StyleSheet.create({
     backgroundColor: palette.steel,
   },
   patchBtnText: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 9,
     color: palette.orange,
-    letterSpacing: 1,
+    letterSpacing: ls.normal,
   },
   activeDot: {
     width: 6,
@@ -166,9 +157,12 @@ interface ProfileScreenProps {
 export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
   const navigation = useNavigation<any>();
   const { user, logout, deleteAccount, connectSpotify, connectLastfm } = useAuth();
+  const { accent, isVoltageSag } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [readManual, setReadManual] = useState(false);
-  const [monitorOut, setMonitorOut] = useState(false);
+  const [monitorOut, setMonitorOut] = useState(
+    (user as any)?.preferences?.isIncognito ?? false
+  );
   // Hydrate from server preferences (user.preferences comes from /auth/me)
   const prefs = (user as any)?.preferences;
   const [socialBattery, setSocialBattery] = useState<'low' | 'unity' | 'hot'>(
@@ -195,6 +189,7 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
         if (p.noiseGate) setNoiseGate(ngMap[p.noiseGate] || 'gate');
         if (p.socialBattery) setSocialBattery(p.socialBattery);
         if (p.walkOnTransient) setWalkOnTransient(p.walkOnTransient === 'none' ? 'None' : p.walkOnTransient);
+        if (p.isIncognito !== undefined) setMonitorOut(!!p.isIncognito);
       }
     } catch { /* swallow */ } finally {
       setRefreshing(false);
@@ -300,7 +295,7 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
         <ScrollView
           contentContainerStyle={styles.content}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.orange} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />
           }
         >
           {/* ═══ Header — Avatar + Close ═══════════════════ */}
@@ -312,6 +307,9 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
               style={styles.closeBtn}
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Close profile"
+              accessibilityHint="Double tap to close this panel"
             >
               <Ionicons name="close" size={20} color={palette.silver} />
             </TouchableOpacity>
@@ -326,16 +324,24 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
             <Text style={styles.email}>{user.email}</Text>
           )}
 
+          {/* ═══ SONIC AURA (AI) ═════════════════════════ */}
+          <SonicAuraCard
+            roomsHosted={user?.sessionsHosted ?? 0}
+            duelWinRate={user?.duelWinRate ?? 0}
+            topArtists={user?.topArtists ?? []}
+          />
+
           {/* ═══ READ THE MANUAL ══════════════════════════ */}
-          <HardwareCard>
+          <HardwareCard label="READ THE MANUAL">
             <View style={styles.settingRow}>
-              <View style={styles.settingLeft}>
-                <Ionicons name="information-circle-outline" size={16} color={palette.ice} />
-                <Text style={styles.settingLabel}>READ THE MANUAL</Text>
-              </View>
+              <Ionicons name="information-circle-outline" size={16} color={isVoltageSag ? palette.amber : palette.ice} />
+              <View style={{ flex: 1 }} />
               <TouchableOpacity
                 style={[styles.toggle, readManual && styles.toggleActive]}
                 onPress={() => setReadManual(!readManual)}
+                accessibilityRole="switch"
+                accessibilityLabel="Read the manual toggle"
+                accessibilityState={{ checked: readManual }}
               >
                 <View style={[styles.toggleKnob, readManual && styles.toggleKnobActive]} />
               </TouchableOpacity>
@@ -346,19 +352,25 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
           </HardwareCard>
 
           {/* ═══ MONITOR OUT ══════════════════════════════ */}
-          <HardwareCard>
+          <HardwareCard label="MONITOR OUT">
             <View style={styles.settingRow}>
-              <View style={styles.settingLeft}>
-                <Ionicons name="headset-outline" size={16} color={palette.silver} />
-                <Text style={styles.settingLabel}>MONITOR OUT</Text>
-              </View>
+              <Ionicons name="headset-outline" size={16} color={palette.silver} />
+              <View style={{ flex: 1 }} />
               <TouchableOpacity
                 style={styles.monitorJack}
-                onPress={() => setMonitorOut(!monitorOut)}
+                onPress={() => {
+                  const next = !monitorOut;
+                  setMonitorOut(next);
+                  authApi.setPreferences({ isIncognito: next }).catch(console.error);
+                }}
+                accessibilityRole="switch"
+                accessibilityLabel="Monitor out toggle"
+                accessibilityState={{ checked: monitorOut }}
+                accessibilityHint="Toggle dummy cable to lurk anonymously"
               >
                 <View style={[
                   styles.monitorJackHole,
-                  monitorOut && { borderColor: palette.ice, backgroundColor: 'rgba(0, 229, 255, 0.10)' },
+                  monitorOut && { borderColor: palette.ice, backgroundColor: colors.accentSecondarySubtle },
                 ]} />
               </TouchableOpacity>
             </View>
@@ -368,12 +380,11 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
           </HardwareCard>
 
           {/* ═══ SOCIAL BATTERY ════════════════════════════ */}
-          <HardwareCard>
-            <View style={styles.settingLeft}>
-              <Ionicons name="flash-outline" size={16} color={palette.orange} />
-              <Text style={styles.settingLabel}>SOCIAL BATTERY</Text>
+          <HardwareCard label="SOCIAL BATTERY">
+            <View style={[styles.settingLeft, { marginBottom: 0 }]}>
+              <Ionicons name="flash-outline" size={16} color={accent} />
             </View>
-            <TouchableOpacity onPress={cycleSocialBattery} activeOpacity={0.7}>
+            <TouchableOpacity onPress={cycleSocialBattery} activeOpacity={0.7} accessibilityRole="adjustable" accessibilityLabel="Social battery level" accessibilityHint={`Current level: ${socialBattery.toUpperCase()}. Double tap to cycle through levels`}>
               <View style={styles.sliderTrack}>
                 <View style={[
                   styles.sliderFill,
@@ -403,12 +414,11 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
           </HardwareCard>
 
           {/* ═══ NOISE GATE ═══════════════════════════════ */}
-          <HardwareCard>
-            <View style={styles.settingLeft}>
+          <HardwareCard label="NOISE GATE">
+            <View style={[styles.settingLeft, { marginBottom: 0 }]}>
               <Ionicons name="volume-mute-outline" size={16} color={palette.silver} />
-              <Text style={styles.settingLabel}>NOISE GATE</Text>
             </View>
-            <TouchableOpacity onPress={cycleNoiseGate} activeOpacity={0.7}>
+            <TouchableOpacity onPress={cycleNoiseGate} activeOpacity={0.7} accessibilityRole="adjustable" accessibilityLabel="Noise gate level" accessibilityHint={`Current level: ${noiseGate.toUpperCase()}. Double tap to cycle through levels`}>
               <View style={styles.sliderTrack}>
                 <View style={[
                   styles.sliderFill,
@@ -438,92 +448,94 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
           </HardwareCard>
 
           {/* ═══ WALK-ON TRANSIENT ════════════════════════ */}
-          <HardwareCard>
+          <HardwareCard label="WALK-ON TRANSIENT">
             <View style={styles.settingRow}>
-              <View style={styles.settingLeft}>
-                <Ionicons name="play-outline" size={16} color={palette.silver} />
-                <Text style={styles.settingLabel}>WALK-ON TRANSIENT</Text>
-              </View>
+              <Ionicons name="play-outline" size={16} color={palette.silver} />
             </View>
-            <TouchableOpacity style={styles.dropdown} onPress={cycleWalkOn} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.dropdown} onPress={cycleWalkOn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Walk-on transient selector" accessibilityHint={`Current selection: ${walkOnTransient}. Double tap to cycle through sounds`}>
               <Text style={styles.dropdownText}>{walkOnTransient}</Text>
               <Ionicons name="chevron-down" size={14} color={palette.slate} />
             </TouchableOpacity>
           </HardwareCard>
 
           {/* ═══ PATCH CABLES (Services) ══════════════════ */}
-          <Text style={styles.sectionLabel}>PATCH CABLES</Text>
-          <View style={styles.servicesPanel}>
-            <ServiceJack
-              name="Spotify"
-              connected={!!user?.connectedServices?.spotify?.connected}
-              username={user?.connectedServices?.spotify?.username}
-              serviceKey="spotify"
-              onConnect={() => handleConnectService('Spotify')}
-            />
-            <ServiceJack
-              name="Apple Music"
-              connected={!!user?.connectedServices?.appleMusic?.connected}
-              serviceKey="apple-music"
-              onConnect={() => handleConnectService('Apple Music')}
-            />
-            <ServiceJack
-              name="SoundCloud"
-              connected={!!user?.connectedServices?.soundcloud?.connected}
-              username={user?.connectedServices?.soundcloud?.username}
-              serviceKey="soundcloud"
-              onConnect={() => handleConnectService('SoundCloud')}
-            />
-            <ServiceJack
-              name="Last.fm"
-              connected={!!user?.connectedServices?.lastfm?.connected}
-              username={user?.connectedServices?.lastfm?.username}
-              serviceKey="lastfm"
-              onConnect={() => handleConnectService('Last.fm')}
-            />
-          </View>
+          <ModuleFaceplate label="PATCH CABLES" style={{ marginBottom: 4 }}>
+            <View style={{ paddingHorizontal: 4 }}>
+              <ServiceJack
+                name="Spotify"
+                connected={!!user?.connectedServices?.spotify?.connected}
+                username={user?.connectedServices?.spotify?.username}
+                serviceKey="spotify"
+                onConnect={() => handleConnectService('Spotify')}
+              />
+              <ServiceJack
+                name="Apple Music"
+                connected={!!user?.connectedServices?.appleMusic?.connected}
+                serviceKey="apple-music"
+                onConnect={() => handleConnectService('Apple Music')}
+              />
+              <ServiceJack
+                name="SoundCloud"
+                connected={!!user?.connectedServices?.soundcloud?.connected}
+                username={user?.connectedServices?.soundcloud?.username}
+                serviceKey="soundcloud"
+                onConnect={() => handleConnectService('SoundCloud')}
+              />
+              <ServiceJack
+                name="Last.fm"
+                connected={!!user?.connectedServices?.lastfm?.connected}
+                username={user?.connectedServices?.lastfm?.username}
+                serviceKey="lastfm"
+                onConnect={() => handleConnectService('Last.fm')}
+              />
+            </View>
+          </ModuleFaceplate>
 
           {/* ═══ LEGAL ═══════════════════════════════════ */}
-          <Text style={styles.sectionLabel}>CONFIGURATION</Text>
-          <View style={styles.legalPanel}>
-            <TouchableOpacity
-              style={styles.legalRow}
-              onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() =>
-                Alert.alert('Error', 'Could not open Privacy Policy')
-              )}
-            >
-              <Text style={styles.legalText}>Privacy Policy</Text>
-              <Ionicons name="open-outline" size={12} color={palette.slate} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.legalRow}
-              onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() =>
-                Alert.alert('Error', 'Could not open Terms of Service')
-              )}
-            >
-              <Text style={styles.legalText}>Terms of Service</Text>
-              <Ionicons name="open-outline" size={12} color={palette.slate} />
-            </TouchableOpacity>
-            <View style={[styles.legalRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.legalText}>About</Text>
-              <Text style={styles.legalValue}>v1.0.0-alpha</Text>
+          <ModuleFaceplate label="CONFIGURATION">
+            <View style={{ paddingHorizontal: 4 }}>
+              <TouchableOpacity
+                style={styles.legalRow}
+                onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() =>
+                  Alert.alert('Error', 'Could not open Privacy Policy')
+                )}
+              >
+                <Text style={styles.legalText}>Privacy Policy</Text>
+                <Ionicons name="open-outline" size={12} color={palette.slate} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.legalRow}
+                onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() =>
+                  Alert.alert('Error', 'Could not open Terms of Service')
+                )}
+              >
+                <Text style={styles.legalText}>Terms of Service</Text>
+                <Ionicons name="open-outline" size={12} color={palette.slate} />
+              </TouchableOpacity>
+              <View style={[styles.legalRow, { borderBottomWidth: 0 }]}>
+                <Text style={styles.legalText}>About</Text>
+                <Text style={styles.legalValue}>v1.0.0-alpha</Text>
+              </View>
             </View>
-          </View>
+          </ModuleFaceplate>
 
           {/* ═══ DISCONNECT ══════════════════════════════ */}
-          <TouchableOpacity
-            style={styles.disconnectBtn}
+          <ChromeButton
             onPress={handleLogout}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.disconnectText}>DISCONNECT</Text>
-          </TouchableOpacity>
+            size="md"
+            style={styles.disconnectBtn}
+            accessibilityLabel="Disconnect account"
+            accessibilityHint="Double tap to log out and disconnect from this signal chain"
+          >DISCONNECT</ChromeButton>
 
           {/* ═══ DELETE ACCOUNT ═══════════════════════════ */}
           <TouchableOpacity
             style={styles.deleteBtn}
             onPress={handleDeleteAccount}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Delete account"
+            accessibilityHint="Double tap to permanently delete your account. This action cannot be undone."
           >
             <Text style={styles.deleteText}>DELETE ACCOUNT</Text>
           </TouchableOpacity>
@@ -575,16 +587,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   username: {
-    fontFamily: 'ChakraPetch-Bold',
+    fontFamily: fontFamily.displayBold,
     fontSize: 28,
     color: palette.frost,
     marginBottom: 2,
   },
   email: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 11,
     color: palette.slate,
-    letterSpacing: 0.5,
+    letterSpacing: ls.normal,
     marginBottom: spacing.xl,
   },
 
@@ -602,13 +614,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   settingLabel: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 11,
     color: palette.frost,
-    letterSpacing: 1.5,
+    letterSpacing: ls.wide,
   },
   settingDesc: {
-    fontFamily: 'ChakraPetch-Regular',
+    fontFamily: fontFamily.body,
     fontSize: 12,
     color: palette.slate,
     lineHeight: 18,
@@ -689,18 +701,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sliderLabel: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 10,
     color: palette.slate,
-    letterSpacing: 1,
+    letterSpacing: ls.normal,
   },
   sliderLabelCenter: {
-    fontFamily: 'SpaceMono-Regular',
-    fontWeight: '700',
+    fontFamily: fontFamily.mono,
+    fontWeight: fontWeight.bold,
   },
   sliderLabelActive: {
     color: palette.frost,
-    fontWeight: '700',
+    fontWeight: fontWeight.bold,
   },
 
   // Dropdown
@@ -717,17 +729,17 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   dropdownText: {
-    fontFamily: 'ChakraPetch-SemiBold',
+    fontFamily: fontFamily.display,
     fontSize: 14,
     color: palette.frost,
   },
 
   // Section labels
   sectionLabel: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 11,
     color: palette.slate,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
     marginTop: spacing.lg,
     marginBottom: 10,
   },
@@ -759,32 +771,21 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.chromeBorder,
   },
   legalText: {
-    fontFamily: 'ChakraPetch-Regular',
+    fontFamily: fontFamily.body,
     fontSize: 13,
     color: palette.frost,
   },
   legalValue: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 10,
     color: palette.slate,
-    letterSpacing: 1,
+    letterSpacing: ls.normal,
   },
 
   // Action buttons
   disconnectBtn: {
     alignSelf: 'center',
     marginTop: spacing.xl,
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-  },
-  disconnectText: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 12,
-    color: palette.silver,
-    letterSpacing: 2,
   },
   deleteBtn: {
     alignSelf: 'center',
@@ -794,19 +795,19 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   deleteText: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 11,
     color: palette.red,
-    letterSpacing: 1,
+    letterSpacing: ls.normal,
   },
   buildTag: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 9,
     color: palette.slate,
     textAlign: 'center',
     marginTop: spacing.lg,
     opacity: 0.3,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
   },
 });
 

@@ -1,9 +1,10 @@
 /**
  * Frequen-C Design System — Token Barrel Export
  * ─────────────────────────────────────────────────────────────
- * import { textStyle, materials, elevation, springConfigs } from '@/design/tokens';
+ * import { colors, textStyle, materials, elevation, springConfigs } from '@/design/tokens';
  */
 
+export * from './colors';
 export * from './typography';
 export * from './materials';
 export * from './elevation';

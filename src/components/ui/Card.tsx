@@ -2,8 +2,8 @@
  * Card — Reusable surface component
  *
  * Convergence Strategy §4:
- * - Background: midnight (#0E1219) default
- * - Border: 1pt dark steel (#2D3548)
+ * - Background: midnight default
+ * - Border: 1pt dark steel
  * - Radius: 12pt
  * - Padding: 12pt (cardPadding)
  *
@@ -29,11 +29,11 @@ interface CardProps extends ViewProps {
 
 const variantMap: Record<CardVariant, { bg: string; border: string }> = {
   surface: {
-    bg: palette.midnight,       // Midnight #0E1219
-    border: palette.chromeBorder, // Dark steel #2D3548
+    bg: palette.midnight,       // Midnight surface
+    border: palette.chromeBorder, // Dark steel border
   },
   elevated: {
-    bg: palette.midnight,      // Steel #161B28
+    bg: palette.midnight,      // Steel surface
     border: palette.chromeBorder,
   },
   glass: {

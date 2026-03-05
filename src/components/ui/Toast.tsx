@@ -51,7 +51,7 @@ function ToastItem({ toast, onDone }: { toast: ToastData; onDone: (id: string) =
   const typeColors: Record<ToastType, string> = {
     success: palette.orange,
     info: palette.silver,
-    warning: '#F5A623',
+    warning: palette.amber,
     error: palette.red,
   };
 
@@ -108,7 +108,7 @@ const toastStyles = StyleSheet.create({
     backgroundColor: palette.midnight,
     borderLeftWidth: 3,
     // Shadow
-    shadowColor: '#000',
+    shadowColor: palette.void,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

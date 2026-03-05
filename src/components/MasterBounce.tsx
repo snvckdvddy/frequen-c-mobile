@@ -65,9 +65,9 @@ const MODE_LABELS: Record<RoomMode, string> = {
 };
 
 const MODE_COLORS: Record<RoomMode, string> = {
-  campfire: '#FF6B35',
-  spotlight: '#FFAB00',
-  openFloor: '#C0DFFF',
+  campfire: palette.orange,
+  spotlight: palette.magenta,
+  openFloor: palette.signalSaw,
 };
 
 function formatDuration(seconds: number): string {

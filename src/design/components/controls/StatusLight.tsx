@@ -30,6 +30,7 @@ import {
 } from 'react-native';
 import { palette, glow } from '../../tokens/materials';
 import { emissionPulse } from '../../tokens/animation';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 type LightVariant = 'off' | 'on' | 'pulse';
 type LightColor = 'ice' | 'amber' | 'green' | 'red';
@@ -55,24 +56,27 @@ const sizeMap = {
 const colorMap: Record<LightColor, { core: string; glow: string }> = {
   ice: { core: palette.ice, glow: glow.ice.core },
   amber: { core: palette.amber, glow: glow.amber.core },
-  green: { core: '#10B981', glow: 'rgba(16, 185, 129, 0.6)' },
-  red: { core: '#EF4444', glow: 'rgba(239, 68, 68, 0.6)' },
+  green: { core: palette.green, glow: 'rgba(52, 211, 153, 0.6)' },
+  red: { core: palette.red, glow: 'rgba(255, 77, 106, 0.6)' },
 };
 
 export function StatusLight({
   variant = 'on',
-  color = 'ice',
+  color: colorProp = 'ice',
   size = 'md',
   style,
 }: StatusLightProps) {
+  const { isVoltageSag, reduceAnimations } = useTheme();
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const sizeValue = sizeMap[size];
+  // In Voltage Sag mode, ice indicators shift to amber
+  const color = isVoltageSag && colorProp === 'ice' ? 'amber' : colorProp;
   const colorConfig = colorMap[color];
 
-  // Setup pulse animation
+  // Setup pulse animation (disabled in Voltage Sag for battery savings)
   useEffect(() => {
-    if (variant === 'pulse') {
-      Animated.loop(
+    if (variant === 'pulse' && !reduceAnimations) {
+      const animation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 1,
@@ -85,9 +89,13 @@ export function StatusLight({
             useNativeDriver: false,
           }),
         ]),
-      ).start();
+      );
+      animation.start();
+      return () => animation.stop();
     }
-  }, [variant, pulseAnim]);
+    // In sag mode, hold at static brightness
+    pulseAnim.setValue(0.5);
+  }, [variant, pulseAnim, reduceAnimations]);
 
   const opacity =
     variant === 'off'

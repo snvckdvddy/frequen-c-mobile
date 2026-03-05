@@ -9,6 +9,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from './Text';
 import { palette } from '../../design/tokens/materials';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface VoltageMeterProps {
   balance: number;
@@ -18,14 +19,17 @@ interface VoltageMeterProps {
 }
 
 export function VoltageMeter({ balance, max = 500, variant = 'full' }: VoltageMeterProps) {
+  const { isVoltageSag, accent } = useTheme();
   const fillPercent = Math.min(Math.max(balance / max, 0), 1) * 100;
+  // Sag mode: amber fill instead of green
+  const fillColor = isVoltageSag ? accent : palette.green;
 
   return (
     <View style={styles.container}>
       {variant === 'full' && (
         <View style={styles.header}>
           <Text variant="labelSmall" color={palette.slate}>CV</Text>
-          <Text variant="labelSmall" color={palette.green}>
+          <Text variant="labelSmall" color={fillColor}>
             {balance}
           </Text>
         </View>
@@ -36,8 +40,8 @@ export function VoltageMeter({ balance, max = 500, variant = 'full' }: VoltageMe
             styles.fill,
             {
               width: `${fillPercent}%`,
-              backgroundColor: palette.green,
-              shadowColor: palette.green,
+              backgroundColor: fillColor,
+              shadowColor: fillColor,
             },
           ]}
         />

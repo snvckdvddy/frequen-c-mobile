@@ -7,7 +7,7 @@
  * Tab 4 of 4 in bottom nav.
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, StyleSheet, ScrollView, TouchableOpacity, Image,
   RefreshControl,
@@ -15,7 +15,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, ADSRFadeIn, TrackListItem, ErrorState, TrackCardSkeleton } from '../components/ui';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { sessionApi } from '../services/api';
+import { VoidSurface } from '../design/components';
 import { palette } from '../design/tokens/materials';
+import { colors } from '../design/tokens/colors';
 import { spacing } from '../theme/spacing';
 import type { Track, FavoriteTrack, Session, RoomMode } from '../types';
 
@@ -29,39 +34,46 @@ interface SegmentTabsProps {
 }
 
 function SegmentTabs({ active, onChange }: SegmentTabsProps) {
+  const { accent } = useTheme();
   return (
     <View style={segStyles.row}>
       <TouchableOpacity
-        style={[segStyles.tab, active === 'liked' && segStyles.tabActive]}
+        style={[segStyles.tab, active === 'liked' && [segStyles.tabActive, { borderColor: accent }]]}
         onPress={() => onChange('liked')}
         activeOpacity={0.7}
+        accessibilityRole="tab"
+        accessibilityLabel="Liked tracks tab"
+        accessibilityState={{ selected: active === 'liked' }}
       >
         <Ionicons
           name={active === 'liked' ? 'heart' : 'heart-outline'}
           size={16}
-          color={active === 'liked' ? palette.orange : palette.slate}
+          color={active === 'liked' ? accent : palette.slate}
         />
         <Text
           variant="label"
-          color={active === 'liked' ? palette.orange : palette.slate}
+          color={active === 'liked' ? accent : palette.slate}
           style={{ marginLeft: 6 }}
         >
           Liked
         </Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[segStyles.tab, active === 'history' && segStyles.tabActive]}
+        style={[segStyles.tab, active === 'history' && [segStyles.tabActive, { borderColor: accent }]]}
         onPress={() => onChange('history')}
         activeOpacity={0.7}
+        accessibilityRole="tab"
+        accessibilityLabel="Session history tab"
+        accessibilityState={{ selected: active === 'history' }}
       >
         <Ionicons
           name={active === 'history' ? 'time' : 'time-outline'}
           size={16}
-          color={active === 'history' ? palette.orange : palette.slate}
+          color={active === 'history' ? accent : palette.slate}
         />
         <Text
           variant="label"
-          color={active === 'history' ? palette.orange : palette.slate}
+          color={active === 'history' ? accent : palette.slate}
           style={{ marginLeft: 6 }}
         >
           History
@@ -90,8 +102,7 @@ const segStyles = StyleSheet.create({
     borderColor: palette.chromeBorder,
   },
   tabActive: {
-    borderColor: palette.orange,
-    backgroundColor: 'rgba(100, 200, 255, 0.10)',
+    backgroundColor: colors.accentPrimarySubtle,
   },
 });
 
@@ -106,11 +117,17 @@ interface PastSession {
   date: string;
 }
 
-const MOCK_HISTORY: PastSession[] = [
-  { id: 'hist_1', name: 'Late Night Vibes', hostUsername: 'You', roomMode: 'campfire', tracksPlayed: 12, date: '2 hours ago' },
-  { id: 'hist_2', name: 'Study Session', hostUsername: 'zara', roomMode: 'spotlight', tracksPlayed: 8, date: 'Yesterday' },
-  { id: 'hist_3', name: 'Open Mic Friday', hostUsername: 'finn', roomMode: 'openFloor', tracksPlayed: 23, date: '3 days ago' },
-];
+function formatTimeAgo(dateStr?: string): string {
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  return `${days} days ago`;
+}
 
 const modeIcons: Record<RoomMode, keyof typeof Ionicons.glyphMap> = {
   campfire: 'bonfire-outline',
@@ -127,6 +144,9 @@ function HistoryCard({ session, onPress }: { session: PastSession; onPress?: () 
       onPress={onPress}
       activeOpacity={0.7}
       disabled={!onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${session.name} session, hosted by ${session.hostUsername}, ${session.tracksPlayed} tracks played`}
+      accessibilityHint="Double tap to open this session"
     >
       <View style={histStyles.iconWrap}>
         <Ionicons name={modeIcons[session.roomMode]} size={20} color={palette.silver} />
@@ -175,25 +195,45 @@ interface LibraryScreenProps {
 
 export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
   const { favorites, removeFavorite, isLoaded } = useFavoritesContext();
+  const { user } = useAuth();
+  const { accent } = useTheme();
   const [segment, setSegment] = useState<Segment>('liked');
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionHistory, setSessionHistory] = useState<PastSession[]>([]);
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const { sessions } = await sessionApi.myRooms();
+      // Convert Session[] to PastSession[] — archived sessions only
+      const history: PastSession[] = sessions
+        .filter((s) => !s.isLive)
+        .map((s) => ({
+          id: s.id,
+          name: s.name,
+          hostUsername: s.hostId === user?.id ? 'You' : (s.hostUsername || 'Friend'),
+          roomMode: s.roomMode,
+          tracksPlayed: s.queue?.length || 0,
+          date: formatTimeAgo(s.createdAt),
+        }));
+      setSessionHistory(history);
+      setError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load history';
+      setError(message);
+    }
+  }, [user?.id]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setError(null);
-    try {
-      // Simulate network fetch
-      await new Promise((r) => setTimeout(r, 600));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to refresh library';
-      setError(message);
-    } finally {
-      setRefreshing(false);
-      setIsLoading(false);
-    }
-  }, []);
+    await fetchHistory();
+    setRefreshing(false);
+  }, [fetchHistory]);
+
+  useEffect(() => {
+    fetchHistory().then(() => setIsLoading(false));
+  }, [fetchHistory]);
 
   // Sort favorites: most recently saved first
   const sortedFavorites = useMemo(
@@ -203,8 +243,9 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
 
   return (
     <SafeScreen>
-      {/* Header */}
-      <View style={styles.header}>
+      <VoidSurface style={{ flex: 1 }}>
+        {/* Header */}
+        <View style={styles.header}>
         <Text variant="h2" color={palette.frost}>Library</Text>
         {favorites.length > 0 && (
           <Text variant="labelSmall" color={palette.slate}>
@@ -223,7 +264,7 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={palette.orange}
+            tintColor={accent}
           />
         }
       >
@@ -266,8 +307,11 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
                           onPress={() => removeFavorite(fav.track.id)}
                           style={styles.removeBtn}
                           activeOpacity={0.6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove ${fav.track.title} from liked tracks`}
+                          accessibilityHint="Double tap to remove this track from your favorites"
                         >
-                          <Ionicons name="heart" size={18} color={palette.orange} />
+                          <Ionicons name="heart" size={18} color={accent} />
                         </TouchableOpacity>
                       }
                     />
@@ -293,7 +337,7 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
                   <TrackCardSkeleton key={`skeleton-${i}`} />
                 ))}
               </View>
-            ) : MOCK_HISTORY.length === 0 ? (
+            ) : sessionHistory.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="time-outline" size={48} color={palette.slate} />
                 <Text variant="body" color={palette.silver} align="center" style={{ marginTop: spacing.sm }}>
@@ -305,7 +349,7 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
               </View>
             ) : (
               <View style={styles.historyList}>
-                {MOCK_HISTORY.map((session, i) => (
+                {sessionHistory.map((session, i) => (
                   <ADSRFadeIn index={i} staggerMs={60}>
                     <HistoryCard
                       session={session}
@@ -318,6 +362,7 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
           </ADSRFadeIn>
         )}
       </ScrollView>
+      </VoidSurface>
     </SafeScreen>
   );
 }

@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     fontSize: typography.size.base,
     fontFamily: typography.fontFamily,
     borderWidth: 1,                            // Convergence §4 — 1pt border
-    borderColor: palette.chromeBorder,        // Dark steel #2D3548 — not cyan glow
+    borderColor: palette.chromeBorder,        // Dark steel border — not cyan glow
   },
   inputFocused: {
     borderColor: palette.orange,

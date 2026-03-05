@@ -214,7 +214,7 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
   });
 
   return (
-    <Animated.View style={[styles.container, { transform: [{ translateY }] }]}>
+    <Animated.View style={[styles.container, { transform: [{ translateY }] }]} accessibilityViewIsModal>
       {/* Header */}
       <View style={styles.header} {...closePanResponder.panHandlers}>
         <View style={styles.handle} />
@@ -279,6 +279,7 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
             autoCorrect={false}
             blurOnSubmit={false}
             maxLength={CHAT_MAX_LENGTH}
+            accessibilityLabel="Type a message"
           />
           <TouchableOpacity
             style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}

@@ -15,11 +15,11 @@ import { palette } from '../design/tokens/materials';
 
 // Voltage Sag palette — warm amber replaces icy cyan
 const sagPalette = {
-  accent: '#FFB347',           // Warm amber (replaces ice #00E5FF)
+  accent: palette.amber,       // Warm amber replaces teal accent in sag mode
   accentGlow: 'rgba(255, 179, 71, 0.12)',
   accentSubtle: 'rgba(255, 179, 71, 0.08)',
   accentOverlay: 'rgba(255, 179, 71, 0.20)',
-  accentText: '#06080F',       // Dark text on amber buttons
+  accentText: palette.void,    // Dark text on amber buttons
 } as const;
 
 interface VoltageSagState {
@@ -84,7 +84,7 @@ export function useVoltageSag(): VoltageSagState {
     isVoltageSag,
     batteryLevel,
     accent: isVoltageSag ? sagPalette.accent : palette.orange,
-    accentGlow: isVoltageSag ? sagPalette.accentGlow : palette.ice,
+    accentGlow: isVoltageSag ? sagPalette.accentGlow : palette.iceGlow,
     reduceAnimations: isVoltageSag,
     setForceSag: useCallback((force: boolean | null) => setForceSag(force), []),
   };

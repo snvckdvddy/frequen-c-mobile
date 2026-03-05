@@ -1,106 +1,99 @@
 /**
  * Frequen-C Material Tokens
  * ─────────────────────────────────────────────────────────────
- * Materials are not just colors — they define how surfaces LOOK.
- * Each material includes: base color, gradient stops, blur values,
- * noise parameters, glow configs, and border treatments.
- *
- * Rendering priority:
- *   1. Skia shader (ideal — GPU-accelerated, pixel-perfect)
- *   2. SVG + LinearGradient fallback (if Skia unavailable)
- *   3. Flat color fallback (absolute minimum)
+ * Clean, warm dark palette. Surfaces are flat colors with soft
+ * borders and generous radius. No metallic textures or grain.
  *
  * Usage in components:
  *   import { materials } from '@/design/tokens/materials';
  *   <VoidSurface /> or style={materials.void.flat}
  */
 
-// ─── Core Palette (from existing colors.ts) ─────────────────
+// ─── Core Palette ────────────────────────────────────────────
 
 export const palette = {
-  // ─── Surface tones ───────────────────────────────────
-  void: '#06080F',       // Deepest background
-  midnight: '#0E1219',   // Card/section backgrounds
-  steel: '#161B28',      // Raised surfaces
-  gunmetal: '#1E2436',   // Interactive surface base
+  // ─── Surface tones (warm neutrals) ─────────────────
+  void: '#0F1012',       // Deepest background — warm near-black
+  midnight: '#161819',   // Card/section backgrounds — warm charcoal
+  steel: '#1E2022',      // Raised surfaces — warm dark gray
+  gunmetal: '#262829',   // Interactive surface base
 
-  // ─── Primary accent: ORANGE (Gemini V7 identity) ─────
-  orange: '#FF6B35',     // Primary interactive accent (play, CTAs, badges)
-  orangeGlow: 'rgba(255, 107, 53, 0.30)',
-  orangeDim: '#CC5528',  // Pressed/disabled orange
+  // ─── Primary accent: ORANGE (warm, inviting) ──────
+  orange: '#FF7A45',     // Primary interactive — slightly warmer
+  orangeGlow: 'rgba(255, 122, 69, 0.25)',
+  orangeDim: '#D4612F',  // Pressed/disabled orange
 
-  // ─── Secondary accent: ICE CYAN (status, indicators) ─
-  ice: '#00E5FF',        // Status indicators, Signal Chain underline, system
-  iceGlow: 'rgba(0, 229, 255, 0.25)',
+  // ─── Secondary accent: TEAL (organic, muted) ──────
+  ice: '#5AC8C8',        // Soft teal replaces electric cyan
+  iceGlow: 'rgba(90, 200, 200, 0.20)',
 
   // ─── Alert accents ──────────────────────────────────
-  amber: '#FFB347',      // Voltage sag / warning state
-  red: '#FF3B5C',        // Destructive / ACTIVE PATCH badge
-  green: '#00FF88',      // CV economy, success, onboarding
-  magenta: '#FF2D78',    // Phase Cancel, compression alerts
+  amber: '#FFB860',      // Voltage sag / warning — warmer gold
+  red: '#FF4D6A',        // Destructive / ACTIVE PATCH badge
+  green: '#34D399',      // CV economy, success — soft emerald
+  magenta: '#F472B6',    // Phase Cancel — soft pink
 
-  // ─── Text hierarchy ─────────────────────────────────
-  frost: '#F0F4F8',      // Primary text — near-white with warmth
-  white: '#E8EAED',      // Pure white text
-  silver: '#94A3B8',     // Secondary text — metallic mid-tone
-  slate: '#5A6680',      // Muted/tertiary text — dark gray-blue
-  textSecondary: '#8B9EB0',
-  textDim: '#4A5568',
+  // ─── Text hierarchy (warm whites & grays) ─────────
+  frost: '#F5F0EB',      // Primary text — warm off-white
+  white: '#EDE8E3',      // Secondary white — cream tint
+  silver: '#9CA3A8',     // Secondary text — neutral mid-tone
+  slate: '#7A8388',      // Muted/tertiary — warm gray (WCAG AA on midnight)
+  textSecondary: '#8E9499',
+  textDim: '#62686C',    // Module labels — passes AA-large on midnight
 
   // ─── Signal waveform colors (room mode identity) ────
-  signalSine: '#FF6B35',      // Campfire — warm orange
-  signalSquare: '#FF2D55',    // Spotlight — hot pink
-  signalSaw: '#C0DFFF',       // Open Floor — chrome blue
+  signalSine: '#FF7A45',      // Campfire — warm orange
+  signalSquare: '#F472B6',    // Spotlight — soft pink
+  signalSaw: '#93C5FD',       // Open Floor — soft blue
 
-  // ─── Semantic border / chrome ───────────────────────
-  chromeBorder: 'rgba(148, 163, 184, 0.15)',
-  chromeHighlight: 'rgba(255, 255, 255, 0.06)',
+  // ─── Semantic border / surface ─────────────────────
+  chromeBorder: 'rgba(255, 255, 255, 0.08)',
+  chromeHighlight: 'rgba(255, 255, 255, 0.04)',
 } as const;
 
-// ─── Emission / Glow Configs ────────────────────────────────
+// ─── Glow Configs ────────────────────────────────────────────
+// Softer, subtler glows for the warm palette
 
 export const glow = {
-  /** Orange — primary interactive glow (Gemini V7) */
+  /** Orange — primary accent glow */
   orange: {
-    core: '#FF6B35',
-    inner: 'rgba(255, 107, 53, 0.45)',
-    innerRadius: 12,
-    outer: 'rgba(255, 107, 53, 0.18)',
-    outerRadius: 35,
-    ambient: 'rgba(255, 107, 53, 0.07)',
-    ambientRadius: 65,
+    core: '#FF7A45',
+    inner: 'rgba(255, 122, 69, 0.35)',
+    innerRadius: 10,
+    outer: 'rgba(255, 122, 69, 0.12)',
+    outerRadius: 25,
+    ambient: 'rgba(255, 122, 69, 0.05)',
+    ambientRadius: 50,
   },
+  /** Teal — secondary indicator glow */
   ice: {
-    /** Bright core color */
-    core: '#00E5FF',
-    /** Inner glow — tight, bright */
-    inner: 'rgba(0, 229, 255, 0.40)',
-    innerRadius: 10,
-    /** Outer glow — wide, soft */
-    outer: 'rgba(0, 229, 255, 0.15)',
-    outerRadius: 30,
-    /** Ambient — very wide, barely visible */
-    ambient: 'rgba(0, 229, 255, 0.06)',
-    ambientRadius: 60,
+    core: '#5AC8C8',
+    inner: 'rgba(90, 200, 200, 0.30)',
+    innerRadius: 8,
+    outer: 'rgba(90, 200, 200, 0.10)',
+    outerRadius: 20,
+    ambient: 'rgba(90, 200, 200, 0.04)',
+    ambientRadius: 40,
   },
+  /** Amber — warning state glow */
   amber: {
-    core: '#FFB347',
-    inner: 'rgba(255, 179, 71, 0.40)',
-    innerRadius: 10,
-    outer: 'rgba(255, 179, 71, 0.15)',
-    outerRadius: 30,
-    ambient: 'rgba(255, 179, 71, 0.06)',
-    ambientRadius: 60,
+    core: '#FFB860',
+    inner: 'rgba(255, 184, 96, 0.30)',
+    innerRadius: 8,
+    outer: 'rgba(255, 184, 96, 0.10)',
+    outerRadius: 20,
+    ambient: 'rgba(255, 184, 96, 0.04)',
+    ambientRadius: 40,
   },
-  /** Subtle interaction feedback glow */
+  /** Subtle interaction feedback */
   subtle: {
-    core: 'rgba(0, 229, 255, 0.20)',
-    inner: 'rgba(0, 229, 255, 0.10)',
-    innerRadius: 6,
-    outer: 'rgba(0, 229, 255, 0.04)',
-    outerRadius: 15,
-    ambient: 'rgba(0, 229, 255, 0.02)',
-    ambientRadius: 30,
+    core: 'rgba(90, 200, 200, 0.15)',
+    inner: 'rgba(90, 200, 200, 0.08)',
+    innerRadius: 5,
+    outer: 'rgba(90, 200, 200, 0.03)',
+    outerRadius: 12,
+    ambient: 'rgba(90, 200, 200, 0.01)',
+    ambientRadius: 20,
   },
 } as const;
 
@@ -108,103 +101,95 @@ export const glow = {
 
 export const materials = {
   /**
-   * VOID — The deepest background. Not flat black — has micro-grain.
-   * Implementation: Base fill + Skia noise shader overlay at ~3% opacity.
+   * VOID — Deep background. Clean, warm near-black.
+   * Grain and vignette tokens preserved for API compat but
+   * component defaults set to off for a cleaner look.
    */
   void: {
     flat: palette.void,
     noiseFrequency: 0.9,
     noiseOctaves: 4,
-    noiseOpacity: 0.03,
+    noiseOpacity: 0.02,
     vignette: {
-      color: 'rgba(0, 0, 0, 0.4)',
-      radius: 0.8, // percentage of surface diagonal
+      color: 'rgba(0, 0, 0, 0.25)',
+      radius: 0.85,
     },
   },
 
   /**
-   * CHROME — Polished metallic surface. Reflects light.
-   * Implementation: Multi-stop linear gradient simulating metal bands.
-   * The gradient angle can shift based on scroll position for "living" reflection.
+   * CHROME — Clean elevated surface (no longer metallic gradient).
+   * Gradient stops preserved for API compat but flattened.
    */
   chrome: {
-    flat: '#2a2d35',
+    flat: palette.gunmetal,
     gradientStops: [
-      { offset: 0, color: '#1a1d25' },
-      { offset: 0.2, color: '#2a2d35' },
-      { offset: 0.4, color: '#3d4150' },
-      { offset: 0.5, color: '#4a4e5c' },
-      { offset: 0.6, color: '#3d4150' },
-      { offset: 0.8, color: '#2a2d35' },
-      { offset: 1, color: '#1a1d25' },
+      { offset: 0, color: '#232526' },
+      { offset: 0.2, color: '#262829' },
+      { offset: 0.4, color: '#2A2C2E' },
+      { offset: 0.5, color: '#2C2E30' },
+      { offset: 0.6, color: '#2A2C2E' },
+      { offset: 0.8, color: '#262829' },
+      { offset: 1, color: '#232526' },
     ],
-    gradientAngle: 135, // degrees, can animate
-    /** Top-edge specular highlight */
+    gradientAngle: 180,
     specularHighlight: {
-      color: 'rgba(255, 255, 255, 0.08)',
-      height: 1, // px
+      color: 'rgba(255, 255, 255, 0.04)',
+      height: 1,
     },
   },
 
   /**
-   * BRUSHED STEEL — Anodized aluminum. Directional grain.
-   * Implementation: Base fill + horizontal noise pattern (Skia) or
-   * repeating linear-gradient for fine parallel lines.
+   * BRUSHED STEEL → Clean Surface (warm flat card bg).
+   * Tokens preserved for API compat, visuals simplified.
    */
   brushedSteel: {
-    flat: '#1E2436',
+    flat: palette.midnight,
     baseGradient: [
-      { offset: 0, color: '#1a2030' },
-      { offset: 0.5, color: '#222840' },
-      { offset: 1, color: '#1a2030' },
+      { offset: 0, color: palette.midnight },
+      { offset: 0.5, color: '#191B1D' },
+      { offset: 1, color: palette.midnight },
     ],
-    grainDirection: 0, // degrees, 0 = horizontal
-    grainFrequency: 2.0,
-    grainOpacity: 0.06,
-    /** The thin lines that simulate brushed texture */
+    grainDirection: 0,
+    grainFrequency: 0,
+    grainOpacity: 0,
     brushLines: {
-      spacing: 2, // px between lines
-      opacity: 0.04,
-      color: 'rgba(255, 255, 255, 0.04)',
+      spacing: 2,
+      opacity: 0,
+      color: 'rgba(255, 255, 255, 0)',
     },
   },
 
   /**
-   * GLASS — Frosted translucent panel.
-   * Implementation: Semi-transparent fill + backdrop-blur + edge light.
+   * GLASS — Frosted overlay panel. Slightly warmer.
    */
   glass: {
-    flat: 'rgba(30, 36, 54, 0.40)',
-    fillOpacity: 0.40,
-    blurRadius: 20, // px — backdrop blur
+    flat: 'rgba(22, 24, 25, 0.75)',
+    fillOpacity: 0.75,
+    blurRadius: 24,
     border: {
       width: 1,
-      /** Gradient border: bright at top-left, transparent at bottom-right */
-      colorStart: 'rgba(255, 255, 255, 0.12)',
+      colorStart: 'rgba(255, 255, 255, 0.08)',
       colorEnd: 'rgba(255, 255, 255, 0.02)',
-      gradientAngle: 135,
+      gradientAngle: 180,
     },
-    /** Chromatic aberration on edges — subtle color fringing */
     chromaticAberration: {
-      enabled: true,
-      offsetPx: 0.5,
-      colors: ['rgba(255, 100, 100, 0.05)', 'rgba(100, 100, 255, 0.05)'],
+      enabled: false,
+      offsetPx: 0,
+      colors: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
     },
   },
 
   /**
-   * ICE EMISSION — Accent elements that appear to emit light.
-   * Implementation: Solid fill + layered shadows for bloom effect.
+   * TEAL EMISSION — Accent elements with subtle glow.
    */
   iceEmission: {
     flat: palette.ice,
     glow: glow.ice,
-    /** Pulsing animation — subtle brightness oscillation */
     pulse: {
-      enabled: false, // enable per-component
-      minOpacity: 0.85,
+      enabled: false,
+      minOpacity: 0.9,
       maxOpacity: 1.0,
-      durationMs: 2000,
+      durationMs: 2400,
     },
   },
 
@@ -216,15 +201,14 @@ export const materials = {
     glow: glow.amber,
     pulse: {
       enabled: false,
-      minOpacity: 0.85,
+      minOpacity: 0.9,
       maxOpacity: 1.0,
-      durationMs: 2400,
+      durationMs: 2800,
     },
   },
 } as const;
 
 // ─── Surface Elevation ──────────────────────────────────────
-// Which material to use at each depth level
 
 export const surfaceElevation = {
   /** Screen background */
@@ -244,10 +228,10 @@ export const surfaceElevation = {
 export const vuColors = {
   segments: 20,
   thresholds: [
-    { upTo: 0.6, color: palette.ice },         // Normal — ice cyan
-    { upTo: 0.8, color: '#FFD700' },            // Caution — gold
-    { upTo: 1.0, color: '#FF3B30' },            // Clip — red
+    { upTo: 0.6, color: palette.ice },
+    { upTo: 0.8, color: '#FFD166' },
+    { upTo: 1.0, color: palette.red },
   ],
-  dimColor: 'rgba(30, 36, 54, 0.5)',            // Unlit segment
-  segmentGap: 2,                                 // px between segments
+  dimColor: 'rgba(30, 32, 34, 0.5)',
+  segmentGap: 2,
 } as const;

@@ -22,7 +22,7 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { palette, materials } from '../../tokens/materials';
+import { palette } from '../../tokens/materials';
 import { elevation } from '../../tokens/elevation';
 
 interface FaderKnobProps {
@@ -40,11 +40,11 @@ const TRACK_HEIGHT = 6;
 
 // Knob chrome gradient (5-stop)
 const knobGradient = [
-  '#1a1d25',
-  '#2a2d35',
-  '#4a4e5c',
-  '#2a2d35',
-  '#1a1d25',
+  palette.gunmetal,
+  palette.steel,
+  palette.slate,
+  palette.steel,
+  palette.gunmetal,
 ] as unknown as [string, string, ...string[]];
 const knobLocations = [0, 0.25, 0.5, 0.75, 1] as unknown as [
   number,

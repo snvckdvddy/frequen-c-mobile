@@ -13,7 +13,7 @@ import {
   View, StyleSheet, FlatList, TextInput, TouchableOpacity,
   ScrollView, ActivityIndicator, Keyboard, Alert,
 } from 'react-native';
-import { Text, SafeScreen, ErrorState } from '../components/ui';
+import { Text, SafeScreen, ErrorState, ADSRFadeIn } from '../components/ui';
 import { TrackCardSkeleton } from '../components/ui/Skeleton';
 import { TrackResultCard } from '../components/search/TrackResultCard';
 import { RoomResultCard } from '../components/search/RoomResultCard';
@@ -24,6 +24,7 @@ import { useActiveSession } from '../contexts/ActiveSessionContext';
 import { useRecentSearches } from '../hooks/useRecentSearches';
 import { searchApi } from '../services/api';
 import { palette } from '../design/tokens/materials';
+import { colors } from '../design/tokens/colors';
 import { spacing } from '../theme/spacing';
 import type { Track, Session, MockUser, SearchSegment } from '../types';
 
@@ -245,12 +246,14 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
             horizontal
             data={favorites}
             keyExtractor={(item) => item.track.id}
-            renderItem={({ item }) => (
-              <FavoriteCard
-                track={item.track}
-                onPress={handleAddToRoom}
-                onLongPress={handleFavoriteLongPress}
-              />
+            renderItem={({ item, index }) => (
+              <ADSRFadeIn index={index} staggerMs={60} slideFrom="right">
+                <FavoriteCard
+                  track={item.track}
+                  onPress={handleAddToRoom}
+                  onLongPress={handleFavoriteLongPress}
+                />
+              </ADSRFadeIn>
             )}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.favoritesRow}
@@ -355,13 +358,15 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
         <FlatList
           data={trackResults}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TrackResultCard
-              track={item}
-              isFavorite={isFavorite(item.id)}
-              onToggleFavorite={toggleFavorite}
-              onAddToRoom={handleAddToRoom}
-            />
+          renderItem={({ item, index }) => (
+            <ADSRFadeIn index={index} staggerMs={40}>
+              <TrackResultCard
+                track={item}
+                isFavorite={isFavorite(item.id)}
+                onToggleFavorite={toggleFavorite}
+                onAddToRoom={handleAddToRoom}
+              />
+            </ADSRFadeIn>
           )}
           contentContainerStyle={styles.resultsList}
           keyboardShouldPersistTaps="handled"
@@ -383,8 +388,10 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
         <FlatList
           data={roomResults}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <RoomResultCard session={item} onPress={onOpenRoom} />
+          renderItem={({ item, index }) => (
+            <ADSRFadeIn index={index} staggerMs={40}>
+              <RoomResultCard session={item} onPress={onOpenRoom} />
+            </ADSRFadeIn>
           )}
           contentContainerStyle={styles.resultsList}
           keyboardShouldPersistTaps="handled"
@@ -406,7 +413,11 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
         <FlatList
           data={peopleResults}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <PersonResultCard user={item} />}
+          renderItem={({ item, index }) => (
+            <ADSRFadeIn index={index} staggerMs={40}>
+              <PersonResultCard user={item} />
+            </ADSRFadeIn>
+          )}
           contentContainerStyle={styles.resultsList}
           keyboardShouldPersistTaps="handled"
           initialNumToRender={8}
@@ -440,9 +451,11 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
             returnKeyType="search"
             autoCapitalize="none"
             autoCorrect={false}
+            accessibilityLabel="Search tracks, rooms, and people"
+            accessibilityHint="Enter keywords to find music, sessions, or users"
           />
           {isActive && (
-            <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn} accessibilityRole="button" accessibilityLabel="Cancel search">
+            <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn} accessibilityRole="button" accessibilityLabel="Cancel search" accessibilityHint="Double tap to close search">
               <Text variant="label" color={palette.slate}>Cancel</Text>
             </TouchableOpacity>
           )}
@@ -581,9 +594,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.screenPadding,
     paddingVertical: spacing.xs,
-    backgroundColor: 'rgba(100, 200, 255, 0.08)',
+    backgroundColor: palette.iceGlow,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(100, 200, 255, 0.15)',
+    borderBottomColor: palette.iceGlow,
     gap: spacing.xs,
   },
   sessionDot: {

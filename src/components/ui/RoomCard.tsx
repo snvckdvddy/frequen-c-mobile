@@ -61,6 +61,7 @@ export function RoomCard({
           source={{ uri: currentTrack.albumArt }}
           style={styles.bgImage}
           blurRadius={40}
+          accessible={false}
         />
       )}
       {/* Overlay for readability */}

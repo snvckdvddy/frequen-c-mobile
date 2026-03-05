@@ -23,6 +23,8 @@ export const mockUser: User = {
   tracksAdded: 87,
   totalListeningTime: 4320, // minutes
   voltageBalance: 340,
+  duelWinRate: 68,
+  topArtists: ['Frank Ocean', 'Radiohead', 'Burial', 'Massive Attack', 'Solange'],
   createdAt: '2025-11-15T08:00:00Z',
 };
 

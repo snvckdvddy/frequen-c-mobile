@@ -24,7 +24,7 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { palette, materials } from '../../tokens/materials';
+import { palette } from '../../tokens/materials';
 import { elevation } from '../../tokens/elevation';
 
 interface HardwareSliderProps {
@@ -45,9 +45,9 @@ const TRACK_HEIGHT = 4;
 
 // Chrome thumb gradient (3-stop)
 const thumbGradient = [
-  '#2a2d35',
-  '#4a4e5c',
-  '#2a2d35',
+  palette.gunmetal,
+  palette.slate,
+  palette.gunmetal,
 ] as unknown as [string, string, ...string[]];
 const thumbLocations = [0, 0.5, 1] as unknown as [number, number, ...number[]];
 

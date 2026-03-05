@@ -6,9 +6,9 @@
  * deviate from the preset defaults.
  *
  * Modular Synthesis UI:
- *   ∿ Campfire  → Sine wave    — warmOrange (#FF6B35)
- *   ⊓ Spotlight → Square wave  — hotPink (#FF2D55)
- *   ⧸ Open Floor → Sawtooth wave — chromeBlue (#C0DFFF)
+ *   ∿ Campfire  → Sine wave    — warm orange
+ *   ⊓ Spotlight → Square wave  — hot pink
+ *   ⧸ Open Floor → Sawtooth wave — chrome blue
  */
 
 import React from 'react';

@@ -53,9 +53,11 @@ export function ParticipantAvatarBar({
             ]}
             onPress={() => onAvatarPress?.(listener)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`${listener.username}, listening`}
           >
             {listener.avatarUrl ? (
-              <Image source={{ uri: listener.avatarUrl }} style={styles.avatarImage} />
+              <Image source={{ uri: listener.avatarUrl }} style={styles.avatarImage} accessible={false} />
             ) : (
               <View style={[styles.avatarImage, styles.avatarPlaceholder]}>
                 <Text variant="label" color={palette.frost} style={{ fontSize: 11 }}>

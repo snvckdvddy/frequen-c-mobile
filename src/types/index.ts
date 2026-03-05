@@ -20,6 +20,9 @@ export interface User {
   totalListeningTime?: number; // minutes
   voltageBalance?: number;
   noiseGate?: 'off' | 'low' | 'medium' | 'high';
+  // AI: Sonic Aura fields
+  duelWinRate?: number;    // 0-100 percentage
+  topArtists?: string[];   // up to 5 most-played artists
 }
 
 export interface ConnectedServices {
@@ -137,6 +140,10 @@ export interface Session {
   currentTrack?: Track;
   queue: Track[];
   createdAt: string;
+  /** Music source platform selected at creation (e.g. SPOTIFY, APPLE MUSIC). */
+  source?: string;
+  /** Session vibe/mood tag selected at creation (e.g. CHILL, HYPE). */
+  vibe?: string;
 }
 
 // ─── Tracks ─────────────────────────────────────────────────

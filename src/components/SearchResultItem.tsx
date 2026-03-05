@@ -29,7 +29,7 @@ export function SearchResultItem({ track, onAdd }: SearchResultItemProps) {
   return (
     <TouchableOpacity style={searchStyles.item} onPress={handlePress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${added ? 'Added' : 'Add'} ${track.title} by ${track.artist}`} accessibilityState={{ disabled: added }}>
       {track.albumArt ? (
-        <Image source={{ uri: track.albumArt }} style={searchStyles.art} />
+        <Image source={{ uri: track.albumArt }} style={searchStyles.art} accessible={false} />
       ) : (
         <View style={[searchStyles.art, { alignItems: 'center', justifyContent: 'center' }]}>
           <Text variant="labelSmall" color={palette.slate}>{track.artist.charAt(0)}</Text>

@@ -27,7 +27,7 @@ export function SuggestionCard({ track, onApprove, onReject }: SuggestionCardPro
     <View style={styles.card}>
       {/* Album art */}
       {track.albumArt ? (
-        <Image source={{ uri: track.albumArt }} style={styles.art} />
+        <Image source={{ uri: track.albumArt }} style={styles.art} accessible={false} />
       ) : (
         <View style={[styles.art, styles.artPlaceholder]}>
           <Ionicons name="musical-note" size={16} color={palette.slate} />

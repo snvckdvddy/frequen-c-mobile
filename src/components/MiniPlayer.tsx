@@ -87,7 +87,7 @@ export function MiniPlayer({
         {/* Tappable area: art + info → opens NowPlayingSheet */}
         <Pressable style={styles.trackArea} onPress={onPress} accessibilityRole="button" accessibilityLabel={`Now playing: ${track.title} by ${track.artist}. Tap to expand`}>
           {track.albumArt ? (
-            <Image source={{ uri: track.albumArt }} style={styles.art} />
+            <Image source={{ uri: track.albumArt }} style={styles.art} accessible={false} />
           ) : (
             <View style={[styles.art, styles.artPlaceholder]}>
               <Ionicons name="musical-note" size={16} color={palette.slate} />

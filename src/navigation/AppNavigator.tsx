@@ -35,7 +35,9 @@ import { JoinSessionScreen } from '../screens/JoinSessionScreen';
 import { SessionRoomScreen } from '../screens/SessionRoomScreen';
 import { FlightCasesScreen } from '../screens/FlightCasesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
-import { DesignSystemTestScreen } from '../screens/DesignSystemTestScreen';
+import { FriendsScreen } from '../screens/FriendsScreen';
+import { UserProfileScreen } from '../screens/UserProfileScreen';
+import { ActivityFeedScreen } from '../screens/ActivityFeedScreen';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -50,7 +52,9 @@ type MainStackParamList = {
   JoinSession: { joinCode?: string } | undefined;
   SessionRoom: { sessionId: string };
   Profile: undefined;
-  DesignSystemTest: undefined; // DEV — remove before release
+  Friends: undefined;
+  UserProfile: { userId: string };
+  ActivityFeed: undefined;
 };
 
 type TabParamList = {
@@ -169,7 +173,8 @@ function TabNavigator() {
                 props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
               }
               onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
-              onOpenDesignTest={() => props.navigation.getParent()?.navigate('DesignSystemTest')}
+              onOpenFriends={() => props.navigation.getParent()?.navigate('Friends')}
+              onOpenActivityFeed={() => props.navigation.getParent()?.navigate('ActivityFeed')}
             />
           </ErrorBoundary>
         )}
@@ -322,12 +327,49 @@ function MainNavigator() {
         )}
       </MainStack.Screen>
 
-      {/* DEV ONLY — Design System visual test bed. Remove before release. */}
       <MainStack.Screen
-        name="DesignSystemTest"
-        component={DesignSystemTestScreen}
-        options={{ animation: 'slide_from_bottom' }}
-      />
+        name="Friends"
+        options={{ animation: 'slide_from_right' }}
+      >
+        {({ navigation }) => (
+          <ErrorBoundary screenName="Friends">
+            <FriendsScreen
+              onBack={() => navigation.goBack()}
+              onOpenProfile={(userId: string) => navigation.navigate('UserProfile', { userId })}
+              onOpenRoom={(sessionId: string) => navigation.navigate('SessionRoom', { sessionId })}
+            />
+          </ErrorBoundary>
+        )}
+      </MainStack.Screen>
+      <MainStack.Screen
+        name="UserProfile"
+        options={{ animation: 'slide_from_right' }}
+      >
+        {({ navigation, route }) => (
+          <ErrorBoundary screenName="UserProfile">
+            <UserProfileScreen
+              userId={(route.params as any)?.userId ?? ''}
+              onBack={() => navigation.goBack()}
+              onOpenRoom={(sessionId: string) => navigation.navigate('SessionRoom', { sessionId })}
+            />
+          </ErrorBoundary>
+        )}
+      </MainStack.Screen>
+
+      <MainStack.Screen
+        name="ActivityFeed"
+        options={{ animation: 'slide_from_right' }}
+      >
+        {({ navigation }) => (
+          <ErrorBoundary screenName="ActivityFeed">
+            <ActivityFeedScreen
+              onBack={() => navigation.goBack()}
+              onOpenRoom={(sessionId: string) => navigation.navigate('SessionRoom', { sessionId })}
+              onOpenProfile={(userId: string) => navigation.navigate('UserProfile', { userId })}
+            />
+          </ErrorBoundary>
+        )}
+      </MainStack.Screen>
     </MainStack.Navigator>
   );
 }
@@ -376,7 +418,7 @@ export function AppNavigator() {
           navigationRef.current?.navigate('SessionRoom', { sessionId });
         }, 500);
       }
-    });
+    }).catch(() => {});
 
     return unsubscribe;
   }, [isAuthenticated]);

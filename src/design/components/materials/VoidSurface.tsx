@@ -1,36 +1,33 @@
 /**
- * VoidSurface — The deepest background material.
+ * VoidSurface — Clean warm dark background.
  * ─────────────────────────────────────────────────────────────
- * Not flat black. Has subtle noise grain and optional vignette.
- *
- * Rendering stack:
- *   Skia (future): Perlin noise shader at 3% opacity over base
- *   Fallback (current): Base color + SVG noise overlay + radial vignette
+ * Simple dark fill. Grain and vignette are available but off by
+ * default for a cleaner, more modern look.
  */
 
 import React from 'react';
 import { View, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import Svg, { Defs, Filter, FeTurbulence, FeColorMatrix, Rect, RadialGradient, Stop, Ellipse } from 'react-native-svg';
+import Svg, { Defs, Filter, FeTurbulence, FeColorMatrix, Rect, RadialGradient, Stop } from 'react-native-svg';
 import { materials } from '../../tokens/materials';
 
 interface VoidSurfaceProps {
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
-  /** Show vignette darkening at edges. Default: true */
+  /** Show vignette darkening at edges. Default: false */
   vignette?: boolean;
-  /** Show noise grain texture. Default: true */
+  /** Show noise grain texture. Default: false */
   grain?: boolean;
 }
 
 export function VoidSurface({
   children,
   style,
-  vignette = true,
-  grain = true,
+  vignette = false,
+  grain = false,
 }: VoidSurfaceProps) {
   return (
     <View style={[styles.container, style]}>
-      {/* Noise grain overlay */}
+      {/* Noise grain overlay (opt-in) */}
       {grain && (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
@@ -59,14 +56,14 @@ export function VoidSurface({
         </View>
       )}
 
-      {/* Vignette overlay */}
+      {/* Soft vignette (opt-in) */}
       {vignette && (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
             <Defs>
-              <RadialGradient id="vignette" cx="50%" cy="50%" r="80%">
-                <Stop offset="0.5" stopColor="transparent" stopOpacity={0} />
-                <Stop offset="1" stopColor="black" stopOpacity={0.4} />
+              <RadialGradient id="vignette" cx="50%" cy="50%" r="85%">
+                <Stop offset="0.6" stopColor="transparent" stopOpacity={0} />
+                <Stop offset="1" stopColor="black" stopOpacity={0.25} />
               </RadialGradient>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#vignette)" />

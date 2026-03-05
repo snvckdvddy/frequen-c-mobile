@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0A0F"
+      "backgroundColor": "#0F1012"
     },
     "ios": {
       "supportsTablet": false,
@@ -40,7 +40,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0A0F"
+        "backgroundColor": "#0F1012"
       },
       "package": "com.frequenc.app",
       "versionCode": 1,
@@ -70,7 +70,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#00E5FF",
+          "color": "#5AC8C8",
           "sounds": []
         }
       ],

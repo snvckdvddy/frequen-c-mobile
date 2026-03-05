@@ -21,12 +21,18 @@ import {
   Image, FlatList, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen, ADSRFadeIn, RoomCard, ErrorState } from '../components/ui';
+import { Text, SafeScreen, ADSRFadeIn, ErrorState } from '../components/ui';
+import { NetworkForecastCard } from '../components/home/NetworkForecastCard';
+import { NotificationDrawer } from '../components/NotificationDrawer';
 import { useAuth } from '../contexts/AuthContext';
-import { sessionApi } from '../services/api';
+import { useTheme } from '../contexts/ThemeContext';
+import { useCV } from '../hooks/useCV';
+import { sessionApi, notificationApi } from '../services/api';
 import { spacing } from '../theme/spacing';
-import { VoidSurface, LEDReadout, StatusLight } from '../design/components';
+import { VoidSurface, LEDReadout, StatusLight, ModuleFaceplate } from '../design/components';
 import { palette } from '../design/tokens/materials';
+import { colors } from '../design/tokens/colors';
+import { fontFamily, fontSize, letterSpacing as ls } from '../design/tokens/typography';
 import type { Session, RoomMode } from '../types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -39,16 +45,23 @@ interface HomeScreenProps {
   onJoinSession: () => void;
   onOpenRoom: (sessionId: string) => void;
   onOpenProfile?: () => void;
-  onOpenDesignTest?: () => void;
+  onOpenFriends?: () => void;
+  onOpenActivityFeed?: () => void;
+  onViewAllFlightCases?: () => void;
 }
 
 export function HomeScreen({
-  onCreateSession, onJoinSession, onOpenRoom, onOpenProfile, onOpenDesignTest,
+  onCreateSession, onJoinSession, onOpenRoom, onOpenProfile, onOpenFriends,
+  onOpenActivityFeed, onViewAllFlightCases,
 }: HomeScreenProps) {
   const { user } = useAuth();
+  const { accent, isVoltageSag } = useTheme();
+  const cv = useCV();
   const [myRooms, setMyRooms] = useState<Session[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const fetchMyRooms = useCallback(async () => {
     try {
@@ -65,6 +78,18 @@ export function HomeScreen({
     const interval = setInterval(fetchMyRooms, 15000);
     return () => clearInterval(interval);
   }, [fetchMyRooms]);
+
+  // Poll unread notification count
+  useEffect(() => {
+    const fetchUnread = () => {
+      notificationApi.unreadCount()
+        .then((res) => setUnreadCount(res.count ?? 0))
+        .catch(() => {});
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -86,7 +111,7 @@ export function HomeScreen({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={palette.orange}
+              tintColor={accent}
             />
           }
         >
@@ -111,15 +136,61 @@ export function HomeScreen({
               <View style={styles.topBarRight}>
                 {/* CV Balance pill */}
                 <View style={styles.cvBadge}>
-                  <Ionicons name="flash" size={12} color={palette.green} />
-                  <Text style={styles.cvText}>145</Text>
+                  <Ionicons name="flash" size={12} color={isVoltageSag ? accent : palette.green} />
+                  <LEDReadout value={String(cv.balance)} size="sm" variant={isVoltageSag ? 'amber' : 'ice'} />
                 </View>
+
+                {/* Friends (Patch Bay) */}
+                <TouchableOpacity
+                  onPress={onOpenFriends}
+                  style={styles.headerIconBtn}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open friends"
+                >
+                  <Ionicons name="people-outline" size={20} color={palette.silver} />
+                </TouchableOpacity>
+
+                {/* Activity Feed (Signal Monitor) */}
+                <TouchableOpacity
+                  onPress={onOpenActivityFeed}
+                  style={styles.headerIconBtn}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Activity feed"
+                >
+                  <Ionicons name="pulse-outline" size={20} color={palette.silver} />
+                </TouchableOpacity>
+
+                {/* Notification bell */}
+                <TouchableOpacity
+                  onPress={() => setShowNotifications(true)}
+                  style={styles.headerIconBtn}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+                >
+                  <Ionicons
+                    name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+                    size={20}
+                    color={unreadCount > 0 ? accent : palette.silver}
+                  />
+                  {unreadCount > 0 && (
+                    <View style={styles.notifBadge}>
+                      <Text style={styles.notifBadgeText}>
+                        {unreadCount > 9 ? '9+' : String(unreadCount)}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
 
                 {/* Profile avatar */}
                 <TouchableOpacity
                   onPress={onOpenProfile}
                   style={styles.avatarBtn}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open profile"
                 >
                   <Ionicons name="person-outline" size={20} color={palette.silver} />
                 </TouchableOpacity>
@@ -132,22 +203,18 @@ export function HomeScreen({
             <Text style={styles.sectionLabel}>LIVE CONNECTION</Text>
 
             {liveRoom ? (
-              <TouchableOpacity
-                style={styles.liveCard}
-                onPress={() => onOpenRoom(liveRoom.id)}
-                activeOpacity={0.8}
-              >
-                {/* ACTIVE PATCH badge + listener count */}
+              <ModuleFaceplate label="ACTIVE PATCH" screws>
+                <TouchableOpacity
+                  style={styles.liveCard}
+                  onPress={() => onOpenRoom(liveRoom.id)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open live room: ${liveRoom.name}`}
+                >
+                {/* Listener count */}
                 <View style={styles.liveCardHeader}>
-                  <View style={styles.activePatchBadge}>
-                    <StatusLight variant="pulse" color="red" size="sm" />
-                    <Text style={styles.activePatchText}>ACTIVE PATCH</Text>
-                  </View>
-                  <View style={styles.listenerCount}>
-                    <Text style={styles.listenerCountText}>
-                      {liveRoom.listeners?.length || 0}/10
-                    </Text>
-                  </View>
+                  <StatusLight variant="pulse" color="red" size="sm" />
+                  <LEDReadout value={`${liveRoom.listeners?.length || 0}/10`} size="sm" variant="ice" style={styles.listenerCount} />
                 </View>
 
                 {/* Room name */}
@@ -163,18 +230,29 @@ export function HomeScreen({
                       {liveRoom.currentTrack?.artist || 'Add a track to start'}
                     </Text>
                   </View>
-                  <View style={styles.playBtnSmall}>
+                  <View style={[styles.playBtnSmall, {
+                    backgroundColor: accent,
+                    shadowColor: accent,
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 8,
+                    elevation: 6,
+                  }]}>
                     <Ionicons name="play" size={20} color={palette.void} style={{ marginLeft: 2 }} />
                   </View>
                 </View>
               </TouchableOpacity>
+              </ModuleFaceplate>
             ) : (
               /* Empty state — no live connection */
-              <TouchableOpacity
-                style={styles.emptyLiveCard}
-                onPress={onCreateSession}
-                activeOpacity={0.8}
-              >
+              <ModuleFaceplate label="NO SIGNAL">
+                <TouchableOpacity
+                  style={styles.emptyLiveCard}
+                  onPress={onCreateSession}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Create a new session"
+                >
                 <View style={styles.emptyLiveInner}>
                   <Ionicons name="radio-outline" size={28} color={palette.slate} />
                   <Text style={styles.emptyLiveText}>No active patch.</Text>
@@ -183,14 +261,25 @@ export function HomeScreen({
                   </Text>
                 </View>
               </TouchableOpacity>
+              </ModuleFaceplate>
             )}
           </ADSRFadeIn>
 
-          {/* ═══ RECENT FLIGHT CASES ═════════════════════════ */}
+          {/* ═══ NETWORK FORECAST (AI) ═══════════════════════ */}
           <ADSRFadeIn index={2}>
+            <NetworkForecastCard />
+          </ADSRFadeIn>
+
+          {/* ═══ RECENT FLIGHT CASES ═════════════════════════ */}
+          <ADSRFadeIn index={3}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionLabel}>RECENT FLIGHT CASES</Text>
-              <TouchableOpacity activeOpacity={0.7}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={onViewAllFlightCases}
+                accessibilityRole="button"
+                accessibilityLabel="View all flight cases"
+              >
                 <Text style={styles.viewAllText}>VIEW ALL</Text>
               </TouchableOpacity>
             </View>
@@ -202,30 +291,32 @@ export function HomeScreen({
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.flightCaseList}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.flightCaseCard}
-                    onPress={() => onOpenRoom(item.id)}
-                    activeOpacity={0.8}
-                  >
-                    {/* Album art placeholder */}
-                    <View style={styles.flightCaseArt}>
-                      {item.currentTrack?.albumArt ? (
-                        <Image
-                          source={{ uri: item.currentTrack.albumArt }}
-                          style={styles.flightCaseArtImage}
-                        />
-                      ) : (
-                        <Ionicons name="disc-outline" size={24} color={palette.slate} />
-                      )}
-                    </View>
-                    <Text style={styles.flightCaseName} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.flightCaseDate} numberOfLines={1}>
-                      {formatTimeAgo(item.createdAt)}
-                    </Text>
-                  </TouchableOpacity>
+                renderItem={({ item, index }) => (
+                  <ADSRFadeIn index={index} staggerMs={60} slideFrom="right">
+                    <TouchableOpacity
+                      style={styles.flightCaseCard}
+                      onPress={() => onOpenRoom(item.id)}
+                      activeOpacity={0.8}
+                    >
+                      {/* Album art placeholder */}
+                      <View style={styles.flightCaseArt}>
+                        {item.currentTrack?.albumArt ? (
+                          <Image
+                            source={{ uri: item.currentTrack.albumArt }}
+                            style={styles.flightCaseArtImage}
+                          />
+                        ) : (
+                          <Ionicons name="disc-outline" size={24} color={palette.slate} />
+                        )}
+                      </View>
+                      <Text style={styles.flightCaseName} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.flightCaseDate} numberOfLines={1}>
+                        {formatTimeAgo(item.createdAt)}
+                      </Text>
+                    </TouchableOpacity>
+                  </ADSRFadeIn>
                 )}
               />
             ) : (
@@ -241,6 +332,19 @@ export function HomeScreen({
           <View style={{ height: 120 }} />
         </ScrollView>
       </VoidSurface>
+
+      {/* Notification Drawer Modal */}
+      <NotificationDrawer
+        visible={showNotifications}
+        onClose={() => {
+          setShowNotifications(false);
+          // Refresh unread count after closing
+          notificationApi.unreadCount()
+            .then((res) => setUnreadCount(res.count ?? 0))
+            .catch(() => {});
+        }}
+        onOpenRoom={onOpenRoom}
+      />
     </SafeScreen>
   );
 }
@@ -290,16 +394,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoText: {
-    fontFamily: 'ChakraPetch-Bold',
-    fontSize: 11,
+    fontFamily: fontFamily.displayBold,
+    fontSize: fontSize.sm,
     color: palette.orange,
-    letterSpacing: 1,
+    letterSpacing: ls.wide,
   },
   appName: {
-    fontFamily: 'ChakraPetch-Bold',
-    fontSize: 20,
+    fontFamily: fontFamily.displayBold,
+    fontSize: fontSize['2xl'],
     color: palette.frost,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
   },
   topBarRight: {
     flexDirection: 'row',
@@ -310,17 +414,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(0, 255, 136, 0.08)',
+    backgroundColor: colors.statusSuccessSubtle,
     borderWidth: 1,
-    borderColor: 'rgba(0, 255, 136, 0.20)',
+    borderColor: colors.statusSuccessBorder,
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  cvText: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 13,
-    color: palette.green,
+  headerIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: palette.red,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: {
+    fontFamily: fontFamily.mono,
+    fontSize: 9,
+    color: palette.frost,
+    fontWeight: '700',
   },
   avatarBtn: {
     width: 36,
@@ -334,10 +459,10 @@ const styles = StyleSheet.create({
 
   // ─── Section Labels ───────────────────────────────────
   sectionLabel: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 11,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.sm,
     color: palette.slate,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
     marginBottom: 12,
   },
   sectionHeaderRow: {
@@ -348,19 +473,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   viewAllText: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 11,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.sm,
     color: palette.silver,
-    letterSpacing: 1,
+    letterSpacing: ls.wide,
   },
 
   // ─── Live Connection Card ─────────────────────────────
   liveCard: {
-    backgroundColor: palette.midnight,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 53, 0.12)',
+    padding: 4,
   },
   liveCardHeader: {
     flexDirection: 'row',
@@ -368,31 +489,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  activePatchBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  activePatchText: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 10,
-    color: palette.red,
-    letterSpacing: 1.5,
-  },
   listenerCount: {
-    backgroundColor: 'rgba(148, 163, 184, 0.12)',
+    backgroundColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  listenerCountText: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 12,
-    color: palette.silver,
-  },
   liveRoomName: {
-    fontFamily: 'ChakraPetch-Bold',
-    fontSize: 24,
+    fontFamily: fontFamily.displayBold,
+    fontSize: fontSize['3xl'],
     color: palette.frost,
     marginBottom: 10,
   },
@@ -401,39 +506,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   liveTrackTitle: {
-    fontFamily: 'ChakraPetch-SemiBold',
-    fontSize: 15,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.lg,
     color: palette.frost,
     marginBottom: 2,
   },
   liveTrackArtist: {
-    fontFamily: 'ChakraPetch-Regular',
-    fontSize: 13,
+    fontFamily: fontFamily.body,
+    fontSize: fontSize.base,
     color: palette.silver,
   },
   playBtnSmall: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: palette.orange,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 12,
-    // Orange glow
-    shadowColor: palette.orange,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
   },
 
   // ─── Empty Live State ─────────────────────────────────
   emptyLiveCard: {
-    backgroundColor: palette.midnight,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    borderStyle: 'dashed',
   },
   emptyLiveInner: {
     alignItems: 'center',
@@ -441,14 +534,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   emptyLiveText: {
-    fontFamily: 'ChakraPetch-SemiBold',
-    fontSize: 16,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.lg,
     color: palette.silver,
     marginTop: 10,
   },
   emptyLiveSubtext: {
-    fontFamily: 'ChakraPetch-Regular',
-    fontSize: 13,
+    fontFamily: fontFamily.body,
+    fontSize: fontSize.base,
     color: palette.slate,
     marginTop: 4,
     textAlign: 'center',
@@ -479,26 +572,26 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   flightCaseName: {
-    fontFamily: 'ChakraPetch-SemiBold',
-    fontSize: 13,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.base,
     color: palette.frost,
     marginBottom: 2,
   },
   flightCaseDate: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 11,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.sm,
     color: palette.slate,
   },
   emptyFlightCases: {
-    backgroundColor: 'rgba(148, 163, 184, 0.04)',
+    backgroundColor: colors.skeleton,
     borderRadius: 8,
     padding: 20,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
   },
   emptyFlightCaseText: {
-    fontFamily: 'ChakraPetch-Regular',
-    fontSize: 13,
+    fontFamily: fontFamily.body,
+    fontSize: fontSize.base,
     color: palette.slate,
     textAlign: 'center',
   },

@@ -48,7 +48,7 @@ export function LyricsOverlay({ track, visible, onClose }: LyricsOverlayProps) {
     }, [visible, track]);
 
     return (
-        <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose} accessibilityViewIsModal>
             <View style={styles.container}>
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(15, 17, 21, 0.85)' }]} />
 
@@ -81,7 +81,7 @@ export function LyricsOverlay({ track, visible, onClose }: LyricsOverlayProps) {
                 ) : (
                     <ScrollView contentContainerStyle={styles.scrollContent} indicatorStyle="white">
                         {thumbnail && (
-                            <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
+                            <Image source={{ uri: thumbnail }} style={styles.thumbnail} accessible={false} />
                         )}
                         <Text style={styles.lyricsText}>{lyrics}</Text>
                     </ScrollView>

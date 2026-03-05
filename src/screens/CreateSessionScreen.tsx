@@ -19,8 +19,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, ADSRTransition } from '../components/ui';
 import { sessionApi } from '../services/api';
 import { spacing } from '../theme/spacing';
-import { VoidSurface } from '../design/components';
+import { VoidSurface, ModuleFaceplate, ChromeButton } from '../design/components';
 import { palette } from '../design/tokens/materials';
+import { colors } from '../design/tokens/colors';
+import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
 import type { RoomMode, RoomBehaviors } from '../types';
 import { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } from '../types';
 
@@ -88,6 +90,8 @@ export function CreateSessionScreen() {
         roomMode,
         isPublic,
         behaviors,
+        source,
+        vibe,
       });
       navigation.replace('SessionRoom', { sessionId: session.id });
     } catch (err: any) {
@@ -107,6 +111,9 @@ export function CreateSessionScreen() {
               <TouchableOpacity
                 onPress={() => navigation.goBack()}
                 style={styles.closeBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close dialog"
+                accessibilityHint="Double tap to close this session creation dialog"
               >
                 <Ionicons name="close" size={20} color={palette.silver} />
               </TouchableOpacity>
@@ -126,13 +133,14 @@ export function CreateSessionScreen() {
               onChangeText={setName}
               returnKeyType="done"
               autoCapitalize="words"
+              accessibilityLabel="Session name input"
+              accessibilityHint="Enter a name for your session"
             />
 
             {/* Signal Routing Diagram */}
             <View style={styles.routingDiagram}>
               {/* SIGNAL OUT */}
-              <View style={styles.routingNodeCard}>
-                <Text style={styles.routingNodeLabel}>SIGNAL OUT</Text>
+              <ModuleFaceplate label="SIGNAL OUT" style={styles.routingNodeCard}>
                 <View style={styles.routingJack}>
                   <View style={styles.jackHole} />
                 </View>
@@ -142,6 +150,9 @@ export function CreateSessionScreen() {
                       key={s}
                       style={[styles.sourceChip, source === s && styles.sourceChipActive]}
                       onPress={() => setSource(s)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Source: ${s}`}
+                      accessibilityState={{ selected: source === s }}
                     >
                       <Text style={[styles.sourceText, source === s && styles.sourceTextActive]}>
                         {s}
@@ -149,7 +160,7 @@ export function CreateSessionScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-              </View>
+              </ModuleFaceplate>
 
               {/* Cable bridge */}
               <View style={styles.cableLine}>
@@ -163,8 +174,7 @@ export function CreateSessionScreen() {
               </View>
 
               {/* CV IN */}
-              <View style={[styles.routingNodeCard, styles.routingNodeCardDest]}>
-                <Text style={styles.routingNodeLabel}>CV IN</Text>
+              <ModuleFaceplate label="CV IN" style={[styles.routingNodeCard, styles.routingNodeCardDest]}>
                 <View style={styles.routingJack}>
                   <View style={[styles.jackHole, { borderColor: palette.orange }]} />
                 </View>
@@ -174,6 +184,9 @@ export function CreateSessionScreen() {
                       key={v}
                       style={[styles.sourceChip, vibe === v && styles.vibeChipActive]}
                       onPress={() => setVibe(v)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Vibe: ${v}`}
+                      accessibilityState={{ selected: vibe === v }}
                     >
                       <Text style={[styles.sourceText, vibe === v && styles.vibeTextActive]}>
                         {v}
@@ -181,7 +194,7 @@ export function CreateSessionScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-              </View>
+              </ModuleFaceplate>
             </View>
 
             {/* Preset Templates */}
@@ -194,6 +207,10 @@ export function CreateSessionScreen() {
                     key={mode.key}
                     style={[styles.modePill, isActive && styles.modePillActive]}
                     onPress={() => selectPreset(mode.key)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Room mode: ${mode.label}`}
+                    accessibilityState={{ selected: isActive }}
+                    accessibilityHint={mode.desc}
                   >
                     <Text style={[styles.modePillText, isActive && styles.modePillTextActive]}>
                       {mode.label}
@@ -210,6 +227,10 @@ export function CreateSessionScreen() {
             <TouchableOpacity
               style={styles.advancedToggle}
               onPress={() => setShowAdvanced(!showAdvanced)}
+              accessibilityRole="button"
+              accessibilityLabel="Customize behaviors"
+              accessibilityState={{ expanded: showAdvanced }}
+              accessibilityHint="Double tap to expand advanced behavior options"
             >
               <Text style={styles.advancedToggleText}>CUSTOMIZE BEHAVIORS</Text>
               <Ionicons
@@ -220,7 +241,7 @@ export function CreateSessionScreen() {
             </TouchableOpacity>
 
             {showAdvanced && (
-              <View style={styles.advancedSection}>
+              <ModuleFaceplate label="ADVANCED" style={styles.advancedSection}>
                 {/* Queue Ordering */}
                 <Text style={styles.toggleSectionLabel}>QUEUE ORDERING</Text>
                 <View style={styles.modeRow}>
@@ -231,6 +252,9 @@ export function CreateSessionScreen() {
                         key={opt.key}
                         style={[styles.modePill, isActive && styles.modePillActive]}
                         onPress={() => setBehaviors((b) => ({ ...b, queueOrdering: opt.key }))}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Queue ordering: ${opt.label}`}
+                        accessibilityState={{ selected: isActive }}
                       >
                         <Text style={[styles.modePillText, isActive && styles.modePillTextActive]}>
                           {opt.label}
@@ -250,6 +274,9 @@ export function CreateSessionScreen() {
                         key={opt.key}
                         style={[styles.modePill, isActive && styles.modePillActive]}
                         onPress={() => setBehaviors((b) => ({ ...b, skipAccess: opt.key }))}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Skip access: ${opt.label}`}
+                        accessibilityState={{ selected: isActive }}
                       >
                         <Text style={[styles.modePillText, isActive && styles.modePillTextActive]}>
                           {opt.label}
@@ -277,12 +304,16 @@ export function CreateSessionScreen() {
                     <TouchableOpacity
                       style={[styles.toggle, behaviors[toggle.key] && styles.toggleActive]}
                       onPress={() => toggleBehavior(toggle.key)}
+                      accessibilityRole="switch"
+                      accessibilityLabel={toggle.label}
+                      accessibilityState={{ checked: behaviors[toggle.key] }}
+                      accessibilityHint={toggle.desc}
                     >
                       <View style={[styles.toggleKnob, behaviors[toggle.key] && styles.toggleKnobActive]} />
                     </TouchableOpacity>
                   </View>
                 ))}
-              </View>
+              </ModuleFaceplate>
             )}
 
             {/* Public/Private toggle */}
@@ -300,22 +331,25 @@ export function CreateSessionScreen() {
               <TouchableOpacity
                 style={[styles.toggle, isPublic && styles.toggleActive]}
                 onPress={() => setIsPublic(!isPublic)}
+                accessibilityRole="switch"
+                accessibilityLabel="Public or private signal"
+                accessibilityState={{ checked: isPublic }}
+                accessibilityHint={isPublic ? "Signal is public. Double tap to make it private." : "Signal is private. Double tap to make it public."}
               >
                 <View style={[styles.toggleKnob, isPublic && styles.toggleKnobActive]} />
               </TouchableOpacity>
             </View>
 
             {/* EXECUTE PATCH — big orange CTA */}
-            <TouchableOpacity
-              style={[styles.executePatch, loading && { opacity: 0.6 }]}
+            <ChromeButton
+              variant="glowing"
+              size="lg"
               onPress={handleCreate}
               disabled={loading}
-              activeOpacity={0.8}
+              style={styles.executePatch}
             >
-              <Text style={styles.executePatchText}>
-                {loading ? 'PATCHING...' : 'EXECUTE PATCH'}
-              </Text>
-            </TouchableOpacity>
+              {loading ? 'PATCHING...' : 'EXECUTE PATCH'}
+            </ChromeButton>
           </ScrollView>
         </VoidSurface>
       </SafeScreen>
@@ -341,29 +375,29 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(148, 163, 184, 0.08)',
+    backgroundColor: colors.borderSubtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
-    fontFamily: 'ChakraPetch-Bold',
-    fontSize: 22,
+    fontFamily: fontFamily.displayBold,
+    fontSize: fontSize['2xl'],
     color: palette.frost,
-    letterSpacing: 0.5,
+    letterSpacing: ls.normal,
   },
   subtitle: {
     marginTop: 3,
-    fontFamily: 'ChakraPetch-Regular',
-    fontSize: 12,
+    fontFamily: fontFamily.body,
+    fontSize: fontSize.base,
     color: palette.slate,
   },
 
   // Name input
   inputLabel: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 10,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.xs,
     color: palette.slate,
-    letterSpacing: 1.5,
+    letterSpacing: ls.wide,
     marginBottom: 6,
   },
   nameInput: {
@@ -371,8 +405,8 @@ const styles = StyleSheet.create({
     backgroundColor: palette.steel,
     borderRadius: 8,
     paddingHorizontal: 14,
-    fontFamily: 'ChakraPetch-Regular',
-    fontSize: 16,
+    fontFamily: fontFamily.body,
+    fontSize: fontSize.lg,
     color: palette.frost,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
@@ -388,22 +422,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   routingNodeCard: {
-    backgroundColor: palette.midnight,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
     alignItems: 'center',
   },
   routingNodeCardDest: {
-    borderColor: 'rgba(255, 107, 53, 0.26)',
+    borderColor: colors.accentPrimarySubtle,
   },
   routingNodeLabel: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 10,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.xs,
     color: palette.silver,
-    letterSpacing: 1.5,
+    letterSpacing: ls.wide,
     marginBottom: 8,
   },
   routingJack: {
@@ -441,20 +469,20 @@ const styles = StyleSheet.create({
   },
   sourceChipActive: {
     borderColor: palette.ice,
-    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    backgroundColor: colors.accentSecondarySubtle,
   },
   sourceText: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 8,
     color: palette.slate,
-    letterSpacing: 1,
+    letterSpacing: ls.wide,
   },
   sourceTextActive: {
     color: palette.ice,
   },
   vibeChipActive: {
     borderColor: palette.orange,
-    backgroundColor: 'rgba(255, 107, 53, 0.08)',
+    backgroundColor: colors.accentPrimarySubtle,
   },
   vibeTextActive: {
     color: palette.orange,
@@ -475,15 +503,15 @@ const styles = StyleSheet.create({
     width: 8,
     height: 2,
     borderRadius: 1,
-    backgroundColor: 'rgba(255, 107, 53, 0.30)',
+    backgroundColor: colors.accentPrimaryGlow,
   },
 
   // Mode selector
   sectionLabel: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 10,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.xs,
     color: palette.slate,
-    letterSpacing: 1.5,
+    letterSpacing: ls.wide,
     marginBottom: 10,
   },
   modeRow: {
@@ -503,20 +531,20 @@ const styles = StyleSheet.create({
   },
   modePillActive: {
     borderColor: palette.orange,
-    backgroundColor: 'rgba(255, 107, 53, 0.08)',
+    backgroundColor: colors.accentPrimarySubtle,
   },
   modePillText: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 9,
     color: palette.slate,
-    letterSpacing: 1,
+    letterSpacing: ls.wide,
   },
   modePillTextActive: {
     color: palette.orange,
   },
   modeDesc: {
-    fontFamily: 'ChakraPetch-Regular',
-    fontSize: 13,
+    fontFamily: fontFamily.body,
+    fontSize: fontSize.base,
     color: palette.silver,
     marginBottom: spacing.xl,
     textAlign: 'center',
@@ -533,22 +561,19 @@ const styles = StyleSheet.create({
     borderTopColor: palette.chromeBorder,
   },
   advancedToggleText: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 10,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.xs,
     color: palette.silver,
-    letterSpacing: 1.5,
+    letterSpacing: ls.wide,
   },
   advancedSection: {
     marginBottom: spacing.lg,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.chromeBorder,
   },
   toggleSectionLabel: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 9,
     color: palette.slate,
-    letterSpacing: 1.2,
+    letterSpacing: ls.wide,
     marginBottom: 8,
     marginTop: 12,
   },
@@ -558,16 +583,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(148, 163, 184, 0.08)',
+    borderBottomColor: colors.borderSubtle,
   },
   behaviorToggleLabel: {
-    fontFamily: 'ChakraPetch-SemiBold',
-    fontSize: 13,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.base,
     color: palette.frost,
   },
   behaviorToggleDesc: {
-    fontFamily: 'ChakraPetch-Regular',
-    fontSize: 11,
+    fontFamily: fontFamily.body,
+    fontSize: fontSize.sm,
     color: palette.slate,
     marginTop: 1,
   },
@@ -585,13 +610,13 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.chromeBorder,
   },
   toggleLabel: {
-    fontFamily: 'ChakraPetch-SemiBold',
-    fontSize: 14,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.md,
     color: palette.frost,
   },
   toggleDesc: {
-    fontFamily: 'ChakraPetch-Regular',
-    fontSize: 12,
+    fontFamily: fontFamily.body,
+    fontSize: fontSize.base,
     color: palette.slate,
     marginTop: 2,
   },
@@ -623,23 +648,12 @@ const styles = StyleSheet.create({
   // Execute button
   executePatch: {
     height: 56,
-    borderRadius: 8,
-    backgroundColor: palette.orange,
-    alignItems: 'center',
-    justifyContent: 'center',
     // Orange glow
-    shadowColor: '#FF6B35',
+    shadowColor: palette.orange,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 8,
-  },
-  executePatchText: {
-    fontFamily: 'SpaceMono-Regular',
-    fontSize: 14,
-    color: palette.void,
-    letterSpacing: 2,
-    fontWeight: '700',
   },
 });
 

@@ -45,7 +45,7 @@ function Avatar({
           borderColor: borderColor || palette.steel,
           borderWidth: 2,
         },
-        isHost && { borderColor: '#39FF14' },
+        isHost && { borderColor: palette.green },
       ]}
     >
       <Text
@@ -80,7 +80,7 @@ export function ListenerBar({ listeners, hostId, onPress }: ListenerBarProps) {
   const totalWidth = visible.length * (AVATAR_SIZE - AVATAR_OVERLAP) + AVATAR_OVERLAP;
 
   return (
-    <TouchableOpacity style={barStyles.container} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={barStyles.container} onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${visible.length} listener${visible.length !== 1 ? 's' : ''}${overflow > 0 ? ` plus ${overflow} more` : ''} in room. Tap to see all`}>
       <View style={[barStyles.stack, { width: totalWidth }]}>
         {visible.map((l, i) => (
           <View
@@ -148,17 +148,17 @@ export function ListenerDrawer({ visible, listeners, hostId, onClose }: Listener
   });
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} accessibilityViewIsModal>
       <View style={drawerStyles.overlay}>
         {/* Backdrop — fills screen, tappable to dismiss */}
-        <TouchableOpacity style={drawerStyles.backdrop} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity style={drawerStyles.backdrop} activeOpacity={1} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close listeners panel" />
 
         {/* Sheet — anchored to bottom */}
         <Animated.View
           style={[drawerStyles.sheet, { transform: [{ translateY: slideAnim }] }]}
         >
         {/* Handle */}
-        <TouchableOpacity style={drawerStyles.handleArea} onPress={onClose} activeOpacity={0.8}>
+        <TouchableOpacity style={drawerStyles.handleArea} onPress={onClose} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Close" accessibilityHint="Swipe or tap the handle to close listeners panel">
           <View style={drawerStyles.handle} />
         </TouchableOpacity>
 
@@ -184,7 +184,7 @@ export function ListenerDrawer({ visible, listeners, hostId, onClose }: Listener
                     {item.username}
                   </Text>
                   {isHost && (
-                    <Text variant="labelSmall" color={'#39FF14'}>HOST</Text>
+                    <Text variant="labelSmall" color={palette.green}>HOST</Text>
                   )}
                 </View>
                 {/* Activity dot — green for "listening" */}
@@ -256,7 +256,7 @@ const drawerStyles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#39FF14',
+    backgroundColor: palette.green,
   },
 });
 
@@ -277,7 +277,7 @@ export function JoinLeaveToast({ messages }: JoinLeaveToastProps) {
 
   // Show only the most recent toast
   const latest = messages[messages.length - 1];
-  const iconColor = latest.type === 'join' ? '#39FF14'
+  const iconColor = latest.type === 'join' ? palette.green
     : latest.type === 'mode' ? palette.orange
     : palette.slate;
   const icon = latest.type === 'join' ? '→'

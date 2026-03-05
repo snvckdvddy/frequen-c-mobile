@@ -1,154 +1,132 @@
 /**
- * Frequen-C Color System — Y2K Edition
+ * Frequen-C legacy theme colors.
  *
- * Design philosophy: Chrome-era futurism meets collaborative music.
- * Icy translucency, hot accent pops, metallic depth.
- * Think early iPod × PS2 menu × Winamp — optimistic future, not retro.
+ * Kept for backward compatibility, but values are sourced from the
+ * current design token palette so visuals stay aligned system-wide.
  */
 
-// ─── Core Palette ───────────────────────────────────────────
+import { palette } from '../design/tokens/materials';
 
-const palette = {
-  // Backgrounds — deep navy-black, cool undertone
-  void: '#06080F',          // Deepest background (session rooms)
-  midnight: '#0E1219',      // Primary surface
-  steel: '#161B28',         // Card/elevated surface
-  gunmetal: '#1E2436',      // Input fields, secondary surfaces
+const legacyPalette = {
+  void: palette.void,
+  midnight: palette.midnight,
+  steel: palette.steel,
+  gunmetal: palette.gunmetal,
 
-  // Signal colors — chrome-era electric
-  ice: '#00E5FF',            // Primary — icy cyan, the Frequen-C signature
-  hotPink: '#FF2D55',        // Accent — Y2K pop, energy
-  warmOrange: '#FF6B35',     // Heat — urgency, hot queue
-  chromeBlue: '#C0DFFF',     // Metallic — premium, currency
-  neonGreen: '#39FF14',      // Live indicator — unmistakable "on-air"
+  ice: palette.ice,
+  hotPink: palette.magenta,
+  warmOrange: palette.orange,
+  chromeBlue: palette.signalSaw,
+  neonGreen: palette.green,
 
-  // Neutrals — cool steel temperature
-  frost: '#F0F4F8',          // Primary text — slightly cool white
-  silver: '#94A3B8',         // Secondary text — steel silver
-  slate: '#5A6680',          // Tertiary / muted text
-  darkSteel: '#2D3548',      // Borders, dividers, disabled
+  frost: palette.frost,
+  silver: palette.silver,
+  slate: palette.slate,
+  darkSteel: palette.chromeBorder,
 
-  // Semantic overlays — use these instead of hardcoded rgba()
-  iceGlow: 'rgba(0, 229, 255, 0.12)',       // Cyan frost for active states
-  iceSubtle: 'rgba(0, 229, 255, 0.08)',     // Subtle cyan highlight
-  iceFaint: 'rgba(0, 229, 255, 0.04)',      // Faintest cyan tint
-  iceOverlay: 'rgba(0, 229, 255, 0.20)',    // Overlay emphasis
-  pinkGlow: 'rgba(255, 45, 85, 0.10)',      // Hot pink glow
-  chromeGlow: 'rgba(192, 223, 255, 0.08)',   // Chrome shimmer
+  iceGlow: 'rgba(90, 200, 200, 0.12)',
+  iceSubtle: 'rgba(90, 200, 200, 0.08)',
+  iceFaint: 'rgba(90, 200, 200, 0.04)',
+  iceOverlay: 'rgba(90, 200, 200, 0.20)',
+  pinkGlow: 'rgba(244, 114, 182, 0.10)',
+  chromeGlow: 'rgba(147, 197, 253, 0.08)',
 } as const;
 
-// ─── Semantic Tokens ────────────────────────────────────────
-
 export const colors = {
-  // Backgrounds
   bg: {
-    primary: palette.void,
-    surface: palette.midnight,
-    elevated: palette.steel,
-    input: palette.gunmetal,
-    overlay: 'rgba(6, 8, 15, 0.88)',
+    primary: legacyPalette.void,
+    surface: legacyPalette.midnight,
+    elevated: legacyPalette.steel,
+    input: legacyPalette.gunmetal,
+    overlay: 'rgba(15, 16, 18, 0.88)',
   },
 
-  // Text
   text: {
-    primary: palette.frost,
-    secondary: palette.silver,
-    muted: palette.slate,
-    inverse: palette.void,
+    primary: legacyPalette.frost,
+    secondary: legacyPalette.silver,
+    muted: legacyPalette.slate,
+    inverse: legacyPalette.void,
   },
 
-  // Borders & Dividers
   border: {
-    default: palette.darkSteel,
-    subtle: 'rgba(0, 229, 255, 0.06)',
-    focus: palette.ice,
+    default: legacyPalette.darkSteel,
+    subtle: 'rgba(90, 200, 200, 0.06)',
+    focus: legacyPalette.ice,
   },
 
-  // Actions
   action: {
-    primary: palette.ice,
-    primaryText: palette.void,        // Dark text on icy cyan buttons
-    secondary: palette.chromeBlue,
-    destructive: palette.hotPink,
+    primary: legacyPalette.ice,
+    primaryText: legacyPalette.void,
+    secondary: legacyPalette.chromeBlue,
+    destructive: legacyPalette.hotPink,
   },
 
-  // Session / Room states
   session: {
-    live: palette.neonGreen,
-    liveGlow: 'rgba(57, 255, 20, 0.12)',
-    campfire: palette.warmOrange,     // Campfire mode (equal turns)
-    spotlight: palette.hotPink,       // Spotlight mode (host curates)
-    openFloor: palette.chromeBlue,    // Open Floor mode (free-for-all)
+    live: legacyPalette.neonGreen,
+    liveGlow: 'rgba(52, 211, 153, 0.12)',
+    campfire: legacyPalette.warmOrange,
+    spotlight: legacyPalette.hotPink,
+    openFloor: legacyPalette.chromeBlue,
   },
 
-  // Social Voltage economy
   voltage: {
-    charge: palette.chromeBlue,
-    chargeGlow: palette.chromeGlow,
-    spent: palette.slate,
-    boost: palette.hotPink,
+    charge: legacyPalette.chromeBlue,
+    chargeGlow: legacyPalette.chromeGlow,
+    spent: legacyPalette.slate,
+    boost: legacyPalette.hotPink,
   },
 
-  // Queue
   queue: {
-    myTrack: palette.ice,
-    myTrackGlow: palette.iceGlow,
-    otherTrack: palette.steel,
-    nowPlaying: palette.ice,
-    upNext: palette.chromeBlue,
+    myTrack: legacyPalette.ice,
+    myTrackGlow: legacyPalette.iceGlow,
+    otherTrack: legacyPalette.steel,
+    nowPlaying: legacyPalette.ice,
+    upNext: legacyPalette.chromeBlue,
   },
 
-  // Contribution visibility
   contribution: {
-    active: palette.ice,
-    recent: palette.chromeBlue,
-    idle: palette.slate,
-    streak: palette.warmOrange,
+    active: legacyPalette.ice,
+    recent: legacyPalette.chromeBlue,
+    idle: legacyPalette.slate,
+    streak: legacyPalette.warmOrange,
   },
 
-  // Reactions
   reaction: {
-    fire: palette.warmOrange,
-    vibe: palette.hotPink,
-    skip: palette.slate,
+    fire: legacyPalette.warmOrange,
+    vibe: legacyPalette.hotPink,
+    skip: legacyPalette.slate,
   },
 
-  // Chrome — brushed metal surfaces
   chrome: {
-    border: 'rgba(192, 223, 255, 0.15)',
-    surface: 'rgba(192, 223, 255, 0.04)',
-    highlight: 'rgba(192, 223, 255, 0.25)',
-    text: palette.chromeBlue,
+    border: legacyPalette.darkSteel,
+    surface: 'rgba(255, 255, 255, 0.04)',
+    highlight: 'rgba(255, 255, 255, 0.12)',
+    text: legacyPalette.chromeBlue,
   },
 
-  // Signal types — waveform identity per room mode
   signal: {
-    sine: palette.warmOrange,       // Campfire — warm, rounded
-    square: palette.hotPink,        // Spotlight — sharp, defined
-    saw: palette.chromeBlue,        // Open Floor — rich, full spectrum
-    noise: palette.slate,           // Inactive/muted
+    sine: legacyPalette.warmOrange,
+    square: legacyPalette.hotPink,
+    saw: legacyPalette.chromeBlue,
+    noise: legacyPalette.slate,
   },
 
-  // Control Voltage economy
   cv: {
-    positive: palette.neonGreen,    // earning voltage
-    negative: palette.hotPink,      // spending voltage
-    neutral: palette.silver,        // display only
+    positive: legacyPalette.neonGreen,
+    negative: legacyPalette.hotPink,
+    neutral: legacyPalette.silver,
   },
 
-  // Highlight overlays — standardized transparency stops
-  // Use these instead of inline rgba() or string concatenation (colors.action.primary + '10')
   highlight: {
-    ice: palette.iceGlow,            // 12% — active states, selection
-    iceSubtle: palette.iceSubtle,    // 8%  — hover, pressed backgrounds
-    iceFaint: palette.iceFaint,      // 4%  — barely-there tint
-    iceOverlay: palette.iceOverlay,  // 20% — strong overlay
-    pink: palette.pinkGlow,          // 10% — destructive/energy states
-    chrome: palette.chromeGlow,      // 8%  — chrome shimmer
+    ice: legacyPalette.iceGlow,
+    iceSubtle: legacyPalette.iceSubtle,
+    iceFaint: legacyPalette.iceFaint,
+    iceOverlay: legacyPalette.iceOverlay,
+    pink: legacyPalette.pinkGlow,
+    chrome: legacyPalette.chromeGlow,
   },
 
-  // Raw palette access (escape hatch)
-  raw: palette,
+  raw: legacyPalette,
 } as const;
 
 export type ColorToken = typeof colors;

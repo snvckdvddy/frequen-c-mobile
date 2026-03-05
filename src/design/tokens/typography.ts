@@ -59,6 +59,7 @@ export const fontSize = {
 // ─── Font Weights ───────────────────────────────────────────
 
 export const fontWeight = {
+  thin: '200' as const,       // Brand hero letters only (LoginScreen)
   regular: '400' as const,
   medium: '500' as const,
   semibold: '600' as const,
@@ -68,11 +69,14 @@ export const fontWeight = {
 // ─── Letter Spacing ─────────────────────────────────────────
 
 export const letterSpacing = {
+  tighter: -2.0,    // Brand hero letters only (LoginScreen)
   tight: -0.5,      // Display headings, compact
   normal: 0,        // Body text
   wide: 1.5,        // Label text (0.15em at ~10px)
   wider: 2.0,       // Emphasized labels
   widest: 3.0,      // Hero labels, section titles
+  ultraWide: 4.0,   // Brand tagline (RegisterScreen)
+  heroWide: 6.0,    // Brand tag hero (LoginScreen)
 } as const;
 
 // ─── Line Heights ───────────────────────────────────────────
@@ -168,5 +172,21 @@ export const textStyle = {
     fontSize: fontSize.sm,
     lineHeight: fontSize.sm * lineHeight.normal,
     letterSpacing: letterSpacing.normal,
+  },
+
+  // Brand tier — Login/Register hero typography
+  brandHeroLetter: {
+    fontFamily: fontFamily.display,
+    fontSize: fontSize['5xl'],
+    lineHeight: 72,
+    fontWeight: fontWeight.thin,
+    letterSpacing: letterSpacing.tighter,
+  },
+  brandTag: {
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.xs,
+    lineHeight: fontSize.xs * lineHeight.normal,
+    letterSpacing: letterSpacing.heroWide,
+    textTransform: 'uppercase' as const,
   },
 } as const;

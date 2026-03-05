@@ -18,15 +18,18 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, LayoutAnimation, Platform, UIManager,
-  ActivityIndicator,
+  ActivityIndicator, Modal, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, ADSRFadeIn, TrackListItem } from '../components/ui';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { sessionApi } from '../services/api';
 import { spacing } from '../theme/spacing';
-import { VoidSurface } from '../design/components';
+import { VoidSurface, ModuleFaceplate, LEDReadout, ChromeButton } from '../design/components';
 import { palette } from '../design/tokens/materials';
+import { colors } from '../design/tokens/colors';
+import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
 import type { Session, Track, FavoriteTrack, RoomMode } from '../types';
 
 // Enable layout animation on Android
@@ -81,13 +84,13 @@ const jackStyles = StyleSheet.create({
   },
   jackHoleConnected: {
     borderColor: palette.ice,
-    backgroundColor: 'rgba(0, 229, 255, 0.10)',
+    backgroundColor: colors.accentSecondarySubtle,
   },
   label: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 9,
     color: palette.slate,
-    letterSpacing: 1.5,
+    letterSpacing: ls.wide,
   },
 });
 
@@ -114,11 +117,13 @@ function CollapsibleSection({
         style={sectionStyles.header}
         onPress={toggle}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ expanded: isOpen }}
+        accessibilityHint={`Double tap to ${isOpen ? 'collapse' : 'expand'} ${title}`}
       >
         <Text style={sectionStyles.title}>{title}</Text>
-        <View style={sectionStyles.countBadge}>
-          <Text style={sectionStyles.countText}>{count}</Text>
-        </View>
+        <LEDReadout value={String(count)} size="sm" variant="ice" />
         <Ionicons
           name={isOpen ? 'chevron-up' : 'chevron-down'}
           size={14}
@@ -148,10 +153,10 @@ const sectionStyles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 11,
     color: palette.silver,
-    letterSpacing: 1.5,
+    letterSpacing: ls.wide,
   },
   countBadge: {
     paddingHorizontal: 8,
@@ -162,7 +167,7 @@ const sectionStyles = StyleSheet.create({
     borderColor: palette.chromeBorder,
   },
   countText: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 10,
     color: palette.slate,
   },
@@ -172,13 +177,87 @@ const sectionStyles = StyleSheet.create({
   },
 });
 
+// ─── Session Lore Modal ─────────────────────────────────────
+
+function SessionLoreModal({ session, onClose }: { session: Session | null; onClose: () => void }) {
+  if (!session) return null;
+
+  const trackCount = session.queue?.length || 0;
+  const listenerCount = session.listeners?.length || 0;
+  const modeLabel = session.roomMode === 'campfire' ? 'CAMPFIRE'
+    : session.roomMode === 'spotlight' ? 'SPOTLIGHT' : 'OPEN FLOOR';
+  const created = session.createdAt?.split('T')[0] || 'Unknown';
+
+  return (
+    <Modal
+      visible={!!session}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <View style={loreStyles.backdrop}>
+        <View style={loreStyles.sheet}>
+          <ModuleFaceplate label="SESSION LORE" screws>
+            {/* Session name */}
+            <Text style={loreStyles.sessionName}>{session.name}</Text>
+            <Text style={loreStyles.sessionDate}>RECORDED: {created}</Text>
+
+            {/* Stats grid */}
+            <View style={loreStyles.statsRow}>
+              <LEDReadout value={String(trackCount)} label="TRACKS" size="md" variant="amber" />
+              <LEDReadout value={String(listenerCount)} label="LISTENERS" size="md" variant="ice" />
+              <LEDReadout value={modeLabel} label="MODE" size="sm" variant="ice" />
+            </View>
+
+            {/* Track list preview */}
+            {session.queue && session.queue.length > 0 && (
+              <View style={loreStyles.trackSection}>
+                <Text style={loreStyles.sectionTitle}>SIGNAL CHAIN</Text>
+                {session.queue.slice(0, 5).map((track, i) => (
+                  <View key={track.id || `track-${i}`} style={loreStyles.trackRow}>
+                    <Text style={loreStyles.trackIndex}>{String(i + 1).padStart(2, '0')}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={loreStyles.trackTitle} numberOfLines={1}>{track.title}</Text>
+                      <Text style={loreStyles.trackArtist} numberOfLines={1}>{track.artist}</Text>
+                    </View>
+                  </View>
+                ))}
+                {session.queue.length > 5 && (
+                  <Text style={loreStyles.moreText}>+{session.queue.length - 5} MORE TRACKS</Text>
+                )}
+              </View>
+            )}
+
+            {/* Listeners */}
+            {session.listeners && session.listeners.length > 0 && (
+              <View style={loreStyles.trackSection}>
+                <Text style={loreStyles.sectionTitle}>CREW</Text>
+                <Text style={loreStyles.crewList}>
+                  {session.listeners.map((l) => l.username).join(' · ')}
+                </Text>
+              </View>
+            )}
+
+            {/* Close button */}
+            <ChromeButton onPress={onClose} size="md" style={{ marginTop: 16, alignSelf: 'center' }}>
+              CLOSE
+            </ChromeButton>
+          </ModuleFaceplate>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Main Screen ────────────────────────────────────────────
 
 export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
   const { favorites } = useFavoritesContext();
+  const { accent, isVoltageSag } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [sessionHistory, setSessionHistory] = useState<Session[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [loreSession, setLoreSession] = useState<Session | null>(null);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -215,7 +294,7 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={palette.orange}
+              tintColor={accent}
             />
           }
         >
@@ -227,7 +306,7 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
 
           {/* ═══ Patch Bay Panel ═══════════════════════════ */}
           <ADSRFadeIn index={1}>
-            <View style={styles.patchBayPanel}>
+            <ModuleFaceplate label="PATCH BAY" screws style={styles.patchBayPanel}>
               {/* Column headers */}
               <View style={styles.patchBayHeaders}>
                 <Text style={styles.patchBayHeaderText}>OUTPUTS</Text>
@@ -250,50 +329,53 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
               <Text style={styles.patchBayInstruction}>
                 CLICK JACKS TO PATCH SIGNALS
               </Text>
-            </View>
+            </ModuleFaceplate>
           </ADSRFadeIn>
 
           {/* ═══ DATA CARTRIDGES (Session History) ════════ */}
           <ADSRFadeIn index={2}>
-            <Text style={styles.sectionLabel}>DATA CARTRIDGES</Text>
-
-            {historyLoading ? (
-              <View style={styles.loadingCenter}>
-                <ActivityIndicator color={palette.orange} size="small" />
-              </View>
-            ) : sessionHistory.length > 0 ? (
-              <View style={{ gap: 8 }}>
-                {sessionHistory.map((session) => (
-                  <TouchableOpacity
-                    key={session.id}
-                    style={styles.cartridgeCard}
-                    onPress={() => onOpenRoom?.(session.id)}
-                    activeOpacity={0.8}
-                  >
-                    {/* Red left accent */}
-                    <View style={styles.cartridgeAccent} />
-                    <View style={styles.cartridgeContent}>
-                      <Text style={styles.cartridgeName}>{session.name}</Text>
-                      <Text style={styles.cartridgeMeta}>
-                        SAVED: {session.createdAt?.split('T')[0] || 'Unknown'} · {session.queue?.length || 0} TRACKS
-                      </Text>
-                    </View>
-                    <TouchableOpacity style={styles.loreBadge} activeOpacity={0.7}>
-                      <Ionicons name="sparkles" size={10} color={palette.orange} />
-                      <Text style={styles.loreBadgeText}>SESSION LORE</Text>
+            <ModuleFaceplate label="DATA CARTRIDGES" screws>
+              {historyLoading ? (
+                <View style={styles.loadingCenter}>
+                  <ActivityIndicator color={accent} size="small" />
+                </View>
+              ) : sessionHistory.length > 0 ? (
+                <View style={{ gap: 8 }}>
+                  {sessionHistory.map((session) => (
+                    <TouchableOpacity
+                      key={session.id}
+                      style={styles.cartridgeCard}
+                      onPress={() => onOpenRoom?.(session.id)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Session: ${session.name}`}
+                      accessibilityHint={`Saved ${session.createdAt?.split('T')[0]}. Double tap to open.`}
+                    >
+                      {/* Red left accent */}
+                      <View style={styles.cartridgeAccent} />
+                      <View style={styles.cartridgeContent}>
+                        <Text style={styles.cartridgeName}>{session.name}</Text>
+                        <Text style={styles.cartridgeMeta}>
+                          SAVED: {session.createdAt?.split('T')[0] || 'Unknown'} · {session.queue?.length || 0} TRACKS
+                        </Text>
+                      </View>
+                      <TouchableOpacity style={styles.loreBadge} activeOpacity={0.7} onPress={() => setLoreSession(session)} accessibilityRole="button" accessibilityLabel="View session lore" accessibilityHint="Double tap to see additional session information">
+                        <Ionicons name="sparkles" size={10} color={accent} />
+                        <Text style={[styles.loreBadgeText, { color: accent }]}>SESSION LORE</Text>
+                      </TouchableOpacity>
                     </TouchableOpacity>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.emptyCartridges}>
-                <Ionicons name="disc-outline" size={28} color={palette.slate} />
-                <Text style={styles.emptyText}>No data cartridges yet.</Text>
-                <Text style={styles.emptySubtext}>
-                  Session archives will appear here after completed sessions.
-                </Text>
-              </View>
-            )}
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyCartridges}>
+                  <Ionicons name="disc-outline" size={28} color={palette.slate} />
+                  <Text style={styles.emptyText}>No data cartridges yet.</Text>
+                  <Text style={styles.emptySubtext}>
+                    Session archives will appear here after completed sessions.
+                  </Text>
+                </View>
+              )}
+            </ModuleFaceplate>
           </ADSRFadeIn>
 
           {/* ═══ LIKED TRACKS ═════════════════════════════ */}
@@ -319,7 +401,7 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
                       artist={track.artist}
                       albumArt={track.albumArt}
                       duration={track.duration}
-                      onPress={() => {}}
+                      onPress={() => Alert.alert(track.title, `${track.artist}${track.duration ? ` · ${Math.floor(track.duration / 60)}:${String(track.duration % 60).padStart(2, '0')}` : ''}`)}
                     />
                   ))}
                 </View>
@@ -344,6 +426,7 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
 
           <View style={{ height: 120 }} />
         </ScrollView>
+        <SessionLoreModal session={loreSession} onClose={() => setLoreSession(null)} />
       </VoidSurface>
     </SafeScreen>
   );
@@ -357,26 +440,21 @@ const styles = StyleSheet.create({
     paddingTop: spacing['3xl'],
   },
   title: {
-    fontFamily: 'ChakraPetch-Bold',
-    fontSize: 28,
+    fontFamily: fontFamily.displayBold,
+    fontSize: fontSize['4xl'],
     color: palette.frost,
     marginBottom: 4,
   },
   subtitle: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 10,
     color: palette.slate,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
     marginBottom: spacing.lg,
   },
 
   // Patch Bay Panel
   patchBayPanel: {
-    backgroundColor: palette.midnight,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    padding: 20,
     marginBottom: spacing.xl,
   },
   patchBayHeaders: {
@@ -385,10 +463,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   patchBayHeaderText: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 10,
     color: palette.slate,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
   },
   patchBayRow: {
     flexDirection: 'row',
@@ -396,20 +474,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   patchBayInstruction: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 8,
     color: palette.slate,
-    letterSpacing: 1.5,
+    letterSpacing: ls.wide,
     textAlign: 'center',
     marginTop: 4,
   },
 
   // Section labels
   sectionLabel: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 11,
     color: palette.slate,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
     marginBottom: 12,
     marginTop: spacing.md,
   },
@@ -434,16 +512,16 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   cartridgeName: {
-    fontFamily: 'ChakraPetch-Bold',
+    fontFamily: fontFamily.displayBold,
     fontSize: 15,
     color: palette.frost,
     marginBottom: 4,
   },
   cartridgeMeta: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 9,
     color: palette.slate,
-    letterSpacing: 1,
+    letterSpacing: ls.normal,
   },
   loreBadge: {
     flexDirection: 'row',
@@ -452,35 +530,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: 'rgba(255, 107, 53, 0.08)',
+    backgroundColor: colors.accentPrimarySubtle,
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 53, 0.20)',
+    borderColor: colors.accentPrimarySubtle,
     marginRight: 12,
   },
   loreBadgeText: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 8,
     color: palette.orange,
-    letterSpacing: 1,
+    letterSpacing: ls.normal,
   },
 
   // Empty states
   emptyCartridges: {
     alignItems: 'center',
     paddingVertical: 32,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    borderStyle: 'dashed',
   },
   emptyText: {
-    fontFamily: 'ChakraPetch-SemiBold',
+    fontFamily: fontFamily.display,
     fontSize: 15,
     color: palette.silver,
     marginTop: 10,
   },
   emptySubtext: {
-    fontFamily: 'ChakraPetch-Regular',
+    fontFamily: fontFamily.body,
     fontSize: 12,
     color: palette.slate,
     marginTop: 4,
@@ -502,14 +576,97 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   comingSoonText: {
-    fontFamily: 'SpaceMono-Regular',
+    fontFamily: fontFamily.mono,
     fontSize: 8,
     color: palette.slate,
-    letterSpacing: 2,
+    letterSpacing: ls.wider,
   },
   loadingCenter: {
     paddingVertical: 32,
     alignItems: 'center',
+  },
+});
+
+const loreStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingBottom: 40,
+    paddingTop: 16,
+  },
+  sessionName: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: fontSize['2xl'],
+    color: palette.frost,
+    marginBottom: 2,
+  },
+  sessionDate: {
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: palette.slate,
+    letterSpacing: ls.wide,
+    marginBottom: 16,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: palette.chromeBorder,
+  },
+  trackSection: {
+    marginTop: 12,
+  },
+  sectionTitle: {
+    fontFamily: fontFamily.mono,
+    fontSize: 9,
+    color: palette.slate,
+    letterSpacing: ls.wider,
+    marginBottom: 8,
+  },
+  trackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: palette.chromeBorder,
+  },
+  trackIndex: {
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: palette.slate,
+    width: 20,
+  },
+  trackTitle: {
+    fontFamily: fontFamily.display,
+    fontSize: 14,
+    color: palette.frost,
+  },
+  trackArtist: {
+    fontFamily: fontFamily.body,
+    fontSize: 12,
+    color: palette.silver,
+  },
+  moreText: {
+    fontFamily: fontFamily.mono,
+    fontSize: 9,
+    color: palette.slate,
+    letterSpacing: ls.wide,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  crewList: {
+    fontFamily: fontFamily.body,
+    fontSize: 13,
+    color: palette.silver,
+    lineHeight: 20,
   },
 });
 

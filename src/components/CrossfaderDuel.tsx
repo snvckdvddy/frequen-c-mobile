@@ -224,11 +224,11 @@ export function CrossfaderDuel({
       <View style={styles.faderTrack}>
         {/* A-side zone */}
         <View style={[styles.faderZone, { backgroundColor: 'rgba(255, 107, 53, 0.08)' }]}>
-          <Text variant="labelSmall" color={'#FF6B35'} style={styles.zoneLabel}>A</Text>
+          <Text variant="labelSmall" color={palette.orange} style={styles.zoneLabel}>A</Text>
         </View>
         {/* B-side zone */}
         <View style={[styles.faderZone, { backgroundColor: 'rgba(192, 223, 255, 0.08)' }]}>
-          <Text variant="labelSmall" color={'#C0DFFF'} style={styles.zoneLabel}>B</Text>
+          <Text variant="labelSmall" color={palette.signalSaw} style={styles.zoneLabel}>B</Text>
         </View>
 
         {/* Center line */}
@@ -272,7 +272,7 @@ export function CrossfaderDuel({
         >
           <Text
             variant="labelLarge"
-            color={userVote === 'a' ? palette.void : '#FF6B35'}
+            color={userVote === 'a' ? palette.void : palette.orange}
           >
             CHANNEL A
           </Text>
@@ -296,7 +296,7 @@ export function CrossfaderDuel({
         >
           <Text
             variant="labelLarge"
-            color={userVote === 'b' ? palette.void : '#C0DFFF'}
+            color={userVote === 'b' ? palette.void : palette.signalSaw}
           >
             CHANNEL B
           </Text>
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     // Shadow
-    shadowColor: '#000',
+    shadowColor: palette.void,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -421,11 +421,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   voteBtnA: {
-    borderColor: '#FF6B35',
+    borderColor: palette.orange,
     backgroundColor: 'rgba(255, 107, 53, 0.06)',
   },
   voteBtnB: {
-    borderColor: '#C0DFFF',
+    borderColor: palette.signalSaw,
     backgroundColor: 'rgba(192, 223, 255, 0.06)',
   },
   voteBtnActive: {

@@ -49,7 +49,7 @@ interface DynamicGradientBgProps {
 
 // ─── Defaults ──────────────────────────────────────────────
 
-const VOID = palette.void;  // #06080F — deepest dark
+const VOID = palette.void;  // Deepest dark
 const DEFAULT_PALETTE: GradientPalette = {
   primary: VOID,
   secondary: VOID,
@@ -85,7 +85,7 @@ function normalizePalette(result: ImageColorsResult): GradientPalette {
 }
 
 /**
- * Darken a hex color by mixing it toward #000000.
+ * Darken a hex color by mixing it toward black.
  * Factor 0 = original, 1 = pure black.
  */
 function darkenHex(hex: string, factor: number): string {

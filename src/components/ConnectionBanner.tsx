@@ -110,10 +110,10 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   dotReconnecting: {
-    backgroundColor: '#FF9500', // amber
+    backgroundColor: palette.amber,
   },
   dotDead: {
-    backgroundColor: '#FF3B30', // red
+    backgroundColor: palette.red,
   },
   message: {
     flex: 1,

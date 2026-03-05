@@ -49,7 +49,7 @@ export function TrackResultCard({
     <View style={styles.card}>
       {/* Album art */}
       {track.albumArt ? (
-        <Image source={{ uri: track.albumArt }} style={styles.art} />
+        <Image source={{ uri: track.albumArt }} style={styles.art} accessible={false} />
       ) : (
         <View style={[styles.art, { alignItems: 'center', justifyContent: 'center' }]}>
           <Text variant="labelSmall" color={palette.slate}>
@@ -79,6 +79,9 @@ export function TrackResultCard({
           onToggleFavorite(track);
         }}
         activeOpacity={0.6}
+        accessibilityRole="button"
+        accessibilityLabel={`${isFavorite ? 'Remove from' : 'Add to'} favorites: ${track.title} by ${track.artist}`}
+        accessibilityState={{ checked: isFavorite }}
       >
         <Text
           variant="labelLarge"
@@ -93,6 +96,8 @@ export function TrackResultCard({
         style={styles.actionBtn}
         onPress={() => onAddToRoom(track)}
         activeOpacity={0.6}
+        accessibilityRole="button"
+        accessibilityLabel={`Add ${track.title} by ${track.artist} to room`}
       >
         <Text variant="labelLarge" color={palette.orange} style={{ fontSize: 20 }}>
           +
