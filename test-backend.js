@@ -2,14 +2,32 @@ async function runTests() {
     const API_BASE_URL = process.env.TEST_API_BASE_URL || 'http://127.0.0.1:5000/api';
     const SOCKET_URL =
         process.env.TEST_SOCKET_URL || API_BASE_URL.replace(/\/api\/?$/, '');
-    const TEST_EMAIL = process.env.TEST_EMAIL || 'testbot@freq.local';
+    const TEST_EMAIL = process.env.TEST_EMAIL || 'integrationbot@freq.local';
+    const TEST_USERNAME = process.env.TEST_USERNAME || 'integrationbot';
     const TEST_PASSWORD = process.env.TEST_PASSWORD || 'password123';
 
     console.log('--- Frequen-C Backend API Tests ---');
     console.log('API:', API_BASE_URL);
     console.log('Socket:', SOCKET_URL);
 
-    // 1. Login to get a token
+    // 1. Ensure user exists (register once), then login to get a token
+    console.log('\n[0] Ensuring test account exists...');
+    const registerRes = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: TEST_USERNAME, email: TEST_EMAIL, password: TEST_PASSWORD })
+    });
+    if (registerRes.status === 201) {
+        console.log('✅ Test account created.');
+    } else if (registerRes.status === 409) {
+        console.log('✅ Test account already exists.');
+    } else {
+        const registerData = await registerRes.json().catch(() => ({}));
+        console.error('❌ Register failed unexpectedly:', registerRes.status, registerData);
+        process.exitCode = 1;
+        return;
+    }
+
     console.log('\n[1] Testing Authentication (Login)...');
     const loginRes = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -18,13 +36,13 @@ async function runTests() {
     });
 
     const loginData = await loginRes.json();
-    if (loginData.status !== 'success') {
-        console.error('❌ Login failed:', loginData);
+    if (!loginRes.ok || !loginData.token || !loginData.user) {
+        console.error('❌ Login failed:', loginRes.status, loginData);
         return;
     }
 
-    const token = loginData.data.token;
-    const user = loginData.data.user;
+    const token = loginData.token;
+    const user = loginData.user;
     console.log('✅ Login successful. Received token for:', user.username);
 
     // 2. Create a Session
@@ -37,18 +55,19 @@ async function runTests() {
         },
         body: JSON.stringify({
             name: 'Test Room Automation',
-            type: 'public',
-            genres: ['Testing']
+            genre: 'Testing',
+            roomMode: 'campfire',
+            isPublic: true
         })
     });
 
     const sessionData = await sessionRes.json();
-    if (sessionData.status !== 'success') {
-        console.error('❌ Session creation failed:', sessionData);
+    if (!sessionRes.ok || !sessionData.session) {
+        console.error('❌ Session creation failed:', sessionRes.status, sessionData);
         return;
     }
 
-    const session = sessionData.data.session;
+    const session = sessionData.session;
     console.log(`✅ Session created successfully: ${session.name} (ID: ${session.id})`);
     console.log(`   Host: ${session.hostUsername}`);
 
@@ -57,7 +76,6 @@ async function runTests() {
     const io = require('socket.io-client');
     const socket = io(SOCKET_URL, {
         auth: { token },
-        query: { token },
         reconnection: false
     });
 
@@ -72,10 +90,10 @@ async function runTests() {
 
             // Try to join the room
             console.log(`   Joining room ${session.id}...`);
-            socket.emit('session:join_room', session.id);
+            socket.emit('join-session', { sessionId: session.id });
 
-            socket.on('session:joined_room_ack', (ack) => {
-                console.log('✅ Joined room via socket successfully:', ack.sessionId);
+            socket.on('room-state', (roomState) => {
+                console.log('✅ Joined room via socket successfully:', roomState.sessionId);
                 socket.disconnect();
                 resolve();
             });

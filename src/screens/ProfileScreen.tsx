@@ -156,7 +156,7 @@ interface ProfileScreenProps {
 
 export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
   const navigation = useNavigation<any>();
-  const { user, logout, deleteAccount, connectSpotify, connectLastfm } = useAuth();
+  const { user, logout, deleteAccount, connectSpotify, connectSoundcloud, connectTidal, connectLastfm } = useAuth();
   const { accent, isVoltageSag } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [readManual, setReadManual] = useState(false);
@@ -247,6 +247,14 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
         return;
       }
       connectSpotify();
+      return;
+    }
+    if (service === 'SoundCloud') {
+      connectSoundcloud();
+      return;
+    }
+    if (service === 'Tidal') {
+      connectTidal();
       return;
     }
     if (service === 'Last.fm') {
@@ -473,6 +481,12 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
                 connected={!!user?.connectedServices?.appleMusic?.connected}
                 serviceKey="apple-music"
                 onConnect={() => handleConnectService('Apple Music')}
+              />
+              <ServiceJack
+                name="Tidal"
+                connected={!!user?.connectedServices?.tidal?.connected}
+                serviceKey="tidal"
+                onConnect={() => handleConnectService('Tidal')}
               />
               <ServiceJack
                 name="SoundCloud"
