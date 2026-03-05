@@ -125,10 +125,10 @@ export const signalFlow = {
   /** Glow width of the traveling pulse */
   pulseWidth: 40, // px
   /** Colors for the traveling pulse */
-  pulseColor: 'rgba(0, 229, 255, 0.6)',
-  pulseTrail: 'rgba(0, 229, 255, 0.1)',
+  pulseColor: 'rgba(90, 200, 200, 0.6)',
+  pulseTrail: 'rgba(90, 200, 200, 0.1)',
   /** Base line color (when no pulse is passing) */
-  lineColor: 'rgba(0, 229, 255, 0.08)',
+  lineColor: 'rgba(90, 200, 200, 0.08)',
   lineWidth: 1,
 } as const;
 

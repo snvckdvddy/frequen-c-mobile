@@ -409,7 +409,7 @@ export function MasterBounce({
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(6, 8, 15, 0.92)',
+    backgroundColor: 'rgba(15, 16, 18, 0.92)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1100,

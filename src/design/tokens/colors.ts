@@ -10,7 +10,7 @@
  *   style={{ color: colors.textPrimary, backgroundColor: colors.surfaceCard }}
  */
 
-import { palette } from './materials';
+import { palette, withAlpha } from './materials';
 
 // ─── Semantic Color Map ─────────────────────────────────────
 
@@ -27,32 +27,32 @@ export const colors = {
   surfaceCard: palette.midnight,     // Card backgrounds
   surfaceRaised: palette.steel,      // Raised elements (chips, badges)
   surfaceInteractive: palette.gunmetal, // Pressable surface base
-  surfaceOverlay: 'rgba(6, 8, 15, 0.85)', // Modal/sheet backdrop
+  surfaceOverlay: withAlpha(palette.void, 0.85), // Modal/sheet backdrop
 
   // ─── Accent: Primary (Orange) ──────────────────────────
   accentPrimary: palette.orange,     // CTAs, play buttons, active states
   accentPrimaryGlow: palette.orangeGlow,
   accentPrimaryDim: palette.orangeDim,
-  accentPrimarySubtle: 'rgba(255, 107, 53, 0.10)', // Tab active bg, hover hints
+  accentPrimarySubtle: withAlpha(palette.orange, 0.10), // Tab active bg, hover hints
 
   // ─── Accent: Secondary (Ice Cyan) ─────────────────────
   accentSecondary: palette.ice,      // Status indicators, system highlights
   accentSecondaryGlow: palette.iceGlow,
-  accentSecondarySubtle: 'rgba(0, 229, 255, 0.08)',
+  accentSecondarySubtle: withAlpha(palette.ice, 0.08),
 
   // ─── Status / Feedback ─────────────────────────────────
   statusSuccess: palette.green,      // CV earned, success toasts
-  statusSuccessSubtle: 'rgba(0, 255, 136, 0.08)',
-  statusSuccessBorder: 'rgba(0, 255, 136, 0.20)',
+  statusSuccessSubtle: withAlpha(palette.green, 0.08),
+  statusSuccessBorder: withAlpha(palette.green, 0.20),
 
   statusWarning: palette.amber,      // Voltage sag, warnings
-  statusWarningSubtle: 'rgba(255, 179, 71, 0.08)',
+  statusWarningSubtle: withAlpha(palette.amber, 0.08),
 
   statusError: palette.red,          // Destructive, live badge
-  statusErrorSubtle: 'rgba(255, 59, 92, 0.08)',
+  statusErrorSubtle: withAlpha(palette.red, 0.08),
 
   statusLive: palette.red,           // ACTIVE PATCH badge specifically
-  statusLiveGlow: 'rgba(255, 59, 92, 0.30)',
+  statusLiveGlow: withAlpha(palette.red, 0.30),
 
   // ─── Borders / Chrome ──────────────────────────────────
   border: palette.chromeBorder,       // Default card/chip border

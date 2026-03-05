@@ -9,6 +9,21 @@
  *   <VoidSurface /> or style={materials.void.flat}
  */
 
+// ─── Utility ────────────────────────────────────────────────
+
+/**
+ * Convert a hex color (#RRGGBB) to rgba with the given alpha.
+ * Avoids hardcoding rgba() strings that drift from palette values.
+ *
+ *   withAlpha(palette.ice, 0.3)  → 'rgba(90, 200, 200, 0.30)'
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})`;
+}
+
 // ─── Core Palette ────────────────────────────────────────────
 
 export const palette = {
@@ -49,6 +64,7 @@ export const palette = {
   // ─── Semantic border / surface ─────────────────────
   chromeBorder: 'rgba(255, 255, 255, 0.08)',
   chromeHighlight: 'rgba(255, 255, 255, 0.04)',
+  chromeTint: '#C0DFFF',   // Subtle cool highlight for glass/chrome borders
 } as const;
 
 // ─── Glow Configs ────────────────────────────────────────────

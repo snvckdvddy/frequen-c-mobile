@@ -350,9 +350,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
-    backgroundColor: 'rgba(57, 255, 20, 0.08)',
+    backgroundColor: 'rgba(52, 211, 153, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(57, 255, 20, 0.2)',
+    borderColor: 'rgba(52, 211, 153, 0.2)',
   },
   rewardText: {
     fontSize: 9,
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   },
   candidateLocked: {
     borderColor: palette.orange,
-    backgroundColor: 'rgba(0, 229, 255, 0.06)',
+    backgroundColor: 'rgba(90, 200, 200, 0.06)',
   },
   candidateIndex: {
     width: 16,
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
   },
   resultOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(6, 8, 15, 0.92)',
+    backgroundColor: 'rgba(15, 16, 18, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,

@@ -55,13 +55,13 @@ const RESONANCE_CONFIG: Record<ResonanceType, {
 }> = {
   harmonic: {
     color: palette.orange,
-    glow: 'rgba(0, 229, 255, 0.3)',
+    glow: 'rgba(90, 200, 200, 0.3)',
     label: 'HARMONIC RESONANCE',
     waveIntensity: 1,
   },
   octave: {
     color: palette.green,
-    glow: 'rgba(57, 255, 20, 0.3)',
+    glow: 'rgba(52, 211, 153, 0.3)',
     label: 'OCTAVE LOCK',
     waveIntensity: 1.5,
   },
@@ -308,7 +308,7 @@ export function ResonanceEvent({
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(6, 8, 15, 0.94)',
+    backgroundColor: 'rgba(15, 16, 18, 0.94)',
     zIndex: 1000,
     alignItems: 'center',
     justifyContent: 'center',

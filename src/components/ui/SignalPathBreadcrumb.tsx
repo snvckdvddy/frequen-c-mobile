@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   activeNode: {
-    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    backgroundColor: 'rgba(90, 200, 200, 0.08)',
   },
   nodeText: {
     fontSize: 10,

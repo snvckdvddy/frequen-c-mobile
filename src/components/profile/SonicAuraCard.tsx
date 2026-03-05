@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     marginVertical: spacing.sm,
     padding: spacing.md,
     borderRadius: 14,
-    backgroundColor: 'rgba(4, 18, 30, 0.92)',
+    backgroundColor: 'rgba(15, 16, 18, 0.92)',
     borderWidth: 1,
     borderColor: 'rgba(90, 200, 200, 0.24)',
   },
