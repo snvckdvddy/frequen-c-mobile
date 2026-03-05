@@ -41,6 +41,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 interface FlightCasesScreenProps {
   onOpenRoom?: (sessionId: string) => void;
+  onOpenProfile?: () => void;
 }
 
 // ─── Patch Bay Jack ─────────────────────────────────────────
@@ -251,7 +252,7 @@ function SessionLoreModal({ session, onClose }: { session: Session | null; onClo
 
 // ─── Main Screen ────────────────────────────────────────────
 
-export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
+export function FlightCasesScreen({ onOpenRoom, onOpenProfile }: FlightCasesScreenProps) {
   const { favorites } = useFavoritesContext();
   const { accent, isVoltageSag } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
@@ -300,8 +301,21 @@ export function FlightCasesScreen({ onOpenRoom }: FlightCasesScreenProps) {
         >
           {/* ═══ Header ════════════════════════════════════ */}
           <ADSRFadeIn index={0}>
-            <Text style={styles.title}>Signal Matrix</Text>
-            <Text style={styles.subtitle}>PHYSICAL PATCH BAY ROUTING</Text>
+            <View style={styles.headerRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>Signal Matrix</Text>
+                <Text style={styles.subtitle}>PHYSICAL PATCH BAY ROUTING</Text>
+              </View>
+              <TouchableOpacity
+                onPress={onOpenProfile}
+                activeOpacity={0.7}
+                style={styles.profileBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Open profile"
+              >
+                <Ionicons name="person-outline" size={20} color={palette.silver} />
+              </TouchableOpacity>
+            </View>
           </ADSRFadeIn>
 
           {/* ═══ Patch Bay Panel ═══════════════════════════ */}
@@ -439,6 +453,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screenPadding,
     paddingTop: spacing['3xl'],
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
   title: {
     fontFamily: fontFamily.displayBold,
     fontSize: fontSize['4xl'],
@@ -450,7 +469,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: palette.slate,
     letterSpacing: ls.wider,
-    marginBottom: spacing.lg,
+  },
+  profileBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
   },
 
   // Patch Bay Panel

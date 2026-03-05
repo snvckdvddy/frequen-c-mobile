@@ -248,6 +248,7 @@ function TabNavigator() {
               onOpenRoom={(sessionId: string) =>
                 props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
               }
+              onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
             />
           </ErrorBoundary>
         )}

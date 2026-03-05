@@ -62,6 +62,7 @@ export function HomeScreen({
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const isCompactHeader = SCREEN_WIDTH < 390;
 
   const fetchMyRooms = useCallback(async () => {
     try {
@@ -152,15 +153,17 @@ export function HomeScreen({
                 </TouchableOpacity>
 
                 {/* Activity Feed (Signal Monitor) */}
-                <TouchableOpacity
-                  onPress={onOpenActivityFeed}
-                  style={styles.headerIconBtn}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Activity feed"
-                >
-                  <Ionicons name="pulse-outline" size={20} color={palette.silver} />
-                </TouchableOpacity>
+                {!isCompactHeader && (
+                  <TouchableOpacity
+                    onPress={onOpenActivityFeed}
+                    style={styles.headerIconBtn}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Activity feed"
+                  >
+                    <Ionicons name="pulse-outline" size={20} color={palette.silver} />
+                  </TouchableOpacity>
+                )}
 
                 {/* Notification bell */}
                 <TouchableOpacity
@@ -408,7 +411,7 @@ const styles = StyleSheet.create({
   topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
   },
   cvBadge: {
     flexDirection: 'row',
