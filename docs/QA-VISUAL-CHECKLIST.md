@@ -3,6 +3,11 @@
 **Build:** preview:apk (Android)
 **Focus:** Warm palette refresh verification
 
+## Related QA Docs
+- Runbook: `docs/QA-RUNBOOK.md`
+- Defect log template: `docs/QA-DEFECT-LOG-TEMPLATE.md`
+- Signoff template: `docs/QA-SIGNOFF-TEMPLATE.md`
+
 ---
 
 ## Build Instructions
