@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, ADSRFadeIn, TrackListItem, ErrorState, TrackCardSkeleton } from '../components/ui';
+import { ArchiveSessionModal } from '../components/ArchiveSessionModal';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -115,6 +116,7 @@ interface PastSession {
   roomMode: RoomMode;
   tracksPlayed: number;
   date: string;
+  session: Session;
 }
 
 function formatTimeAgo(dateStr?: string): string {
@@ -202,6 +204,7 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionHistory, setSessionHistory] = useState<PastSession[]>([]);
+  const [archivePreview, setArchivePreview] = useState<Session | null>(null);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -214,8 +217,9 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
           name: s.name,
           hostUsername: s.hostId === user?.id ? 'You' : (s.hostUsername || 'Friend'),
           roomMode: s.roomMode,
-          tracksPlayed: s.queue?.length || 0,
-          date: formatTimeAgo(s.createdAt),
+          tracksPlayed: s.tracksPlayedCount ?? (s.queue.length + (s.currentTrack ? 1 : 0)),
+          date: formatTimeAgo(s.endedAt || s.createdAt),
+          session: s,
         }));
       setSessionHistory(history);
       setError(null);
@@ -353,7 +357,7 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
                   <ADSRFadeIn index={i} staggerMs={60}>
                     <HistoryCard
                       session={session}
-                      onPress={onOpenRoom ? () => onOpenRoom(session.id) : undefined}
+                      onPress={() => setArchivePreview(session.session)}
                     />
                   </ADSRFadeIn>
                 ))}
@@ -362,6 +366,10 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
           </ADSRFadeIn>
         )}
       </ScrollView>
+      <ArchiveSessionModal
+        session={archivePreview}
+        onClose={() => setArchivePreview(null)}
+      />
       </VoidSurface>
     </SafeScreen>
   );

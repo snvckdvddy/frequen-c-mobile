@@ -18,18 +18,19 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, LayoutAnimation, Platform, UIManager,
-  ActivityIndicator, Modal, Alert,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, ADSRFadeIn, TrackListItem } from '../components/ui';
+import { ArchiveSessionModal } from '../components/ArchiveSessionModal';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { sessionApi } from '../services/api';
 import { spacing } from '../theme/spacing';
-import { VoidSurface, ModuleFaceplate, LEDReadout, ChromeButton } from '../design/components';
+import { VoidSurface, ModuleFaceplate, LEDReadout } from '../design/components';
 import { palette } from '../design/tokens/materials';
 import { colors } from '../design/tokens/colors';
-import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
+import { fontFamily, fontSize, letterSpacing as ls } from '../design/tokens/typography';
 import type { Session, Track, FavoriteTrack, RoomMode } from '../types';
 
 // Enable layout animation on Android
@@ -178,78 +179,6 @@ const sectionStyles = StyleSheet.create({
   },
 });
 
-// ─── Session Lore Modal ─────────────────────────────────────
-
-function SessionLoreModal({ session, onClose }: { session: Session | null; onClose: () => void }) {
-  if (!session) return null;
-
-  const trackCount = session.queue?.length || 0;
-  const listenerCount = session.listeners?.length || 0;
-  const modeLabel = session.roomMode === 'campfire' ? 'CAMPFIRE'
-    : session.roomMode === 'spotlight' ? 'SPOTLIGHT' : 'OPEN FLOOR';
-  const created = session.createdAt?.split('T')[0] || 'Unknown';
-
-  return (
-    <Modal
-      visible={!!session}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <View style={loreStyles.backdrop}>
-        <View style={loreStyles.sheet}>
-          <ModuleFaceplate label="SESSION LORE" screws>
-            {/* Session name */}
-            <Text style={loreStyles.sessionName}>{session.name}</Text>
-            <Text style={loreStyles.sessionDate}>RECORDED: {created}</Text>
-
-            {/* Stats grid */}
-            <View style={loreStyles.statsRow}>
-              <LEDReadout value={String(trackCount)} label="TRACKS" size="md" variant="amber" />
-              <LEDReadout value={String(listenerCount)} label="LISTENERS" size="md" variant="ice" />
-              <LEDReadout value={modeLabel} label="MODE" size="sm" variant="ice" />
-            </View>
-
-            {/* Track list preview */}
-            {session.queue && session.queue.length > 0 && (
-              <View style={loreStyles.trackSection}>
-                <Text style={loreStyles.sectionTitle}>SIGNAL CHAIN</Text>
-                {session.queue.slice(0, 5).map((track, i) => (
-                  <View key={track.id || `track-${i}`} style={loreStyles.trackRow}>
-                    <Text style={loreStyles.trackIndex}>{String(i + 1).padStart(2, '0')}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={loreStyles.trackTitle} numberOfLines={1}>{track.title}</Text>
-                      <Text style={loreStyles.trackArtist} numberOfLines={1}>{track.artist}</Text>
-                    </View>
-                  </View>
-                ))}
-                {session.queue.length > 5 && (
-                  <Text style={loreStyles.moreText}>+{session.queue.length - 5} MORE TRACKS</Text>
-                )}
-              </View>
-            )}
-
-            {/* Listeners */}
-            {session.listeners && session.listeners.length > 0 && (
-              <View style={loreStyles.trackSection}>
-                <Text style={loreStyles.sectionTitle}>CREW</Text>
-                <Text style={loreStyles.crewList}>
-                  {session.listeners.map((l) => l.username).join(' · ')}
-                </Text>
-              </View>
-            )}
-
-            {/* Close button */}
-            <ChromeButton onPress={onClose} size="md" style={{ marginTop: 16, alignSelf: 'center' }}>
-              CLOSE
-            </ChromeButton>
-          </ModuleFaceplate>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 // ─── Main Screen ────────────────────────────────────────────
 
 export function FlightCasesScreen({ onOpenRoom, onOpenProfile }: FlightCasesScreenProps) {
@@ -359,18 +288,18 @@ export function FlightCasesScreen({ onOpenRoom, onOpenProfile }: FlightCasesScre
                     <TouchableOpacity
                       key={session.id}
                       style={styles.cartridgeCard}
-                      onPress={() => onOpenRoom?.(session.id)}
+                      onPress={() => setLoreSession(session)}
                       activeOpacity={0.8}
                       accessibilityRole="button"
                       accessibilityLabel={`Session: ${session.name}`}
-                      accessibilityHint={`Saved ${session.createdAt?.split('T')[0]}. Double tap to open.`}
+                      accessibilityHint={`Saved ${session.createdAt?.split('T')[0]}. Double tap to view archive detail.`}
                     >
                       {/* Red left accent */}
                       <View style={styles.cartridgeAccent} />
                       <View style={styles.cartridgeContent}>
                         <Text style={styles.cartridgeName}>{session.name}</Text>
                         <Text style={styles.cartridgeMeta}>
-                          SAVED: {session.createdAt?.split('T')[0] || 'Unknown'} · {session.queue?.length || 0} TRACKS
+                          SAVED: {(session.endedAt || session.createdAt)?.split('T')[0] || 'Unknown'} · {session.tracksPlayedCount ?? (session.queue.length + (session.currentTrack ? 1 : 0))} PLAYED
                         </Text>
                       </View>
                       <TouchableOpacity style={styles.loreBadge} activeOpacity={0.7} onPress={() => setLoreSession(session)} accessibilityRole="button" accessibilityLabel="View session lore" accessibilityHint="Double tap to see additional session information">
@@ -440,7 +369,7 @@ export function FlightCasesScreen({ onOpenRoom, onOpenProfile }: FlightCasesScre
 
           <View style={{ height: 120 }} />
         </ScrollView>
-        <SessionLoreModal session={loreSession} onClose={() => setLoreSession(null)} />
+        <ArchiveSessionModal session={loreSession} onClose={() => setLoreSession(null)} />
       </VoidSurface>
     </SafeScreen>
   );
@@ -612,89 +541,6 @@ const styles = StyleSheet.create({
   loadingCenter: {
     paddingVertical: 32,
     alignItems: 'center',
-  },
-});
-
-const loreStyles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingBottom: 40,
-    paddingTop: 16,
-  },
-  sessionName: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: fontSize['2xl'],
-    color: palette.frost,
-    marginBottom: 2,
-  },
-  sessionDate: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-    marginBottom: 16,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: palette.chromeBorder,
-  },
-  trackSection: {
-    marginTop: 12,
-  },
-  sectionTitle: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    letterSpacing: ls.wider,
-    marginBottom: 8,
-  },
-  trackRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    gap: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: palette.chromeBorder,
-  },
-  trackIndex: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.slate,
-    width: 20,
-  },
-  trackTitle: {
-    fontFamily: fontFamily.display,
-    fontSize: 14,
-    color: palette.frost,
-  },
-  trackArtist: {
-    fontFamily: fontFamily.body,
-    fontSize: 12,
-    color: palette.silver,
-  },
-  moreText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  crewList: {
-    fontFamily: fontFamily.body,
-    fontSize: 13,
-    color: palette.silver,
-    lineHeight: 20,
   },
 });
 

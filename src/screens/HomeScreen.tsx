@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Text, SafeScreen, ADSRFadeIn, ErrorState } from '../components/ui';
 import { NetworkForecastCard } from '../components/home/NetworkForecastCard';
 import { NotificationDrawer } from '../components/NotificationDrawer';
+import { ArchiveSessionModal } from '../components/ArchiveSessionModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCV } from '../hooks/useCV';
@@ -62,6 +63,7 @@ export function HomeScreen({
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [archivePreview, setArchivePreview] = useState<Session | null>(null);
 
   const fetchMyRooms = useCallback(async () => {
     try {
@@ -271,8 +273,9 @@ export function HomeScreen({
                   <ADSRFadeIn index={index} staggerMs={60} slideFrom="right">
                     <TouchableOpacity
                       style={styles.flightCaseCard}
-                      onPress={() => onOpenRoom(item.id)}
+                      onPress={() => setArchivePreview(item)}
                       activeOpacity={0.8}
+                      accessibilityHint="Double tap to view archived session details"
                     >
                       {/* Album art placeholder */}
                       <View style={styles.flightCaseArt}>
@@ -289,7 +292,12 @@ export function HomeScreen({
                         {item.name}
                       </Text>
                       <Text style={styles.flightCaseDate} numberOfLines={1}>
-                        {formatTimeAgo(item.createdAt)}
+                        {formatTimeAgo(item.endedAt || item.createdAt)}
+                      </Text>
+                      <Text style={styles.flightCaseDate} numberOfLines={1}>
+                        {(item.tracksPlayedCount ?? 0) > 0
+                          ? `${item.tracksPlayedCount} played`
+                          : `${item.queue.length + (item.currentTrack ? 1 : 0)} captured`}
                       </Text>
                     </TouchableOpacity>
                   </ADSRFadeIn>
@@ -320,6 +328,10 @@ export function HomeScreen({
             .catch(() => {});
         }}
         onOpenRoom={onOpenRoom}
+      />
+      <ArchiveSessionModal
+        session={archivePreview}
+        onClose={() => setArchivePreview(null)}
       />
     </SafeScreen>
   );

@@ -140,6 +140,8 @@ export interface Session {
   currentTrack?: Track;
   queue: Track[];
   createdAt: string;
+  endedAt?: string;
+  tracksPlayedCount?: number;
   /** Music source platform selected at creation (e.g. SPOTIFY, APPLE MUSIC). */
   source?: string;
   /** Session vibe/mood tag selected at creation (e.g. CHILL, HYPE). */
