@@ -71,11 +71,27 @@ export function useSessionRoom(sessionId: string) {
 
   // Guards against double-removal (skip + auto-advance race)
   const isAdvancingRef = useRef(false);
+
+  // Ref so the behaviors effect's track-added handler always reads the latest
+  // suggestedQueue without needing it as a dependency (avoids listener churn).
+  const suggestedQueueRef = useRef<QueueTrack[]>([]);
+  suggestedQueueRef.current = suggestedQueue;
+
+  // Ref for reading current queue state outside of React state cycle
+  // (used in advanceQueue to determine next-up title for toast).
+  const queueRef = useRef<QueueTrack[]>([]);
+  queueRef.current = queue;
   const MAX_PLAYED_HISTORY = 50;
 
   const advanceQueue = useCallback(() => {
     if (isAdvancingRef.current) return;
     isAdvancingRef.current = true;
+
+    // Read the current queue snapshot BEFORE the state update so we can
+    // show a "preview ended" toast without side effects inside the updater.
+    const currentQ = queueRef.current;
+    const finishedTitle = currentQ[0]?.title ?? null;
+    const nextTrack = currentQ[1] ?? null;
 
     setQueue((prev) => {
       if (prev.length === 0) {
@@ -111,7 +127,26 @@ export function useSessionRoom(sessionId: string) {
       }, 300);
       return next;
     });
+
+    // Show in-app toast so users know a preview ended and the queue advanced.
+    // This explains why "new adds" seem to displace older queued tracks —
+    // the 30-second iTunes preview already played and consumed the prior track.
+    if (finishedTitle) {
+      const toastText = nextTrack
+        ? `⏭ Preview ended · Next: ${nextTrack.title}`
+        : `⏭ Preview ended · Queue is empty`;
+      const toastId = `advance_${Date.now()}`;
+      setToasts((prev) => [
+        ...prev,
+        { id: toastId, text: toastText, type: 'system' as const },
+      ]);
+      setTimeout(
+        () => setToasts((prev) => prev.filter((t) => t.id !== toastId)),
+        3500,
+      );
+    }
   }, [sessionId, user]);
+
 
   // In mock/testing mode, persist local queue state
   useEffect(() => {
@@ -129,6 +164,10 @@ export function useSessionRoom(sessionId: string) {
   const socketUnsubsRef = useRef<Array<() => void>>([]);
 
   useEffect(() => {
+    if (!sessionId) {
+      setLoading(false);
+      return;
+    }
     let mounted = true;
 
     async function init() {
@@ -160,11 +199,10 @@ export function useSessionRoom(sessionId: string) {
           addedById: t.addedBy?.userId || "",
           addedAt: s.createdAt,
         }));
-        setQueue(initialQueue);
 
-        await connectSocket();
-        if (!mounted) return;
-
+        // Build lastCurrentTrack BEFORE setQueue so it can sit at queue[0].
+        // queue[0] === now-playing is the invariant MiniPlayer and QueueTrackCard
+        // (isNowPlaying={index===0}) both depend on.
         let lastCurrentTrack: QueueTrack | null = s.currentTrack
           ? ({
               ...s.currentTrack,
@@ -180,19 +218,24 @@ export function useSessionRoom(sessionId: string) {
             } as QueueTrack)
           : null;
         let lastQueue: QueueTrack[] = initialQueue;
+        setQueue(lastCurrentTrack ? [lastCurrentTrack, ...initialQueue] : initialQueue);
+
+        await connectSocket();
+        if (!mounted) return;
 
         socketUnsubsRef.current = [
-          onSessionEvent("queue:updated", (newQueue) => {
+          onSessionEvent("queue-updated", (newQueue) => {
             if (!mounted) return;
             lastQueue = newQueue;
-            setQueue(
-              lastCurrentTrack ? [lastCurrentTrack, ...newQueue] : newQueue,
-            );
+            const next = lastCurrentTrack ? [lastCurrentTrack, ...newQueue] : newQueue;
+            setQueue(next);
           }),
-          onSessionEvent("session:current_track_updated", (currentTrack) => {
+          onSessionEvent("track-changed", (currentTrack) => {
             if (!mounted) return;
+            // Keep lastCurrentTrack fresh so queue-updated can prepend it.
+            // setQueue is intentionally omitted here — the behaviors effect's
+            // track-changed handler owns the queue UI update to avoid conflicts.
             lastCurrentTrack = currentTrack;
-            setQueue(currentTrack ? [currentTrack, ...lastQueue] : lastQueue);
           }),
           onSessionEvent("session:playback_state_updated", (data) => {
             if (!mounted) return;
@@ -220,24 +263,28 @@ export function useSessionRoom(sessionId: string) {
                   : prev,
               );
             }
-            if (state.queue) setQueue(state.queue);
-            if (state.suggestedQueue) setSuggestedQueue(state.suggestedQueue);
-            if (state.participants) setListeners(state.participants);
-            if (
-              state.currentTrack &&
-              (!state.queue || state.queue.length === 0)
-            ) {
-              setQueue([
-                {
+            // Always rebuild queue with currentTrack at [0].
+            // The old code only set currentTrack when queue was empty — this
+            // meant queue[0] was never the now-playing track when both existed,
+            // breaking MiniPlayer visibility and the QueueTrackCard isNowPlaying flag.
+            const serverQueue: QueueTrack[] = state.queue || [];
+            const serverCurrentTrack: QueueTrack | null = state.currentTrack
+              ? ({
                   ...state.currentTrack,
                   addedById:
                     (state.currentTrack as any).addedById || state.hostId || "",
                   addedAt:
                     (state.currentTrack as any).addedAt ||
                     new Date().toISOString(),
-                } as QueueTrack,
-              ]);
-            }
+                } as QueueTrack)
+              : null;
+            // Keep closure vars in sync so subsequent queue-updated events
+            // reconstruct correctly with the right lastCurrentTrack.
+            if (serverCurrentTrack) lastCurrentTrack = serverCurrentTrack;
+            lastQueue = serverQueue;
+            setQueue(serverCurrentTrack ? [serverCurrentTrack, ...serverQueue] : serverQueue);
+            if (state.suggestedQueue) setSuggestedQueue(state.suggestedQueue);
+            if (state.participants) setListeners(state.participants);
             if (state.playback && state.playback.state !== "stopped") {
               const serverPos = state.playback.position || 0;
               const serverTimestamp = state.playback.timestamp || Date.now();
@@ -346,15 +393,19 @@ export function useSessionRoom(sessionId: string) {
 
   // ─── Mock socket listeners (behavior-aware via queueEngine) ──
   useEffect(() => {
+    if (!sessionId) return;
     const behaviors: RoomBehaviors = session?.behaviors || DEFAULT_BEHAVIORS;
     const hostId = session?.hostId || "";
 
     const unsubs = [
       onSessionEvent("track-added", (track: QueueTrack) => {
         setQueue((prevQ) => {
+          // Dedup guard — queue-updated may have already applied this track
+          // (backend emits both events; whichever arrives first wins)
+          if (prevQ.some((t) => t.id === track.id)) return prevQ;
           const result = addTrackToQueue(
             prevQ,
-            suggestedQueue,
+            suggestedQueueRef.current,
             track,
             behaviors,
             hostId,
@@ -379,9 +430,12 @@ export function useSessionRoom(sessionId: string) {
       }),
       onSessionEvent("track-skipped", (data) => {
         setSkipVoteState(null);
-        if (data?.userId !== user?.id) {
+        if (USE_MOCKS && data?.userId !== user?.id) {
           advanceQueue();
         }
+      }),
+      onSessionEvent("track-removed", (data) => {
+        setQueue((prev) => prev.filter((t) => t.id !== data.trackId));
       }),
       onSessionEvent("skip-vote-update", (data) => {
         setSkipVoteState({
@@ -508,8 +562,9 @@ export function useSessionRoom(sessionId: string) {
     session?.behaviors,
     session?.hostId,
     sessionId,
-    suggestedQueue,
     cv,
+    // suggestedQueue intentionally omitted — accessed via suggestedQueueRef.current
+    // to prevent full listener teardown/rebuild on every approval-queue change.
   ]); // Needs cv for earn/sync updates
 
   // Return the public interface of the hook

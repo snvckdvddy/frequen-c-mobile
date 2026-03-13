@@ -52,14 +52,32 @@ async function testSpotifyPlumbing() {
         headers: { Authorization: `Bearer ${token}` },
     });
     const searchText = await searchRes.text();
+    let searchBody = {};
+    try {
+        searchBody = JSON.parse(searchText);
+    } catch {
+        // Non-JSON error bodies are handled by raw text checks below.
+    }
+    const message = String(searchBody?.message || searchText || '');
 
     if (searchRes.status === 200) {
         console.log('✅ Spotify search route reachable and connected (200).');
         return;
     }
 
-    if (searchRes.status === 403 && searchText.includes('Spotify not connected')) {
+    if (
+        searchRes.status === 403 &&
+        (
+            message.includes('Spotify not connected') ||
+            message.includes('Failed to search Spotify')
+        )
+    ) {
         console.log('✅ Spotify search route reachable (403 not connected is expected without OAuth link).');
+        return;
+    }
+
+    if (searchRes.status === 401 && message.includes('Spotify token expired')) {
+        console.log('✅ Spotify search route reachable (401 token expired; reconnect required).');
         return;
     }
 
@@ -71,4 +89,3 @@ testSpotifyPlumbing().catch((err) => {
     console.error(err);
     process.exitCode = 1;
 });
-

@@ -62,7 +62,6 @@ export function HomeScreen({
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
-  const isCompactHeader = SCREEN_WIDTH < 390;
 
   const fetchMyRooms = useCallback(async () => {
     try {
@@ -123,47 +122,21 @@ export function HomeScreen({
             </View>
           )}
 
-          {/* ═══ TOP BAR — F-C FREQUEN-C ⚡CV [avatar] ═══════ */}
+          {/* ═══ TOP BAR — F-C FREQUEN-C  ⚡145  [avatar] ══ */}
           <ADSRFadeIn index={0}>
             <View style={styles.topBar}>
-              {/* Logo mark */}
+              {/* Left: flat inline wordmark */}
               <View style={styles.logoGroup}>
-                <View style={styles.logoMark}>
-                  <Text style={styles.logoText}>F-C</Text>
-                </View>
+                <Text style={styles.logoText}>F-C</Text>
                 <Text style={styles.appName}>FREQUEN-C</Text>
               </View>
 
               <View style={styles.topBarRight}>
                 {/* CV Balance pill */}
                 <View style={styles.cvBadge}>
-                  <Ionicons name="flash" size={12} color={isVoltageSag ? accent : palette.green} />
+                  <Ionicons name="flash" size={11} color={isVoltageSag ? accent : palette.green} />
                   <LEDReadout value={String(cv.balance)} size="sm" variant={isVoltageSag ? 'amber' : 'ice'} />
                 </View>
-
-                {/* Friends (Patch Bay) */}
-                <TouchableOpacity
-                  onPress={onOpenFriends}
-                  style={styles.headerIconBtn}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open friends"
-                >
-                  <Ionicons name="people-outline" size={20} color={palette.silver} />
-                </TouchableOpacity>
-
-                {/* Activity Feed (Signal Monitor) */}
-                {!isCompactHeader && (
-                  <TouchableOpacity
-                    onPress={onOpenActivityFeed}
-                    style={styles.headerIconBtn}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Activity feed"
-                  >
-                    <Ionicons name="pulse-outline" size={20} color={palette.silver} />
-                  </TouchableOpacity>
-                )}
 
                 {/* Notification bell */}
                 <TouchableOpacity
@@ -206,7 +179,7 @@ export function HomeScreen({
             <Text style={styles.sectionLabel}>LIVE CONNECTION</Text>
 
             {liveRoom ? (
-              <ModuleFaceplate label="ACTIVE PATCH" screws>
+              <ModuleFaceplate label="LIVE" screws>
                 <TouchableOpacity
                   style={styles.liveCard}
                   onPress={() => onOpenRoom(liveRoom.id)}
@@ -248,7 +221,7 @@ export function HomeScreen({
               </ModuleFaceplate>
             ) : (
               /* Empty state — no live connection */
-              <ModuleFaceplate label="NO SIGNAL">
+              <ModuleFaceplate label="EMPTY">
                 <TouchableOpacity
                   style={styles.emptyLiveCard}
                   onPress={onCreateSession}
@@ -258,9 +231,9 @@ export function HomeScreen({
                 >
                 <View style={styles.emptyLiveInner}>
                   <Ionicons name="radio-outline" size={28} color={palette.slate} />
-                  <Text style={styles.emptyLiveText}>No active patch.</Text>
+                  <Text style={styles.emptyLiveText}>Nothing playing right now.</Text>
                   <Text style={styles.emptyLiveSubtext}>
-                    Initialize a new signal to start listening.
+                    Start a room and invite friends to listen together.
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -325,7 +298,7 @@ export function HomeScreen({
             ) : (
               <View style={styles.emptyFlightCases}>
                 <Text style={styles.emptyFlightCaseText}>
-                  No flight cases yet. Your session archives will appear here.
+                  No sessions yet. Your listening history will show up here.
                 </Text>
               </View>
             )}
@@ -368,7 +341,7 @@ function formatTimeAgo(dateStr?: string): string {
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing['3xl'],
+    paddingTop: spacing.md,       // 18px — SafeAreaView already handles safe area inset
   },
   errorContainer: {
     marginBottom: spacing.lg,
@@ -379,39 +352,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,    // 28px — tighter than xl (40px)
   },
   logoGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-  },
-  logoMark: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: palette.steel,
-    borderWidth: 1,
-    borderColor: palette.orange,
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    flex: 1,                     // Take available space, don't push icons off
+    minWidth: 0,
   },
   logoText: {
     fontFamily: fontFamily.displayBold,
-    fontSize: fontSize.sm,
+    fontSize: fontSize.base,     // 14px — tight monospace accent
     color: palette.orange,
-    letterSpacing: ls.wide,
+    letterSpacing: ls.wider,
+    flexShrink: 0,
   },
   appName: {
     fontFamily: fontFamily.displayBold,
-    fontSize: fontSize['2xl'],
+    fontSize: fontSize.base,     // 14px — same weight, flat inline
     color: palette.frost,
-    letterSpacing: ls.wider,
+    letterSpacing: ls.wide,
+    flexShrink: 1,
   },
   topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    flexShrink: 0,               // Right side never shrinks
   },
   cvBadge: {
     flexDirection: 'row',
@@ -421,24 +389,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.statusSuccessBorder,
     borderRadius: 12,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
   },
   headerIconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
   notifBadge: {
     position: 'absolute',
-    top: -2,
-    right: -4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    top: 0,
+    right: 0,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: palette.red,
     alignItems: 'center',
     justifyContent: 'center',
@@ -446,16 +414,17 @@ const styles = StyleSheet.create({
   },
   notifBadgeText: {
     fontFamily: fontFamily.mono,
-    fontSize: 9,
+    fontSize: 8,
     color: palette.frost,
     fontWeight: '700',
   },
   avatarBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
+    backgroundColor: palette.steel,
     alignItems: 'center',
     justifyContent: 'center',
   },

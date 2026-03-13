@@ -13,7 +13,7 @@ const readEnv = (value: string | undefined): string | undefined => {
 const API_BASE_OVERRIDE = readEnv(process.env.EXPO_PUBLIC_API_BASE_URL);
 const SOCKET_BASE_OVERRIDE = readEnv(process.env.EXPO_PUBLIC_SOCKET_URL);
 
-const LOCAL_IP = readEnv(process.env.EXPO_PUBLIC_LOCAL_IP) || '192.168.1.3';
+const LOCAL_IP = readEnv(process.env.EXPO_PUBLIC_LOCAL_IP) || '127.0.0.1';
 const API_PORT = readEnv(process.env.EXPO_PUBLIC_API_PORT) || '5000';
 const LOCAL_SOCKET_URL = `http://${LOCAL_IP}:${API_PORT}`;
 const LOCAL_API_URL = `${LOCAL_SOCKET_URL}/api`;

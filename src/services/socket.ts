@@ -176,12 +176,12 @@ export function joinSession(sessionId: string, userId: string, username: string)
     console.log(`[Socket:Mock] ${username} joined session ${sessionId}`);
     return;
   }
-  socket?.emit('session:join_room', sessionId);
+  socket?.emit('join-session', { sessionId, userId, username });
 }
 
 export function leaveSession(sessionId: string, userId: string): void {
   if (USE_MOCKS) return;
-  socket?.emit('session:leave_room', sessionId);
+  socket?.emit('leave-session', { sessionId });
 }
 
 /** Permanently leave a session (removes membership). Use for "Leave Room" button. */
@@ -198,7 +198,7 @@ export function addToQueue(sessionId: string, track: QueueTrack): void {
     mockEmit('track-added', track);
     return;
   }
-  socket?.emit('queue:add_track', { sessionId, track });
+  socket?.emit('add-to-queue', { sessionId, track });
 }
 
 export function voteTrack(
@@ -211,11 +211,7 @@ export function voteTrack(
     mockEmit('vote-cast', { trackId, userId, direction });
     return;
   }
-  socket?.emit('queue:vote', {
-    sessionId,
-    queueId: trackId,
-    vote: direction
-  });
+  socket?.emit('vote-track', { sessionId, trackId, direction });
 }
 
 export function skipTrack(sessionId: string, userId?: string): void {
@@ -223,7 +219,15 @@ export function skipTrack(sessionId: string, userId?: string): void {
     mockEmit('track-skipped', { userId });
     return;
   }
-  socket?.emit('playback:skip', { sessionId });
+  socket?.emit('skip-track', { sessionId });
+}
+
+export function removeTrack(sessionId: string, trackId: string): void {
+  if (USE_MOCKS) {
+    mockEmit('track-removed', { trackId });
+    return;
+  }
+  socket?.emit('remove-track', { sessionId, trackId });
 }
 
 /** Notify backend that the current track finished playing (auto-advance). */
@@ -352,8 +356,8 @@ export interface RoomState {
 }
 
 export interface SessionSocketEvents {
-  'queue:updated': (queue: QueueTrack[]) => void;
-  'session:current_track_updated': (track: QueueTrack | null) => void;
+  'queue-updated': (queue: QueueTrack[]) => void;
+  // 'session:current_track_updated' removed — backend emits 'track-changed' (already typed below)
   'session:playback_state_updated': (data: { isPlaying: boolean }) => void;
   'participant-joined': (participant: Participant) => void;
   'participant-left': (data: { userId: string }) => void;
@@ -371,6 +375,7 @@ export interface SessionSocketEvents {
   'track-added': (track: QueueTrack) => void;
   'vote-cast': (data: { trackId: string; userId: string; direction: number; totalVotes: number }) => void;
   'track-skipped': (data: Record<string, never>) => void;
+  'track-removed': (data: { trackId: string }) => void;
   // Spotlight mode events
   'track-pending': (data: { track: QueueTrack }) => void;
   'track-approved': (data: { trackId: string; track: QueueTrack }) => void;
@@ -455,7 +460,7 @@ export function phantomPower(sessionId: string, trackId: string, userId: string)
   if (USE_MOCKS) {
     mockEmit('cv:spend', { userId, amount: 5, moveType: 'phantom_power' });
     // Simulate the boost being applied
-    mockEmit('queue:updated', []); // In real mode, server would send updated queue
+    mockEmit('queue-updated', []); // In real mode, server would send updated queue
     return;
   }
   socket?.emit('phantom-power', { sessionId, trackId, userId });
@@ -465,7 +470,7 @@ export function phantomPower(sessionId: string, trackId: string, userId: string)
 export function overdrive(sessionId: string, trackId: string, userId: string): void {
   if (USE_MOCKS) {
     mockEmit('cv:spend', { userId, amount: 25, moveType: 'overdrive' });
-    mockEmit('queue:updated', []);
+    mockEmit('queue-updated', []);
     return;
   }
   socket?.emit('overdrive', { sessionId, trackId, userId });
@@ -527,6 +532,7 @@ export default {
   addToQueue,
   voteTrack,
   skipTrack,
+  removeTrack,
   voteSkip,
   approveTrackEvent,
   rejectTrackEvent,

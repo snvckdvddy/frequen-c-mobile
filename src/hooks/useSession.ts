@@ -86,7 +86,7 @@ export function useSession(sessionId: string): UseSessionReturn {
   // ─── Socket listeners ───────────────────────────────────
   useEffect(() => {
     const unsubs = [
-      onSessionEvent('queue:updated', (newQueue: QueueTrack[]) => {
+      onSessionEvent('queue-updated', (newQueue: QueueTrack[]) => {
         if (mountedRef.current) setQueue(newQueue);
       }),
       onSessionEvent('session-updated', (update) => {

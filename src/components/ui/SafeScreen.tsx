@@ -23,7 +23,7 @@ interface SafeScreenProps {
 export function SafeScreen({
   children,
   edges = ['top', 'bottom', 'left', 'right'],
-  backgroundColor = palette.midnight,
+  backgroundColor = palette.void,
   style,
 }: SafeScreenProps) {
   return (

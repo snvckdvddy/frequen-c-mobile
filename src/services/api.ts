@@ -20,6 +20,16 @@ export function setCurrentServices(services?: ConnectedServices) {
   currentServices = services;
 }
 
+export type DisconnectableProvider = 'spotify' | 'soundcloud' | 'tidal' | 'lastfm';
+
+export interface ProviderConfigStatus {
+  backendConfigured: boolean;
+  missing: string[];
+  reason?: string;
+}
+
+export type ProviderStatusMap = Record<DisconnectableProvider, ProviderConfigStatus>;
+
 
 // ─── Auth Endpoints ─────────────────────────────────────────
 
@@ -60,6 +70,20 @@ export const authApi = {
     return apiFetch<{ user: import('../types').User }>('/auth/me');
   },
 
+  providerStatus: async (): Promise<{ providers: ProviderStatusMap }> => {
+    if (USE_MOCKS) {
+      return {
+        providers: {
+          spotify: { backendConfigured: true, missing: [] },
+          soundcloud: { backendConfigured: true, missing: [] },
+          tidal: { backendConfigured: true, missing: [] },
+          lastfm: { backendConfigured: true, missing: [] },
+        },
+      };
+    }
+    return apiFetch<{ providers: ProviderStatusMap }>('/auth/provider-status');
+  },
+
   connectSpotify: async (code: string, codeVerifier: string, redirectUri: string) => {
     if (USE_MOCKS) {
       await mockDelay(100, 300);
@@ -90,6 +114,16 @@ export const authApi = {
     return apiFetch<{ message: string; user: import('../types').User }>('/auth/lastfm/exchange', {
       method: 'POST',
       body: JSON.stringify({ token }),
+    });
+  },
+
+  disconnectService: async (provider: DisconnectableProvider) => {
+    if (USE_MOCKS) {
+      await mockDelay(100, 300);
+      return { message: `${provider} disconnected (mock)` };
+    }
+    return apiFetch<{ message: string }>(`/services/${provider}`, {
+      method: 'DELETE',
     });
   },
 
@@ -152,7 +186,7 @@ export const authApi = {
 
   /** Bulk update user preferences */
   setPreferences: async (prefs: {
-    noiseGate?: 'off' | 'medium' | 'high';
+    noiseGate?: 'off' | 'low' | 'medium' | 'high';
     socialBattery?: 'low' | 'unity' | 'hot';
     walkOnTransient?: string;
     isIncognito?: boolean;
@@ -290,7 +324,7 @@ export const sessionApi = {
       });
       return { sessions: rooms };
     }
-    return apiFetch<{ sessions: import('../types').Session[] }>('/sessions/user');
+    return apiFetch<{ sessions: import('../types').Session[] }>('/sessions/mine');
   },
 
   discover: async () => {

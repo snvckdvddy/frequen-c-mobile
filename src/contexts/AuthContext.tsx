@@ -6,14 +6,23 @@
  */
 
 import React, { createContext, useContext, useEffect, useReducer, useCallback, useRef } from 'react';
-import { authApi, storeToken, clearToken, getStoredToken, setCurrentServices } from '../services/api';
+import {
+  authApi,
+  ApiError,
+  storeToken,
+  clearToken,
+  getStoredToken,
+  setCurrentServices,
+  type DisconnectableProvider,
+} from '../services/api';
 import { config } from '../config';
-import { API_BASE_URL } from '../services/config';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, Linking, type AppStateStatus } from 'react-native';
 import type { User, AuthState } from '../types';
 import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri, useAuthRequest, ResponseType } from 'expo-auth-session';
+import { useAuthRequest, ResponseType } from 'expo-auth-session';
+import { getAuthDiagnostics } from '../services/authDiagnostics';
 import { registerForPushNotifications } from '../services/notifications';
+import { showToast } from '../components/ui';
 
 WebBrowser.maybeCompleteAuthSession();
 const BYPASS_AUTH = (process.env.EXPO_PUBLIC_BYPASS_AUTH || 'false') === 'true';
@@ -22,6 +31,11 @@ const BYPASS_AUTH = (process.env.EXPO_PUBLIC_BYPASS_AUTH || 'false') === 'true';
 const discovery = {
   authorizationEndpoint: 'https://accounts.spotify.com/authorize',
   tokenEndpoint: 'https://accounts.spotify.com/api/token',
+};
+
+const tidalDiscovery = {
+  authorizationEndpoint: 'https://login.tidal.com/authorize',
+  tokenEndpoint: 'https://auth.tidal.com/v1/oauth2/token',
 };
 
 // ─── State ──────────────────────────────────────────────────
@@ -71,14 +85,106 @@ interface AuthContextValue extends AuthState {
   connectSoundcloud: () => Promise<void>;
   connectTidal: () => Promise<void>;
   connectLastfm: () => Promise<void>;
+  disconnectService: (provider: DisconnectableProvider) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const providerLabel: Record<DisconnectableProvider, string> = {
+  spotify: 'Spotify',
+  soundcloud: 'SoundCloud',
+  tidal: 'Tidal',
+  lastfm: 'Last.fm',
+};
+
+function friendlyAuthError(service: 'SoundCloud' | 'Tidal', detail?: string) {
+  const lower = (detail || '').toLowerCase();
+  if (lower.includes('redirect') || lower.includes('callback') || lower.includes('mismatch')) {
+    return `${service} failed: redirect URL mismatch. Check app + provider callback settings.`;
+  }
+  if (lower.includes('client') || lower.includes('id') || lower.includes('secret')) {
+    return `${service} failed: provider credentials are not configured correctly.`;
+  }
+  return `${service} patch failed. Check provider settings and try again.`;
+}
+
+function compactProviderDetail(detail?: string) {
+  if (!detail) return undefined;
+  const compact = detail.replace(/\s+/g, ' ').trim();
+  if (!compact) return undefined;
+  return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact;
+}
+
+function friendlyProviderError(service: 'Spotify' | 'SoundCloud' | 'Tidal' | 'Last.fm', detail?: string) {
+  const normalized = compactProviderDetail(detail);
+  const lower = (normalized || '').toLowerCase();
+  if (lower.includes('access_denied') || lower.includes('canceled') || lower.includes('cancel')) {
+    return `${service} patch canceled`;
+  }
+  if (lower.includes('redirect') || lower.includes('callback') || lower.includes('mismatch')) {
+    return `${service} failed: redirect URL mismatch. Check app + provider callback settings.`;
+  }
+  if (lower.includes('invalid_grant') || lower.includes('code_verifier')) {
+    return `${service} failed: the authorization code or PKCE verifier was rejected. Start the patch flow again.`;
+  }
+  if (lower.includes('client') || lower.includes('id') || lower.includes('secret')) {
+    return `${service} failed: provider credentials are not configured correctly.`;
+  }
+  if (lower.includes('state')) {
+    return `${service} failed: auth state expired. Start the patch flow again.`;
+  }
+  if (normalized) {
+    return `${service} failed: ${normalized}`;
+  }
+  return `${service} patch failed. Check provider settings and try again.`;
+}
+
+function getUrlQueryParam(url: string, key: string): string | null {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = url.match(new RegExp(`[?&]${escaped}=([^&#]+)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function extractProviderErrorDetail(error: unknown): string | undefined {
+  if (error instanceof ApiError) {
+    const body = error.body as Record<string, unknown> | undefined;
+    if (body) {
+      if (typeof body.details === 'string') {
+        return body.details;
+      }
+      if (body.details && typeof body.details === 'object') {
+        try {
+          return JSON.stringify(body.details);
+        } catch {
+          // ignore
+        }
+      }
+      if (typeof body.reason === 'string') {
+        return body.reason;
+      }
+      if (Array.isArray(body.missing) && body.missing.length > 0) {
+        return `Missing backend config: ${body.missing.join(', ')}`;
+      }
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return undefined;
+}
+
+type PendingAuthProvider = 'spotify' | 'soundcloud' | 'tidal' | 'lastfm';
 
 // ─── Provider ───────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const authDiagnostics = getAuthDiagnostics();
+  const lastHandledSoundcloudUrlRef = useRef<string | null>(null);
+  const lastHandledAuthUrlRef = useRef<string | null>(null);
+  const pendingAuthProviderRef = useRef<PendingAuthProvider | null>(null);
 
   // Spotify Auth Request Setup
   const [request, response, promptAsync] = useAuthRequest(
@@ -87,9 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clientId: config.SPOTIFY_CLIENT_ID,
       scopes: ['user-read-email', 'user-read-private', 'playlist-read-private', 'streaming'],
       usePKCE: true,
-      redirectUri: makeRedirectUri({
-        scheme: 'frequenc'
-      }),
+      redirectUri: authDiagnostics.spotifyRedirectUri,
     },
     discovery
   );
@@ -100,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       responseType: ResponseType.Code,
       clientId: config.TIDAL_CLIENT_ID,
       usePKCE: true,
-      redirectUri: makeRedirectUri({ scheme: 'frequenc' }),
+      redirectUri: authDiagnostics.tidalRedirectUri,
     },
     { authorizationEndpoint: 'https://login.tidal.com/authorize', tokenEndpoint: 'https://auth.tidal.com/v1/oauth2/token' }
   );
@@ -140,8 +244,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             token: state.token!,
           }
         });
+        showToast('Spotify patched', 'success');
       }).catch(err => {
         console.error('Failed to connect Spotify on backend:', err);
+        showToast('Spotify patch failed. Please check backend auth config.', 'error');
       });
     }
   }, [response]);
@@ -158,11 +264,184 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authApi.connectTidal(code, codeVerifier || '', redirectUri).then(async () => {
         const { user } = await authApi.me();
         dispatch({ type: 'SET_USER', payload: { user, token: state.token! } });
+        showToast('Tidal patched', 'success');
       }).catch(err => {
         console.error('Failed to connect Tidal on backend:', err);
+        showToast(friendlyAuthError('Tidal', (err as Error)?.message), 'error');
       });
+    } else if (tidalResponse?.type === 'error') {
+      showToast(friendlyAuthError('Tidal', tidalResponse.error?.message), 'error');
     }
   }, [tidalResponse]);
+
+  const completeSpotifyAuth = useCallback(async (url: string) => {
+    const error = getUrlQueryParam(url, 'error');
+    const errorDescription = getUrlQueryParam(url, 'error_description');
+    if (error) {
+      showToast(friendlyProviderError('Spotify', errorDescription || error), 'error');
+      return true;
+    }
+
+    const code = getUrlQueryParam(url, 'code');
+    const returnedState = getUrlQueryParam(url, 'state');
+    if (!code) return false;
+    if (!request?.state || returnedState !== request.state) {
+      showToast(friendlyProviderError('Spotify', 'state mismatch'), 'error');
+      return true;
+    }
+    if (!request.codeVerifier || !request.redirectUri || !state.token) {
+      showToast('Spotify auth state expired. Start the patch flow again.', 'error');
+      return true;
+    }
+
+    try {
+      await authApi.connectSpotify(code, request.codeVerifier, request.redirectUri);
+      const { user } = await authApi.me();
+      dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
+      showToast('Spotify patched', 'success');
+    } catch (err) {
+      const detail = extractProviderErrorDetail(err);
+      console.error('Failed to connect Spotify on backend:', detail || err);
+      showToast(friendlyProviderError('Spotify', detail), 'error');
+    }
+    return true;
+  }, [request, state.token]);
+
+  const completeTidalAuth = useCallback(async (url: string) => {
+    const error = getUrlQueryParam(url, 'error');
+    const errorDescription = getUrlQueryParam(url, 'error_description');
+    if (error) {
+      showToast(friendlyProviderError('Tidal', errorDescription || error), 'error');
+      return true;
+    }
+
+    const code = getUrlQueryParam(url, 'code');
+    const returnedState = getUrlQueryParam(url, 'state');
+    if (!code) return false;
+    if (!tidalRequest?.state || returnedState !== tidalRequest.state) {
+      showToast(friendlyProviderError('Tidal', 'state mismatch'), 'error');
+      return true;
+    }
+    if (!tidalRequest.redirectUri || !state.token) {
+      showToast('Tidal auth state expired. Start the patch flow again.', 'error');
+      return true;
+    }
+
+    try {
+      await authApi.connectTidal(code, tidalRequest.codeVerifier || '', tidalRequest.redirectUri);
+      const { user } = await authApi.me();
+      dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
+      showToast('Tidal patched', 'success');
+    } catch (err) {
+      const detail = extractProviderErrorDetail(err);
+      console.error('Failed to connect Tidal on backend:', detail || err);
+      showToast(friendlyProviderError('Tidal', detail), 'error');
+    }
+    return true;
+  }, [tidalRequest, state.token]);
+
+  const completeLastfmAuth = useCallback(async (url: string) => {
+    const error = getUrlQueryParam(url, 'error');
+    const errorDescription = getUrlQueryParam(url, 'error_description');
+    if (error) {
+      showToast(friendlyProviderError('Last.fm', errorDescription || error), 'error');
+      return true;
+    }
+
+    const tokenParam = getUrlQueryParam(url, 'token');
+    if (!tokenParam || !state.token) {
+      return false;
+    }
+
+    try {
+      await authApi.connectLastfm(tokenParam);
+      const { user } = await authApi.me();
+      dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
+      showToast('Last.fm patched', 'success');
+    } catch (err) {
+      console.error('Failed to connect Last.fm:', err);
+      showToast(friendlyProviderError('Last.fm', (err as Error)?.message), 'error');
+    }
+    return true;
+  }, [state.token]);
+
+  const handleSoundcloudRedirect = useCallback(async (url: string) => {
+    if (!url || lastHandledSoundcloudUrlRef.current === url) return false;
+
+    const service = getUrlQueryParam(url, 'service');
+    const status = getUrlQueryParam(url, 'status');
+    if (service !== 'soundcloud' || (status !== 'success' && status !== 'error')) {
+      return false;
+    }
+
+    lastHandledSoundcloudUrlRef.current = url;
+
+    if (status === 'success' && state.token) {
+      try {
+        const { user } = await authApi.me();
+        dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
+        showToast('SoundCloud patched', 'success');
+      } catch (err) {
+        console.error('Failed to refresh user after SoundCloud callback:', err);
+        showToast('SoundCloud callback returned, but account refresh failed.', 'error');
+      }
+      return true;
+    }
+
+    showToast(friendlyAuthError('SoundCloud', url), 'error');
+    return true;
+  }, [state.token]);
+
+  const handleIncomingAuthUrl = useCallback(async (url: string) => {
+    if (!url || lastHandledAuthUrlRef.current === url) return false;
+
+    if (await handleSoundcloudRedirect(url)) {
+      lastHandledAuthUrlRef.current = url;
+      pendingAuthProviderRef.current = null;
+      return true;
+    }
+
+    const pendingProvider = pendingAuthProviderRef.current;
+    let handled = false;
+
+    if (pendingProvider === 'spotify') {
+      handled = await completeSpotifyAuth(url);
+    } else if (pendingProvider === 'tidal') {
+      handled = await completeTidalAuth(url);
+    } else if (pendingProvider === 'lastfm') {
+      handled = await completeLastfmAuth(url);
+    } else {
+      handled =
+        (await completeSpotifyAuth(url)) ||
+        (await completeTidalAuth(url)) ||
+        (await completeLastfmAuth(url));
+    }
+
+    if (handled) {
+      lastHandledAuthUrlRef.current = url;
+      pendingAuthProviderRef.current = null;
+    }
+
+    return handled;
+  }, [completeLastfmAuth, completeSpotifyAuth, completeTidalAuth, handleSoundcloudRedirect]);
+
+  useEffect(() => {
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      void handleIncomingAuthUrl(url);
+    });
+
+    Linking.getInitialURL()
+      .then((url) => {
+        if (url) {
+          void handleIncomingAuthUrl(url);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to inspect initial auth URL:', err);
+      });
+
+    return () => sub.remove();
+  }, [handleIncomingAuthUrl]);
 
   // Upload push token to backend after authentication
   const uploadPushToken = useCallback(async () => {
@@ -311,50 +590,153 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.token, state.isAuthenticated, performRefresh]);
 
   const connectSpotify = useCallback(async () => {
-    await promptAsync();
-  }, [promptAsync]);
+    if (BYPASS_AUTH) {
+      showToast('Disable auth bypass to patch Spotify.', 'info');
+      return;
+    }
+    if (!config.SPOTIFY_CLIENT_ID) {
+      showToast('Spotify client ID missing in mobile env.', 'error');
+      return;
+    }
+    if (authDiagnostics.isExpoGo) {
+      showToast(`Spotify in Expo Go may fail. Redirect: ${authDiagnostics.spotifyRedirectUri}`, 'info');
+    }
+    if (!request) {
+      showToast('Spotify auth is still loading. Try again in a moment.', 'info');
+      return;
+    }
+    // 🔧 DEBUG — copy this URI into Spotify Developer Dashboard → Redirect URIs
+    console.log('[Auth] Spotify redirectUri:', request?.redirectUri);
+    console.log('[Auth] Auth runtime:', authDiagnostics.appOwnership);
+    try {
+      pendingAuthProviderRef.current = 'spotify';
+      const authUrl = request.url || await request.makeAuthUrlAsync(discovery);
+      showToast('Complete Spotify sign-in in the browser. You can switch to Duo/Auth apps and return when finished.', 'info');
+      await Linking.openURL(authUrl);
+    } catch (error) {
+      showToast(friendlyProviderError('Spotify', (error as Error)?.message), 'error');
+      throw error;
+    }
+  }, [request, authDiagnostics]);
 
   const connectSoundcloud = useCallback(async () => {
+    if (BYPASS_AUTH) {
+      showToast('Disable auth bypass to patch SoundCloud.', 'info');
+      return;
+    }
     if (!state.user) return;
     const clientId = config.SOUNDCLOUD_CLIENT_ID;
-    const redirectUri = `${API_BASE_URL}/auth/soundcloud/callback`;
-    const stateParam = state.user.id;
+    if (!clientId) {
+      showToast('SoundCloud client ID missing in mobile env.', 'error');
+      return;
+    }
+    const redirectUri = authDiagnostics.soundcloudRedirectUri;
+    // 🔧 DEBUG — register this exact URI in SoundCloud Developer App → Redirect URI
+    console.log('[Auth] SoundCloud redirectUri:', redirectUri);
+    const sessionReturnUrl = authDiagnostics.soundcloudSessionReturnUrl;
+    console.log('[Auth] SoundCloud sessionReturnUrl:', sessionReturnUrl);
+    const stateParam = encodeURIComponent(
+      JSON.stringify({
+        userId: state.user.id,
+        returnUrl: sessionReturnUrl,
+      })
+    );
     const authUrl = `https://api.soundcloud.com/connect?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${stateParam}`;
 
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, makeRedirectUri({ scheme: 'frequenc' }));
-    if (result.type === 'success') {
-      const { user } = await authApi.me();
-      dispatch({ type: 'SET_USER', payload: { user, token: state.token! } });
+    try {
+      pendingAuthProviderRef.current = 'soundcloud';
+      showToast('Complete SoundCloud sign-in in the browser. You can switch to Duo/Auth apps and return when finished.', 'info');
+      await Linking.openURL(authUrl);
+    } catch (error) {
+      showToast(friendlyAuthError('SoundCloud', (error as Error)?.message), 'error');
     }
-  }, [state.user, state.token]);
+  }, [state.user, authDiagnostics]);
 
   const connectTidal = useCallback(async () => {
-    await promptTidalAsync();
-  }, [promptTidalAsync]);
+    if (BYPASS_AUTH) {
+      showToast('Disable auth bypass to patch Tidal.', 'info');
+      return;
+    }
+    if (!config.TIDAL_CLIENT_ID) {
+      showToast('Tidal client ID missing in mobile env.', 'error');
+      return;
+    }
+    if (authDiagnostics.isExpoGo) {
+      showToast(`Tidal in Expo Go may fail. Redirect: ${authDiagnostics.tidalRedirectUri}`, 'info');
+    }
+    if (!tidalRequest) {
+      showToast('Tidal auth is still loading. Try again in a moment.', 'info');
+      return;
+    }
+    // 🔧 DEBUG — copy this URI into Tidal Developer Portal → Redirect URIs
+    console.log('[Auth] Tidal redirectUri:', tidalRequest?.redirectUri);
+    console.log('[Auth] Auth runtime:', authDiagnostics.appOwnership);
+    try {
+      pendingAuthProviderRef.current = 'tidal';
+      const authUrl = tidalRequest.url || await tidalRequest.makeAuthUrlAsync(tidalDiscovery);
+      showToast('Complete Tidal sign-in in the browser. You can switch to Duo/Auth apps and return when finished.', 'info');
+      await Linking.openURL(authUrl);
+    } catch (error) {
+      showToast(friendlyProviderError('Tidal', (error as Error)?.message), 'error');
+      throw error;
+    }
+  }, [tidalRequest, authDiagnostics]);
 
   const connectLastfm = useCallback(async () => {
+    if (BYPASS_AUTH) {
+      showToast('Disable auth bypass to patch Last.fm.', 'info');
+      return;
+    }
     if (!state.user) return;
     const apiKey = config.LASTFM_API_KEY;
-    const redirectUri = makeRedirectUri({ scheme: 'frequenc' });
+    if (!apiKey) {
+      showToast('Last.fm API key missing in mobile env.', 'error');
+      return;
+    }
+    const redirectUri = authDiagnostics.lastfmRedirectUri;
+    // 🔧 DEBUG — Last.fm callback URI (no portal registration needed, but good to verify)
+    console.log('[Auth] Last.fm redirectUri:', redirectUri);
     const authUrl = `https://www.last.fm/api/auth/?api_key=${apiKey}&cb=${encodeURIComponent(redirectUri)}`;
 
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
-    if (result.type === 'success' && result.url) {
-      const tokenMatch = result.url.match(/token=([^&]+)/);
-      if (tokenMatch && tokenMatch[1]) {
-        try {
-          await authApi.connectLastfm(tokenMatch[1]);
-          const { user } = await authApi.me();
-          dispatch({ type: 'SET_USER', payload: { user, token: state.token! } });
-        } catch (err) {
-          console.error('Failed to connect Last.fm:', err);
-        }
-      }
+    try {
+      pendingAuthProviderRef.current = 'lastfm';
+      showToast('Complete Last.fm sign-in in the browser and return to the app when finished.', 'info');
+      await Linking.openURL(authUrl);
+    } catch (error) {
+      showToast(friendlyProviderError('Last.fm', (error as Error)?.message), 'error');
+    }
+  }, [state.user, state.token, authDiagnostics]);
+
+  const disconnectService = useCallback(async (provider: DisconnectableProvider) => {
+    if (!state.user || !state.token) return;
+    try {
+      await authApi.disconnectService(provider);
+
+      const nextConnectedServices = {
+        ...state.user.connectedServices,
+        [provider]: { connected: false },
+      };
+
+      dispatch({
+        type: 'SET_USER',
+        payload: {
+          user: {
+            ...state.user,
+            connectedServices: nextConnectedServices,
+          },
+          token: state.token,
+        },
+      });
+
+      showToast(`${providerLabel[provider]} unpatched`, 'success');
+    } catch (error) {
+      showToast(`Failed to unpatch ${providerLabel[provider]}. Try again.`, 'error');
+      throw error;
     }
   }, [state.user, state.token]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, deleteAccount, connectSpotify, connectSoundcloud, connectTidal, connectLastfm }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, deleteAccount, connectSpotify, connectSoundcloud, connectTidal, connectLastfm, disconnectService }}>
       {children}
     </AuthContext.Provider>
   );

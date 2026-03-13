@@ -17,10 +17,11 @@ import { colors } from './src/theme/colors';
 import { ToastProvider } from './src/components/ui';
 import { useDesignFonts } from './src/design/loadFonts';
 
+import { GlobalSessionRoomProvider } from './src/contexts/GlobalSessionRoomContext';
+
 export default function App() {
   const [fontsLoaded, fontError] = useDesignFonts();
 
-  // Hold on splash/loading state until custom fonts are ready
   if (!fontsLoaded && !fontError) {
     return (
       <View style={styles.loading}>
@@ -35,12 +36,14 @@ export default function App() {
       <ErrorBoundary>
         <AuthProvider>
           <ActiveSessionProvider>
-            <FavoritesProvider>
-              <ThemeProvider>
-                <AppNavigator />
-                <ToastProvider />
-              </ThemeProvider>
-            </FavoritesProvider>
+            <GlobalSessionRoomProvider>
+              <FavoritesProvider>
+                <ThemeProvider>
+                  <AppNavigator />
+                  <ToastProvider />
+                </ThemeProvider>
+              </FavoritesProvider>
+            </GlobalSessionRoomProvider>
           </ActiveSessionProvider>
         </AuthProvider>
       </ErrorBoundary>

@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { NavigationContainer, LinkingOptions, NavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, LinkingOptions, NavigationContainerRef, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -22,6 +22,11 @@ import { onNotificationResponse, getInitialNotification } from '../services/noti
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { typography } from '../theme/typography';
 import { Text } from '../components/ui';
+import { MiniPlayer } from '../components/MiniPlayer';
+import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
+import { skipCurrentTrack } from '../services/queueEngine';
+import { togglePlayPause } from '../services/playbackEngine';
+import { DEFAULT_BEHAVIORS } from '../types';
 // ─── Design System: Rack × Chrome visual language ──────────
 import { palette } from '../design/tokens/materials';
 
@@ -127,8 +132,29 @@ function CreatePlaceholder() {
 // ─── Tab Navigator ──────────────────────────────────────────
 
 function TabNavigator() {
+  const { user } = useAuth();
+  const globalRoom = useGlobalSessionRoom();
+  const currentTrack = globalRoom.queue[0];
+  const navigation = useNavigation<any>();
+
+  const handlePress = () => {
+    if (globalRoom.session?.id) {
+      navigation.navigate('SessionRoom', { sessionId: globalRoom.session.id });
+    }
+  };
+
+  const handleSkip = () => {
+    if (!user || !globalRoom.session) return;
+    const behaviors = globalRoom.session.behaviors || DEFAULT_BEHAVIORS;
+    const { skipped } = skipCurrentTrack(globalRoom.queue, user.id, globalRoom.session.hostId, behaviors);
+    if (skipped) {
+      globalRoom.advanceQueue();
+    }
+  };
+
   return (
-    <Tab.Navigator
+    <View style={{ flex: 1, backgroundColor: palette.midnight }}>
+      <Tab.Navigator
       screenOptions={{
         headerShown: false,
         // §7: 200ms ease-in-out cross-fade on tab switch
@@ -254,6 +280,19 @@ function TabNavigator() {
         )}
       </Tab.Screen>
     </Tab.Navigator>
+
+      {currentTrack && globalRoom.playback && (
+        <View style={{ position: 'absolute', bottom: 80, left: 0, right: 0 }}>
+          <MiniPlayer
+            track={currentTrack}
+            playback={globalRoom.playback}
+            onPlayPause={togglePlayPause}
+            onSkip={handleSkip}
+            onPress={handlePress}
+          />
+        </View>
+      )}
+    </View>
   );
 }
 

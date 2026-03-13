@@ -58,11 +58,15 @@ Implement service disconnect + clearer provider handling:
   - `src/routes/authTidal.ts`
 - Avoid broad add/commit in backend; stage specific files only.
 
-## Safe Commands to Resume
-From `Frequen-C-Mobile`:
-- `npm run qa:preflight`
-- `npm run qa:backend` (with backend running)
+## Strict Startup Sequence (REQUIRED)
+When resuming work or launching the environment, you MUST execute these steps in this exact order to prevent API hanging:
 
-From `Frequen-C-Backend`:
-- `npm run dev`
+1. **Start the Backend FIRST:**
+   - Navigate to `Frequen-C-Backend`.
+   - Run `npm run dev`.
+   - Wait 5 seconds to ensure port 5000 is listening. Leave this process running.
 
+2. **Start the Mobile App SECOND:**
+   - Navigate to `Frequen-C-Mobile`.
+   - Run `npx expo start --tunnel` (You MUST use the --tunnel flag to bypass VM network issues).
+   - Generate and display the visual Ngrok tunnel QR code in the chat interface so the user can scan it.

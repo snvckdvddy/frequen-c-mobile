@@ -1,12 +1,13 @@
 /**
  * Frequen-C Material Tokens
  * ─────────────────────────────────────────────────────────────
- * Clean, warm dark palette. Surfaces are flat colors with soft
- * borders and generous radius. No metallic textures or grain.
+ * Deep cool-indigo dark palette. Premium dark aesthetic with
+ * subtle blue-black undertones — not warm, not harsh, just
+ * the kind of dark that feels expensive.
  *
  * Usage in components:
- *   import { materials } from '@/design/tokens/materials';
- *   <VoidSurface /> or style={materials.void.flat}
+ *   import { palette } from '@/design/tokens/materials';
+ *   style={{ backgroundColor: palette.void }}
  */
 
 // ─── Utility ────────────────────────────────────────────────
@@ -27,11 +28,11 @@ export function withAlpha(hex: string, alpha: number): string {
 // ─── Core Palette ────────────────────────────────────────────
 
 export const palette = {
-  // ─── Surface tones (warm neutrals) ─────────────────
-  void: '#0F1012',       // Deepest background — warm near-black
-  midnight: '#161819',   // Card/section backgrounds — warm charcoal
-  steel: '#1E2022',      // Raised surfaces — warm dark gray
-  gunmetal: '#262829',   // Interactive surface base
+  // ─── Surface tones (cool indigo-dark) ──────────────
+  void: '#0C0E14',       // Deepest background — cool near-black
+  midnight: '#131620',   // Card/section backgrounds — dark navy
+  steel: '#1A1D28',      // Raised surfaces — indigo-dark gray
+  gunmetal: '#212437',   // Interactive surface base — slightly blue
 
   // ─── Primary accent: ORANGE (warm, inviting) ──────
   orange: '#FF7A45',     // Primary interactive — slightly warmer
@@ -48,13 +49,13 @@ export const palette = {
   green: '#34D399',      // CV economy, success — soft emerald
   magenta: '#F472B6',    // Phase Cancel — soft pink
 
-  // ─── Text hierarchy (warm whites & grays) ─────────
-  frost: '#F5F0EB',      // Primary text — warm off-white
-  white: '#EDE8E3',      // Secondary white — cream tint
-  silver: '#9CA3A8',     // Secondary text — neutral mid-tone
-  slate: '#7A8388',      // Muted/tertiary — warm gray (WCAG AA on midnight)
-  textSecondary: '#8E9499',
-  textDim: '#62686C',    // Module labels — passes AA-large on midnight
+  // ─── Text hierarchy ────────────────────────────────
+  frost: '#F0EEF5',      // Primary text — bright with cool tint
+  white: '#E8E6F0',      // Secondary white — soft lavender-white
+  silver: '#9A9DB0',     // Secondary text — cool mid-tone
+  slate: '#6E7285',      // Muted/tertiary — cool gray (WCAG AA on midnight)
+  textSecondary: '#8A8D9E',
+  textDim: '#5C606E',    // Module labels — passes AA-large on midnight
 
   // ─── Signal waveform colors (room mode identity) ────
   signalSine: '#FF7A45',      // Campfire — warm orange
@@ -62,8 +63,8 @@ export const palette = {
   signalSaw: '#93C5FD',       // Open Floor — soft blue
 
   // ─── Semantic border / surface ─────────────────────
-  chromeBorder: 'rgba(255, 255, 255, 0.08)',
-  chromeHighlight: 'rgba(255, 255, 255, 0.04)',
+  chromeBorder: 'rgba(255, 255, 255, 0.10)',   // Slightly brighter on dark indigo
+  chromeHighlight: 'rgba(255, 255, 255, 0.05)',
   chromeTint: '#C0DFFF',   // Subtle cool highlight for glass/chrome borders
 } as const;
 
@@ -162,7 +163,7 @@ export const materials = {
     flat: palette.midnight,
     baseGradient: [
       { offset: 0, color: palette.midnight },
-      { offset: 0.5, color: '#191B1D' },
+      { offset: 0.5, color: '#161928' },
       { offset: 1, color: palette.midnight },
     ],
     grainDirection: 0,

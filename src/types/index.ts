@@ -175,7 +175,7 @@ export interface Reaction {
 export interface QueueTrack extends Track {
   addedById: string;       // userId of the person who added it
   addedAt: string;         // ISO timestamp
-  status?: 'approved' | 'pending';  // Spotlight mode: pending = awaiting host approval
+  status?: 'approved' | 'pending' | 'played';  // Spotlight: pending = awaiting host; played = already consumed
   votedBy?: Record<string, 1 | -1>; // userId → vote direction (for toggle/dedup)
 }
 

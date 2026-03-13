@@ -164,9 +164,10 @@ export function QueueSheet({
         queue.map((t) => ({ title: t.title, artist: t.artist, album: t.album }))
       );
       setAestheticResult(data);
-    } catch (err: any) {
-      setAestheticError(err?.message || 'Unable to analyze sonic aesthetic');
-      console.warn('[SonicAesthetic]', err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to analyze sonic aesthetic';
+      setAestheticError(message);
+      console.warn('[SonicAesthetic]', message);
     } finally {
       setAestheticLoading(false);
     }
@@ -366,7 +367,7 @@ export function QueueSheet({
             /* Queue list */
             <FlatList<QueueTrack>
               data={queue}
-              keyExtractor={(item, i) => item.id + '_' + i}
+              keyExtractor={(item) => item.id}
               renderItem={({ item, index }) => (
                 <ADSRFadeIn index={index} staggerMs={40}>
                   <SwipeableRow

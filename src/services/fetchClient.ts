@@ -81,9 +81,15 @@ export async function apiFetch<T>(endpoint: string, options: ApiOptions = {}): P
   } catch (err: any) {
     clearTimeout(timeoutId);
     if (err.name === 'AbortError') {
-      throw new ApiError(0, 'Request timed out — is the backend running?');
+      throw new ApiError(
+        0,
+        `Request timed out to ${API_BASE_URL} — check backend + EXPO_PUBLIC_LOCAL_IP/EXPO_PUBLIC_API_PORT`
+      );
     }
-    throw new ApiError(0, `Network error — could not reach server`);
+    throw new ApiError(
+      0,
+      `Network error reaching ${API_BASE_URL} — check backend + EXPO_PUBLIC_LOCAL_IP/EXPO_PUBLIC_API_PORT`
+    );
   } finally {
     clearTimeout(timeoutId);
   }

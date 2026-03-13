@@ -1,12 +1,32 @@
 # Frequen-C Mobile
 
+## Canonical Workspace Note
+
+This is the canonical mobile app.
+
+Use with:
+
+- backend: `../Frequen-C-Backend`
+- web companion: `../Frequen-C`
+
+Do not port fixes into legacy copies under `Frequen-C/mobile`, `Frequen-C/backend`, or `Frequen-C/server`.
+
+Before feature work, prefer:
+
+```bash
+npm run doctor:auth
+npm run qa:preflight
+npm run qa:backend
+npm run qa:baseline
+```
+
 ## Project Overview
 Mobile-first React Native (Expo) rebuild of Frequen-C — a collaborative music curation app.
 
 ## Architecture
 - **Frontend**: React Native (Expo 54) + TypeScript
 - **Backend**: Existing Node/Express server (port 5000) — shared with web app
-- **Database**: Firebase Firestore
+- **Database**: SQLite via `better-sqlite3` (managed by Frequen-C-Backend, NOT Firebase — docs were incorrect)
 - **Real-time**: Socket.io
 - **Auth**: JWT tokens stored in expo-secure-store
 
@@ -29,9 +49,25 @@ src/
 ```
 
 ## Design System
-- Colors: `src/theme/colors.ts` — semantic tokens mapped to roles
-- Typography: `src/theme/typography.ts` — minor-third scale (1.2 ratio)
-- Spacing: `src/theme/spacing.ts` — 4px base grid
+
+**Canonical source of truth: `src/design/tokens/materials.ts`**
+
+`src/theme/colors.ts` is a legacy wrapper — it imports from `design/tokens/materials` for backward compat.
+Do NOT edit `colors.ts` directly; update `materials.ts` instead.
+
+| Token | Value | Role |
+|---|---|---|
+| `palette.void` | `#0C0E14` | App background |
+| `palette.midnight` | `#131620` | Card/section BG |
+| `palette.steel` | `#1A1D28` | Raised surfaces |
+| `palette.orange` | `#FF7A45` | **Primary accent** (CTAs, active states) |
+| `palette.ice` | `#5AC8C8` | **Secondary accent** (teal) |
+| `palette.magenta` | `#F472B6` | Spotlight mode, destructive |
+| `palette.green` | `#34D399` | CV economy positive, live |
+
+- Typography: minor-third scale (1.2 ratio), see `src/design/tokens/typography.ts`
+- Spacing: 4px base grid, see `src/theme/spacing.ts`
+- Visual language: **Rack × Chrome** — `VoidSurface`, `ModuleFaceplate`, `LEDReadout`, `ChromeButton`
 
 ## Product Vision
 Frequen-C is a real product first. Academic credit (DESN 374-040) is a side benefit, not the driver.

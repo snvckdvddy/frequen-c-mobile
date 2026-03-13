@@ -24,7 +24,7 @@ import { Text, SafeScreen, RoomModeBadge } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import api, { searchApi } from '../services/api';
 import {
-  addToQueue, voteTrack, sendReaction, skipTrack, voteSkip, trackEnded,
+  addToQueue, voteTrack, sendReaction, skipTrack, removeTrack, voteSkip, trackEnded,
   approveTrackEvent, rejectTrackEvent, changeModeEvent, endSessionEvent,
   updateBehaviors, spendCV, duelVote, submitForecast, phantomPower,
   overdrive, phaseCancel, listenHeartbeat, joinSession, leaveSession,
@@ -78,7 +78,13 @@ import { ParticipantAvatarBar } from '../components/ui/ParticipantAvatarBar';
 import { ReactionBar } from '../components/ui/ReactionBar';
 import { useCV } from '../hooks/useCV';
 import { useVoltageSag } from '../hooks/useVoltageSag';
-import { useSessionRoom } from '../hooks/useSessionRoom';
+import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
+
+type SocketReactionType = "fire" | "vibe" | "skip";
+
+const isValidReaction = (type: string): type is SocketReactionType => {
+  return ["fire", "vibe", "skip"].includes(type);
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ALBUM_ART_SIZE = SCREEN_WIDTH - 48;
@@ -123,8 +129,15 @@ export function SessionRoomScreen() {
     toasts, setToasts,
     playback, setPlayback,
     bounceVisible, setBounceVisible,
-    skipVoteState, phaseCancelShield, advanceQueue
-  } = useSessionRoom(sessionId);
+    skipVoteState, phaseCancelShield, advanceQueue,
+    connectionId, setConnectionId
+  } = useGlobalSessionRoom();
+
+  useEffect(() => {
+    if (sessionId && sessionId !== connectionId) {
+      setConnectionId(sessionId);
+    }
+  }, [sessionId, connectionId, setConnectionId]);
 
   // ─── Bottom sheet & overflow state ─────────────────────────
   const [queueSheetOpen, setQueueSheetOpen] = useState(false);
@@ -364,8 +377,13 @@ export function SessionRoomScreen() {
   const handleReaction = useCallback((trackId: string, type: string) => {
     if (!user) return;
     if (!getGlobalLimiter().canDo('reaction')) return;
-    tapLight();
-    sendReaction(sessionId, trackId, user.id, type as "fire" | "vibe" | "skip");
+    
+    if (isValidReaction(type)) {
+      tapLight();
+      sendReaction(sessionId, trackId, user.id, type);
+    } else {
+      console.warn(`Invalid reaction type received: ${type}`);
+    }
   }, [user, sessionId]);
 
   const handlePlayPause = useCallback(() => {
@@ -611,6 +629,7 @@ export function SessionRoomScreen() {
               tapHeavy();
               endSessionEvent(sessionId);
               clearActiveSession();
+              setConnectionId(null);
               navigation.goBack();
             },
           },
@@ -629,6 +648,7 @@ export function SessionRoomScreen() {
               tapHeavy();
               leaveSession(sessionId, user.id);
               clearActiveSession();
+              setConnectionId(null);
               navigation.goBack();
             },
           },
@@ -804,7 +824,10 @@ export function SessionRoomScreen() {
             onCancelSearch={handleCancelSearch}
             onAddTrack={handleAddTrack}
             onVote={handleVote}
-            onRemoveFromQueue={(id) => setQueue((prev) => prev.filter((t) => t.id !== id))}
+            onRemoveFromQueue={(id) => {
+              setQueue((prev) => prev.filter((t) => t.id !== id));
+              removeTrack(sessionId, id);
+            }}
             onApproveTrack={handleApproveTrack}
             onRejectTrack={handleRejectTrack}
             onRemoveRecentSearch={removeRecentSearch}

@@ -26,13 +26,19 @@ import {
   View, StyleSheet, ScrollView, TouchableOpacity,
   Alert, RefreshControl, Linking,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Text, Button, SafeScreen } from '../components/ui';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { authApi } from '../services/api';
+import {
+  authApi,
+  type DisconnectableProvider,
+  type ProviderStatusMap,
+} from '../services/api';
+import { formatAuthDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
 import { config } from '../config';
 import { spacing } from '../theme/spacing';
 import { VoidSurface, ModuleFaceplate, ChromeButton } from '../design/components';
@@ -60,11 +66,29 @@ function HardwareCard({ children, label }: { children: React.ReactNode; label?: 
 // ─── Service Jack Row ────────────────────────────────────────
 
 function ServiceJack({
-  name, connected, username, serviceKey, onConnect,
+  name,
+  connected,
+  username,
+  serviceKey,
+  onConnect,
+  onDisconnect,
+  comingSoon = false,
+  actionDisabled = false,
+  statusText,
 }: {
   name: string; connected: boolean; username?: string;
-  serviceKey: string; onConnect: () => void;
+  serviceKey: string;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
+  comingSoon?: boolean;
+  actionDisabled?: boolean;
+  statusText?: string;
 }) {
+  const actionLabel = comingSoon ? 'COMING SOON' : (connected ? 'UNPATCH' : 'PATCH');
+  const disabled = comingSoon || actionDisabled;
+  const actionPress = disabled ? undefined : (connected ? onDisconnect : onConnect);
+  const resolvedStatus = statusText || (comingSoon ? 'Not implemented' : connected ? (username ? `@${username}` : 'Patched') : 'Unpatched');
+
   return (
     <View style={sjStyles.row}>
       <View style={sjStyles.left}>
@@ -73,16 +97,26 @@ function ServiceJack({
         </View>
         <View>
           <Text style={sjStyles.name}>{name}</Text>
-          <Text style={sjStyles.status}>
-            {connected ? (username ? `@${username}` : 'Patched') : 'Unpatched'}
+          <Text style={[sjStyles.status, actionDisabled && !connected && sjStyles.statusWarning]}>
+            {resolvedStatus}
           </Text>
         </View>
       </View>
-      {!connected ? (
-        <ChromeButton onPress={onConnect} size="sm" accessibilityLabel={`Connect ${name}`} accessibilityHint={`Double tap to connect your ${name} account`}>PATCH</ChromeButton>
-      ) : (
-        <View style={sjStyles.activeDot} />
-      )}
+      <ChromeButton
+        onPress={actionPress}
+        disabled={disabled}
+        size="sm"
+        accessibilityLabel={`${actionLabel} ${name}`}
+        accessibilityHint={
+          comingSoon
+            ? `${name} integration is not implemented yet`
+            : disabled
+              ? `${name} cannot be connected until backend provider configuration is fixed`
+              : `Double tap to ${connected ? 'disconnect' : 'connect'} your ${name} account`
+        }
+      >
+        {actionLabel}
+      </ChromeButton>
     </View>
   );
 }
@@ -126,6 +160,9 @@ const sjStyles = StyleSheet.create({
     color: palette.slate,
     letterSpacing: ls.normal,
   },
+  statusWarning: {
+    color: palette.red,
+  },
   patchBtn: {
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -140,12 +177,6 @@ const sjStyles = StyleSheet.create({
     color: palette.orange,
     letterSpacing: ls.normal,
   },
-  activeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: palette.ice,
-  },
 });
 
 // ─── Main Screen ─────────────────────────────────────────────
@@ -156,9 +187,20 @@ interface ProfileScreenProps {
 
 export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
   const navigation = useNavigation<any>();
-  const { user, logout, deleteAccount, connectSpotify, connectSoundcloud, connectTidal, connectLastfm } = useAuth();
+  const {
+    user,
+    logout,
+    deleteAccount,
+    connectSpotify,
+    connectSoundcloud,
+    connectTidal,
+    connectLastfm,
+    disconnectService,
+  } = useAuth();
   const { accent, isVoltageSag } = useTheme();
+  const authDiagnostics = getAuthDiagnostics();
   const [refreshing, setRefreshing] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<Partial<ProviderStatusMap>>({});
   const [readManual, setReadManual] = useState(false);
   const [monitorOut, setMonitorOut] = useState(
     (user as any)?.preferences?.isIncognito ?? false
@@ -178,10 +220,20 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
       : '808 Kick'
   );
 
+  const refreshProviderStatus = useCallback(async () => {
+    try {
+      const { providers } = await authApi.providerStatus();
+      setProviderStatus(providers);
+    } catch (error) {
+      console.warn('[Profile] Failed to load provider status:', error);
+    }
+  }, []);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       const { user: freshUser } = await authApi.me();
+      await refreshProviderStatus();
       // Re-hydrate local state from server preferences
       const p = (freshUser as any)?.preferences;
       if (p) {
@@ -194,7 +246,12 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
     } catch { /* swallow */ } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [refreshProviderStatus]);
+
+  useEffect(() => {
+    if (!user) return;
+    refreshProviderStatus();
+  }, [user, refreshProviderStatus]);
 
   // Deterministic avatar hue from username
   const avatarHue = useMemo(() => {
@@ -237,7 +294,58 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
     );
   }, [deleteAccount]);
 
+  const showProviderConfigAlert = useCallback((provider: DisconnectableProvider, service: string) => {
+    const status = providerStatus[provider];
+    Alert.alert(
+      `${service} Unavailable`,
+      `${status?.reason || 'Backend provider configuration is incomplete.'}\n\nFinish the backend env setup, then retry this connection.`
+    );
+  }, [providerStatus]);
+
+  const isMobileProviderConfigMissing = useCallback((provider: DisconnectableProvider) => {
+    switch (provider) {
+      case 'spotify':
+        return !config.SPOTIFY_CLIENT_ID;
+      case 'soundcloud':
+        return !config.SOUNDCLOUD_CLIENT_ID;
+      case 'tidal':
+        return !config.TIDAL_CLIENT_ID;
+      case 'lastfm':
+        return !config.LASTFM_API_KEY;
+      default:
+        return false;
+    }
+  }, []);
+
+  const isProviderUnavailable = useCallback((provider: DisconnectableProvider) => {
+    const status = providerStatus[provider];
+    return !!status && !status.backendConfigured;
+  }, [providerStatus]);
+
+  const getProviderStatusText = useCallback((provider: DisconnectableProvider) => {
+    if (isMobileProviderConfigMissing(provider)) {
+      return 'Mobile config missing';
+    }
+    if (isProviderUnavailable(provider)) {
+      return 'Backend config missing';
+    }
+    return undefined;
+  }, [isMobileProviderConfigMissing, isProviderUnavailable]);
+
   const handleConnectService = (service: string) => {
+    const providerMap: Partial<Record<string, DisconnectableProvider>> = {
+      Spotify: 'spotify',
+      SoundCloud: 'soundcloud',
+      Tidal: 'tidal',
+      'Last.fm': 'lastfm',
+    };
+    const provider = providerMap[service];
+
+    if (provider && isProviderUnavailable(provider)) {
+      showProviderConfigAlert(provider, service);
+      return;
+    }
+
     if (service === 'Spotify') {
       if (!config.SPOTIFY_CLIENT_ID) {
         Alert.alert(
@@ -246,14 +354,40 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
         );
         return;
       }
+      if (authDiagnostics.isExpoGo) {
+        Alert.alert(
+          'Spotify Redirect Warning',
+          `Current runtime is Expo Go.\n\nSpotify redirect URI:\n${authDiagnostics.spotifyRedirectUri}\n\nIf Spotify dashboard is registered to frequenc:// instead of this runtime redirect, sign-in will fail with an invalid page.`
+        );
+      }
       connectSpotify();
       return;
     }
     if (service === 'SoundCloud') {
+      if (!config.SOUNDCLOUD_CLIENT_ID) {
+        Alert.alert(
+          'SoundCloud Not Configured',
+          'Set EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID in your mobile .env file.\n\nUse the public client ID from your SoundCloud developer app.'
+        );
+        return;
+      }
       connectSoundcloud();
       return;
     }
     if (service === 'Tidal') {
+      if (!config.TIDAL_CLIENT_ID) {
+        Alert.alert(
+          'Tidal Not Configured',
+          'Set EXPO_PUBLIC_TIDAL_CLIENT_ID in your mobile .env file.\n\nUse the public client ID from your Tidal developer app.'
+        );
+        return;
+      }
+      if (authDiagnostics.isExpoGo) {
+        Alert.alert(
+          'Tidal Redirect Warning',
+          `Current runtime is Expo Go.\n\nTidal redirect URI:\n${authDiagnostics.tidalRedirectUri}\n\nIf Tidal dashboard is registered to frequenc:// instead of this runtime redirect, sign-in will fail with an invalid page.`
+        );
+      }
       connectTidal();
       return;
     }
@@ -268,8 +402,40 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
       connectLastfm();
       return;
     }
+    if (service === 'Apple Music' || service === 'YouTube Music') {
+      Alert.alert('Coming Soon', `${service} patch cable is not implemented yet.`);
+      return;
+    }
     Alert.alert('Coming Soon', `${service} patch cable is coming in a future update.`);
   };
+
+  const handleDisconnectService = useCallback((provider: 'spotify' | 'soundcloud' | 'tidal' | 'lastfm', name: string) => {
+    Alert.alert(
+      `Unpatch ${name}?`,
+      `This will disconnect your ${name} account from Frequen-C.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'UNPATCH',
+          style: 'destructive',
+          onPress: () => {
+            disconnectService(provider).catch(() => {
+              Alert.alert('Disconnect Failed', `Could not disconnect ${name}. Please try again.`);
+            });
+          },
+        },
+      ]
+    );
+  }, [disconnectService]);
+
+  const handleCopyAuthDiagnostics = useCallback(async () => {
+    try {
+      await Clipboard.setStringAsync(formatAuthDiagnosticsText());
+      Alert.alert('Copied', 'Auth diagnostics copied to clipboard.');
+    } catch {
+      Alert.alert('Copy Failed', 'Could not copy auth diagnostics.');
+    }
+  }, []);
 
   const cycleSocialBattery = () => {
     const levels: Array<'low' | 'unity' | 'hot'> = ['low', 'unity', 'hot'];
@@ -475,18 +641,31 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
                 username={user?.connectedServices?.spotify?.username}
                 serviceKey="spotify"
                 onConnect={() => handleConnectService('Spotify')}
+                onDisconnect={() => handleDisconnectService('spotify', 'Spotify')}
+                actionDisabled={
+                  !user?.connectedServices?.spotify?.connected &&
+                  (isMobileProviderConfigMissing('spotify') || isProviderUnavailable('spotify'))
+                }
+                statusText={!user?.connectedServices?.spotify?.connected ? getProviderStatusText('spotify') : undefined}
               />
               <ServiceJack
                 name="Apple Music"
                 connected={!!user?.connectedServices?.appleMusic?.connected}
                 serviceKey="apple-music"
                 onConnect={() => handleConnectService('Apple Music')}
+                comingSoon
               />
               <ServiceJack
                 name="Tidal"
                 connected={!!user?.connectedServices?.tidal?.connected}
                 serviceKey="tidal"
                 onConnect={() => handleConnectService('Tidal')}
+                onDisconnect={() => handleDisconnectService('tidal', 'Tidal')}
+                actionDisabled={
+                  !user?.connectedServices?.tidal?.connected &&
+                  (isMobileProviderConfigMissing('tidal') || isProviderUnavailable('tidal'))
+                }
+                statusText={!user?.connectedServices?.tidal?.connected ? getProviderStatusText('tidal') : undefined}
               />
               <ServiceJack
                 name="SoundCloud"
@@ -494,6 +673,19 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
                 username={user?.connectedServices?.soundcloud?.username}
                 serviceKey="soundcloud"
                 onConnect={() => handleConnectService('SoundCloud')}
+                onDisconnect={() => handleDisconnectService('soundcloud', 'SoundCloud')}
+                actionDisabled={
+                  !user?.connectedServices?.soundcloud?.connected &&
+                  (isMobileProviderConfigMissing('soundcloud') || isProviderUnavailable('soundcloud'))
+                }
+                statusText={!user?.connectedServices?.soundcloud?.connected ? getProviderStatusText('soundcloud') : undefined}
+              />
+              <ServiceJack
+                name="YouTube Music"
+                connected={!!user?.connectedServices?.youtube?.connected}
+                serviceKey="youtube-music"
+                onConnect={() => handleConnectService('YouTube Music')}
+                comingSoon
               />
               <ServiceJack
                 name="Last.fm"
@@ -501,6 +693,12 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
                 username={user?.connectedServices?.lastfm?.username}
                 serviceKey="lastfm"
                 onConnect={() => handleConnectService('Last.fm')}
+                onDisconnect={() => handleDisconnectService('lastfm', 'Last.fm')}
+                actionDisabled={
+                  !user?.connectedServices?.lastfm?.connected &&
+                  (isMobileProviderConfigMissing('lastfm') || isProviderUnavailable('lastfm'))
+                }
+                statusText={!user?.connectedServices?.lastfm?.connected ? getProviderStatusText('lastfm') : undefined}
               />
             </View>
           </ModuleFaceplate>
@@ -508,6 +706,19 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
           {/* ═══ LEGAL ═══════════════════════════════════ */}
           <ModuleFaceplate label="CONFIGURATION">
             <View style={{ paddingHorizontal: 4 }}>
+              <View style={styles.legalRow}>
+                <Text style={styles.legalText}>Auth Runtime</Text>
+                <Text style={styles.legalValue}>
+                  {authDiagnostics.isExpoGo ? 'Expo Go' : authDiagnostics.appOwnership}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.legalRow}
+                onPress={handleCopyAuthDiagnostics}
+              >
+                <Text style={styles.legalText}>Copy Auth Diagnostics</Text>
+                <Ionicons name="copy-outline" size={12} color={palette.slate} />
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.legalRow}
                 onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() =>

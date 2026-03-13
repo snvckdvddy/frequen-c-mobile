@@ -207,12 +207,13 @@ export function moveTrack(
  * Preserves relative order within each contributor's tracks.
  */
 function interleaveRoundRobin(queue: QueueTrack[]): QueueTrack[] {
-  if (queue.length <= 1) return queue;
+  if (queue.length <= 2) return queue;
 
+  const [nowPlaying, ...rest] = queue;
   const groups = new Map<string, QueueTrack[]>();
   const contributorOrder: string[] = [];
 
-  for (const track of queue) {
+  for (const track of rest) {
     const key = track.addedById;
     if (!groups.has(key)) {
       groups.set(key, []);
@@ -224,10 +225,39 @@ function interleaveRoundRobin(queue: QueueTrack[]): QueueTrack[] {
   if (groups.size <= 1) return queue;
 
   const result: QueueTrack[] = [];
-  let remaining = queue.length;
+  let remaining = rest.length;
+  const activeContributors = contributorOrder;
+  const activeContributorSet = new Set(activeContributors);
+
+  // Build contributor order from full queue in first-seen order, then rotate
+  // to the contributor after nowPlaying for round-robin fairness.
+  const globalContributorOrder: string[] = [];
+  for (const track of queue) {
+    if (!globalContributorOrder.includes(track.addedById)) {
+      globalContributorOrder.push(track.addedById);
+    }
+  }
+
+  const nowPlayingContributorIndex = globalContributorOrder.indexOf(nowPlaying.addedById);
+  const rotatedContributorOrder: string[] = [];
+  for (let i = 1; i <= globalContributorOrder.length; i++) {
+    const idx =
+      nowPlayingContributorIndex >= 0
+        ? (nowPlayingContributorIndex + i) % globalContributorOrder.length
+        : i - 1;
+    const candidate = globalContributorOrder[idx];
+    if (activeContributorSet.has(candidate) && !rotatedContributorOrder.includes(candidate)) {
+      rotatedContributorOrder.push(candidate);
+    }
+  }
+
+  const contributors =
+    rotatedContributorOrder.length > 0 ? rotatedContributorOrder : activeContributors;
+  const contributorCount = contributors.length;
 
   while (remaining > 0) {
-    for (const contributor of contributorOrder) {
+    for (let i = 0; i < contributorCount; i++) {
+      const contributor = contributors[i];
       const tracks = groups.get(contributor)!;
       if (tracks.length > 0) {
         result.push(tracks.shift()!);
@@ -236,7 +266,7 @@ function interleaveRoundRobin(queue: QueueTrack[]): QueueTrack[] {
     }
   }
 
-  return result;
+  return [nowPlaying, ...result];
 }
 
 // ─── Internal: Sort by Votes ────────────────────────────────
