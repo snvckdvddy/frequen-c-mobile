@@ -9,12 +9,11 @@
 import React, { useRef, useState, useCallback } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Modal, FlatList,
-  TextInput, ActivityIndicator, Keyboard, PanResponder, Platform,
+  TextInput, ActivityIndicator, Keyboard, Platform,
   Dimensions, type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from '../ui';
-import { ADSRFadeIn, SwipeableRow } from '../ui';
 import { VoidSurface, LEDReadout } from '../../design/components';
 import { palette } from '../../design/tokens/materials';
 import { letterSpacing as ls } from '../../design/tokens/typography';
@@ -119,28 +118,6 @@ export function QueueSheet({
   const [aestheticLoading, setAestheticLoading] = useState(false);
   const [aestheticError, setAestheticError] = useState<string | null>(null);
 
-  // Swipe-to-close gesture
-  const sheetPanResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        if (searchInSheetRef.current) return false;
-        return (
-          gestureState.dy > 18 &&
-          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.35
-        );
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        const shouldClose =
-          gestureState.dy > 90 ||
-          (gestureState.dy > 40 && gestureState.vy > 0.9);
-        if (shouldClose) {
-          onClose();
-          Keyboard.dismiss();
-        }
-      },
-    })
-  ).current;
-
   const keyboardSafeSheetStyle: ViewStyle | undefined =
     Platform.OS === 'android' && searchInSheet && keyboardVisible
       ? {
@@ -200,37 +177,34 @@ export function QueueSheet({
           style={[styles.sheetContainer, keyboardSafeSheetStyle]}
           grain={false}
         >
-          {/* Drag handle and Header wrapper with PanResponder */}
-          <View {...sheetPanResponder.panHandlers}>
-            <View style={styles.sheetHandle} />
+          <View style={styles.sheetHandle} />
 
-            {/* Sheet header */}
-            <View style={styles.sheetHeader}>
-              <LEDReadout value="QUEUE" variant="amber" size="md" />
+          {/* Sheet header */}
+          <View style={styles.sheetHeader}>
+            <LEDReadout value="QUEUE" variant="amber" size="md" />
 
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {queue.length >= 2 && onAddSuggestion && (
-                  <AnalyzeButton onPress={handleAnalyze} loading={aestheticLoading} compact />
-                )}
-                <TouchableOpacity
-                  style={[styles.addTrackBtn, { borderColor: accent }]}
-                  onPress={() => {
-                    const opening = !searchInSheet;
-                    if (opening) setSearchMode('database');
-                    onSearchToggle(opening);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={searchInSheet ? 'Close search' : 'Add track to queue'}
-                >
-                  <Ionicons name="add" size={16} color={accent} />
-                  <Text variant="label" color={accent} style={{ fontSize: 12 }}>
-                    Add track
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close queue">
-                  <Ionicons name="close" size={24} color={palette.slate} />
-                </TouchableOpacity>
-              </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {queue.length >= 2 && onAddSuggestion && (
+                <AnalyzeButton onPress={handleAnalyze} loading={aestheticLoading} compact />
+              )}
+              <TouchableOpacity
+                style={[styles.addTrackBtn, { borderColor: accent }]}
+                onPress={() => {
+                  const opening = !searchInSheet;
+                  if (opening) setSearchMode('database');
+                  onSearchToggle(opening);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={searchInSheet ? 'Close search' : 'Add track to queue'}
+              >
+                <Ionicons name="add" size={16} color={accent} />
+                <Text variant="label" color={accent} style={{ fontSize: 12 }}>
+                  Add track
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close queue">
+                <Ionicons name="close" size={24} color={palette.slate} />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -368,28 +342,26 @@ export function QueueSheet({
             <FlatList<QueueTrack>
               data={queue}
               keyExtractor={(item) => item.id}
+              style={styles.queueList}
               renderItem={({ item, index }) => (
-                <ADSRFadeIn index={index} staggerMs={40}>
-                  <SwipeableRow
-                    onRemove={() => onRemoveFromQueue(item.id)}
-                    enabled={index > 0}
-                  >
-                    <QueueTrackCard
-                      track={item}
-                      isNowPlaying={index === 0}
-                      onVote={onVote}
-                      userId={userId}
-                      behaviors={behaviors}
-                      isHost={isHost}
-                      isFavorite={isFavorite(item.sourceId || item.id)}
-                      onToggleFavorite={() => onToggleFavorite(item)}
-                      onLongPress={() => onLongPress(item)}
-                      showDragHandle={isHost && index > 0}
-                    />
-                  </SwipeableRow>
-                </ADSRFadeIn>
+                <QueueTrackCard
+                  track={item}
+                  isNowPlaying={index === 0}
+                  onVote={onVote}
+                  userId={userId}
+                  behaviors={behaviors}
+                  isHost={isHost}
+                  isFavorite={isFavorite(item.sourceId || item.id)}
+                  onToggleFavorite={() => onToggleFavorite(item)}
+                  onLongPress={() => onLongPress(item)}
+                  showDragHandle={isHost && index > 0}
+                />
               )}
-              contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xl }}
+              contentContainerStyle={styles.queueListContent}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              scrollEnabled
+              showsVerticalScrollIndicator={false}
               ListHeaderComponent={
                 <>
                   {aestheticError && (
@@ -549,6 +521,13 @@ const styles = StyleSheet.create({
   sheetEmpty: {
     alignItems: 'center',
     paddingVertical: spacing['2xl'],
+  },
+  queueList: {
+    flex: 1,
+  },
+  queueListContent: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xl,
   },
   recentItem: {
     flexDirection: 'row',

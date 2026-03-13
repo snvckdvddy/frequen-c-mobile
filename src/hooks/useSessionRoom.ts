@@ -24,11 +24,63 @@ import {
 import { addTrackToQueue, applyVote } from "../services/queueEngine";
 import {
   stop as stopPlayback,
-  togglePlayPause,
   type PlaybackState,
 } from "../services/playbackEngine";
 import { notifyTrackChanged } from "../services/notifications";
 import { USE_MOCKS } from "../services/config";
+
+const DEFAULT_PLAYBACK_STATE: PlaybackState = {
+  isPlaying: false,
+  currentTrackId: null,
+  elapsed: 0,
+  duration: 0,
+  progress: 0,
+  isLoading: false,
+  error: null,
+};
+
+function normalizeCurrentTrack(
+  track: Track | QueueTrack | null | undefined,
+  fallbackAddedAt: string,
+  fallbackAddedById = "",
+): QueueTrack | null {
+  if (!track) return null;
+
+  const rawAddedBy = (track as any).addedBy;
+  const addedById =
+    (track as any).addedById ||
+    rawAddedBy?.userId ||
+    rawAddedBy?.id ||
+    fallbackAddedById;
+
+  const addedBy = rawAddedBy
+    ? {
+        userId: rawAddedBy.userId || rawAddedBy.id || addedById,
+        username: rawAddedBy.username || "",
+      }
+    : undefined;
+
+  return {
+    ...(track as QueueTrack),
+    ...(addedBy ? { addedBy } : {}),
+    addedById,
+    addedAt: (track as any).addedAt || fallbackAddedAt,
+    votes: (track as any).votes ?? 0,
+    voltageBoost: (track as any).voltageBoost ?? 0,
+    reactions: (track as any).reactions ?? [],
+  };
+}
+
+function buildLiveQueue(
+  currentTrack: QueueTrack | null,
+  serverQueue: QueueTrack[],
+): QueueTrack[] {
+  if (!currentTrack) return serverQueue;
+  return [
+    currentTrack,
+    ...serverQueue.filter((track) => track.id !== currentTrack.id),
+  ];
+}
 
 export function useSessionRoom(sessionId: string) {
   const { user } = useAuth();
@@ -42,15 +94,7 @@ export function useSessionRoom(sessionId: string) {
   const [loading, setLoading] = useState(true);
   const [listeners, setListeners] = useState<Listener[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [playback, setPlayback] = useState<PlaybackState>({
-    isPlaying: false,
-    currentTrackId: null,
-    elapsed: 0,
-    duration: 0,
-    progress: 0,
-    isLoading: false,
-    error: null,
-  });
+  const [playback, setPlayback] = useState<PlaybackState>(DEFAULT_PLAYBACK_STATE);
 
   // Master Bounce (session receipt)
   const [bounceVisible, setBounceVisible] = useState(false);
@@ -165,6 +209,23 @@ export function useSessionRoom(sessionId: string) {
 
   useEffect(() => {
     if (!sessionId) {
+      setSession(null);
+      setQueue([]);
+      setSuggestedQueue([]);
+      setPlayedHistory([]);
+      setListeners([]);
+      setToasts([]);
+      setBounceVisible(false);
+      setSkipVoteState(null);
+      setPhaseCancelShield(null);
+      setPlayback(DEFAULT_PLAYBACK_STATE);
+      setLoading(false);
+      return;
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) {
       setLoading(false);
       return;
     }
@@ -199,26 +260,19 @@ export function useSessionRoom(sessionId: string) {
           addedById: t.addedBy?.userId || "",
           addedAt: s.createdAt,
         }));
+        const sessionCreatedAt = s.createdAt;
+        const sessionHostId = s.hostId;
 
         // Build lastCurrentTrack BEFORE setQueue so it can sit at queue[0].
         // queue[0] === now-playing is the invariant MiniPlayer and QueueTrackCard
         // (isNowPlaying={index===0}) both depend on.
-        let lastCurrentTrack: QueueTrack | null = s.currentTrack
-          ? ({
-              ...s.currentTrack,
-              addedBy: {
-                userId: (s.currentTrack as any).addedBy?.id || "",
-                username: (s.currentTrack as any).addedBy?.username || "",
-              },
-              addedById: (s.currentTrack as any).addedBy?.id || "",
-              addedAt: s.createdAt,
-              votes: 0,
-              voltageBoost: 0,
-              reactions: [],
-            } as QueueTrack)
-          : null;
+        let lastCurrentTrack: QueueTrack | null = normalizeCurrentTrack(
+          s.currentTrack,
+          sessionCreatedAt,
+          sessionHostId,
+        );
         let lastQueue: QueueTrack[] = initialQueue;
-        setQueue(lastCurrentTrack ? [lastCurrentTrack, ...initialQueue] : initialQueue);
+        setQueue(buildLiveQueue(lastCurrentTrack, initialQueue));
 
         await connectSocket();
         if (!mounted) return;
@@ -226,16 +280,21 @@ export function useSessionRoom(sessionId: string) {
         socketUnsubsRef.current = [
           onSessionEvent("queue-updated", (newQueue) => {
             if (!mounted) return;
-            lastQueue = newQueue;
-            const next = lastCurrentTrack ? [lastCurrentTrack, ...newQueue] : newQueue;
-            setQueue(next);
+            lastQueue = newQueue.filter(
+              (track) => track.id !== lastCurrentTrack?.id,
+            );
+            setQueue(buildLiveQueue(lastCurrentTrack, lastQueue));
           }),
           onSessionEvent("track-changed", (currentTrack) => {
             if (!mounted) return;
-            // Keep lastCurrentTrack fresh so queue-updated can prepend it.
-            // setQueue is intentionally omitted here — the behaviors effect's
-            // track-changed handler owns the queue UI update to avoid conflicts.
-            lastCurrentTrack = currentTrack;
+            setSkipVoteState(null);
+            setPhaseCancelShield(null);
+            lastCurrentTrack = normalizeCurrentTrack(
+              currentTrack,
+              sessionCreatedAt,
+              sessionHostId,
+            );
+            setQueue(buildLiveQueue(lastCurrentTrack, lastQueue));
           }),
           onSessionEvent("session:playback_state_updated", (data) => {
             if (!mounted) return;
@@ -268,21 +327,18 @@ export function useSessionRoom(sessionId: string) {
             // meant queue[0] was never the now-playing track when both existed,
             // breaking MiniPlayer visibility and the QueueTrackCard isNowPlaying flag.
             const serverQueue: QueueTrack[] = state.queue || [];
-            const serverCurrentTrack: QueueTrack | null = state.currentTrack
-              ? ({
-                  ...state.currentTrack,
-                  addedById:
-                    (state.currentTrack as any).addedById || state.hostId || "",
-                  addedAt:
-                    (state.currentTrack as any).addedAt ||
-                    new Date().toISOString(),
-                } as QueueTrack)
-              : null;
+            const serverCurrentTrack = normalizeCurrentTrack(
+              state.currentTrack,
+              sessionCreatedAt,
+              state.hostId || sessionHostId,
+            );
             // Keep closure vars in sync so subsequent queue-updated events
             // reconstruct correctly with the right lastCurrentTrack.
-            if (serverCurrentTrack) lastCurrentTrack = serverCurrentTrack;
-            lastQueue = serverQueue;
-            setQueue(serverCurrentTrack ? [serverCurrentTrack, ...serverQueue] : serverQueue);
+            lastCurrentTrack = serverCurrentTrack;
+            lastQueue = serverQueue.filter(
+              (track) => track.id !== serverCurrentTrack?.id,
+            );
+            setQueue(buildLiveQueue(serverCurrentTrack, lastQueue));
             if (state.suggestedQueue) setSuggestedQueue(state.suggestedQueue);
             if (state.participants) setListeners(state.participants);
             if (state.playback && state.playback.state !== "stopped") {
@@ -307,21 +363,6 @@ export function useSessionRoom(sessionId: string) {
               return [...prev, { ...data.track, status: "pending" as const }];
             });
           }),
-          onSessionEvent("track-changed", (track) => {
-            if (!mounted) return;
-            setSkipVoteState(null);
-            setPhaseCancelShield(null);
-            if (track) {
-              setQueue((prev) => {
-                if (prev[0]?.id === track.id) return prev;
-                const filtered = prev.filter((t) => t.id !== track.id);
-                return [
-                  track as QueueTrack,
-                  ...filtered.slice(filtered[0] ? 1 : 0),
-                ];
-              });
-            }
-          }),
           onSessionEvent("playback:stateChange", (data) => {
             if (!mounted) return;
             const isPlaying = data.state === "playing";
@@ -330,9 +371,6 @@ export function useSessionRoom(sessionId: string) {
               isPlaying,
               elapsed: data.position || prev.elapsed,
             }));
-            if (isPlaying !== playback.isPlaying) {
-              togglePlayPause();
-            }
           }),
           onSessionEvent("playback:seeked", (data) => {
             if (!mounted) return;
@@ -399,6 +437,7 @@ export function useSessionRoom(sessionId: string) {
 
     const unsubs = [
       onSessionEvent("track-added", (track: QueueTrack) => {
+        if (!USE_MOCKS) return;
         setQueue((prevQ) => {
           // Dedup guard — queue-updated may have already applied this track
           // (backend emits both events; whichever arrives first wins)
@@ -418,6 +457,7 @@ export function useSessionRoom(sessionId: string) {
         });
       }),
       onSessionEvent("vote-cast", (data) => {
+        if (!USE_MOCKS) return;
         setQueue((prev) =>
           applyVote(
             prev,
@@ -435,6 +475,7 @@ export function useSessionRoom(sessionId: string) {
         }
       }),
       onSessionEvent("track-removed", (data) => {
+        if (!USE_MOCKS) return;
         setQueue((prev) => prev.filter((t) => t.id !== data.trackId));
       }),
       onSessionEvent("skip-vote-update", (data) => {
@@ -446,12 +487,14 @@ export function useSessionRoom(sessionId: string) {
         });
       }),
       onSessionEvent("track-approved", (data) => {
+        if (!USE_MOCKS) return;
         setSuggestedQueue((prev) => prev.filter((t) => t.id !== data.trackId));
         if (data.track) {
           setQueue((prev) => [...prev, { ...data.track, status: "approved" }]);
         }
       }),
       onSessionEvent("track-rejected", (data) => {
+        if (!USE_MOCKS) return;
         setSuggestedQueue((prev) => prev.filter((t) => t.id !== data.trackId));
       }),
       onSessionEvent("mode-changed", (data) => {
@@ -488,7 +531,7 @@ export function useSessionRoom(sessionId: string) {
               }
             : prev,
         );
-        if (!data.behaviors.requiresApproval) {
+        if (USE_MOCKS && !data.behaviors.requiresApproval) {
           setSuggestedQueue((prev) => {
             if (prev.length === 0) return prev;
             const approved = prev.map((t) => ({

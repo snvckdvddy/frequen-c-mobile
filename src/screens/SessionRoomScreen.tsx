@@ -111,7 +111,7 @@ export function SessionRoomScreen() {
   const route = useRoute<any>();
   const { user } = useAuth();
   const sessionId = route.params?.sessionId;
-  const { setActiveSession, clearActiveSession } = useActiveSession();
+  const { clearActiveSession } = useActiveSession();
   const { isFavorite, toggleFavorite } = useFavoritesContext();
   const { isConnected } = useNetworkStatus();
   const { isVoltageSag, accent, accentGlow } = useVoltageSag();
@@ -289,7 +289,7 @@ export function SessionRoomScreen() {
   useEffect(() => {
     const unsub = onProgress((s) => setPlayback(s));
     return () => { unsub(); stopPlayback(); };
-  }, []);
+  }, [setPlayback]);
 
   const currentTrackRef = useRef<string | null>(null);
   useEffect(() => {
@@ -297,7 +297,6 @@ export function SessionRoomScreen() {
     if (nowPlaying && nowPlaying.id !== currentTrackRef.current) {
       currentTrackRef.current = nowPlaying.id;
       loadTrack(nowPlaying.id, nowPlaying.duration || 30, nowPlaying.previewUrl);
-      // Update Last.fm "Now Playing" if connected
       if (user?.connectedServices?.lastfm?.connected) {
         api.integrations.updateNowPlaying(
           nowPlaying.title,
@@ -309,7 +308,7 @@ export function SessionRoomScreen() {
       currentTrackRef.current = null;
       stopPlayback();
     }
-  }, [queue]);
+  }, [queue, user?.connectedServices?.lastfm?.connected]);
 
   useEffect(() => {
     const unsub = onTrackEnd(() => {
