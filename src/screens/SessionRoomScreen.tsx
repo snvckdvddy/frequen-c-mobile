@@ -20,7 +20,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen, RoomModeBadge } from '../components/ui';
+import { Text, SafeScreen, RoomModeBadge, ErrorState } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import api, { searchApi } from '../services/api';
 import {
@@ -391,6 +391,14 @@ export function SessionRoomScreen() {
     togglePlayPause();
   }, []);
 
+  const handleRetryPlayback = useCallback(() => {
+    const retryTrack = queue[0];
+    if (!retryTrack) return;
+    loadTrack(retryTrack.id, retryTrack.duration || 30, retryTrack.previewUrl).catch((err) => {
+      console.warn('[SessionRoom] Playback retry failed:', err);
+    });
+  }, [queue]);
+
   const handleToggleFavorite = useCallback((track: Track) => {
     const favoriteTrack = { ...track, id: (track as any).sourceId || track.id };
     toggleFavorite(favoriteTrack);
@@ -725,6 +733,13 @@ export function SessionRoomScreen() {
           {/* ─── Connection Status ──────────────────────── */}
           <OfflineBanner visible={!isConnected} />
           <ConnectionBanner />
+          {currentTrack && playback.error && (
+            <ErrorState
+              variant="banner"
+              message={`Preview unavailable for "${currentTrack.title}". Timer fallback is active.`}
+              onRetry={handleRetryPlayback}
+            />
+          )}
 
           {/* ═══ HEADER + SIGNAL FLOW ═══════════════════════ */}
           <RoomHeader
