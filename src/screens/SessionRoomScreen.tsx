@@ -11,7 +11,7 @@
  * CV/Power Moves accessible via CV pill expansion.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, StyleSheet, TouchableOpacity,
   Alert, Share, Keyboard, Modal, Platform,
@@ -39,9 +39,7 @@ import {
   togglePlayPause, type PlaybackState,
 } from '../services/playbackEngine';
 import { USE_MOCKS } from '../services/config';
-import {
-  ListenerBar, ListenerDrawer, JoinLeaveToast, type ToastMessage,
-} from '../components/ListenerPresence';
+import { JoinLeaveToast, type ToastMessage } from '../components/ListenerPresence';
 import { ChatPanel } from '../components/ChatPanel';
 import { useSearch } from '../hooks/useSearch';
 import { useRecentSearches } from '../hooks/useRecentSearches';
@@ -57,7 +55,7 @@ import { colors } from '../design/tokens/colors';
 import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
 import { notifyParticipantJoined, notifyTrackChanged } from '../services/notifications';
 import {
-  RoomHeader, NowPlayingCard, OverflowMenu, QueueSheet, GameLayerOverlays, RoomSettingsPanel,
+  OverflowMenu, GameLayerOverlays, RoomSettingsPanel,
   type DuelState, type ForecastState, type ResonanceState, type TransientState, type ReverbTailEntry,
 } from '../components/room';
 import type { Session, QueueTrack, Track, RoomMode, Listener, RoomBehaviors } from '../types';
@@ -79,6 +77,16 @@ import { ReactionBar } from '../components/ui/ReactionBar';
 import { useCV } from '../hooks/useCV';
 import { useVoltageSag } from '../hooks/useVoltageSag';
 import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
+import { buildTacticalReadout } from '../features/session-v2/adapters/buildTacticalReadout';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import TacticalRoomHeader from '../features/session-v2/components/TacticalRoomHeader';
+import TacticalPresenceStrip from '../features/session-v2/components/TacticalPresenceStrip';
+import TacticalAlbumHero from '../features/session-v2/components/TacticalAlbumHero';
+import TacticalTrackMeta from '../features/session-v2/components/TacticalTrackMeta';
+import TacticalWaveform from '../features/session-v2/components/TacticalWaveform';
+import TacticalTransportDeck from '../features/session-v2/components/TacticalTransportDeck';
+import TacticalReactionMatrix from '../features/session-v2/components/TacticalReactionMatrix';
+import SignalChainSheetV2 from '../features/session-v2/components/SignalChainSheetV2';
 
 type SocketReactionType = "fire" | "vibe" | "skip";
 
@@ -116,7 +124,6 @@ export function SessionRoomScreen() {
   const { isConnected } = useNetworkStatus();
   const { isVoltageSag, accent, accentGlow } = useVoltageSag();
 
-  const [listenerDrawerOpen, setListenerDrawerOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
 
@@ -544,6 +551,21 @@ export function SessionRoomScreen() {
   const [contextTrack, setContextTrack] = useState<QueueTrack | null>(null);
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
 
+  const closeTransientPanels = useCallback(() => {
+    setQueueSheetOpen(false);
+    setOverflowOpen(false);
+    setRoomSettingsOpen(false);
+    setSearchInSheet(false);
+    setChatOpen(false);
+    setShowQR(false);
+    setContextMenuVisible(false);
+    setLyricsVisible(false);
+  }, []);
+
+  useEffect(() => {
+    closeTransientPanels();
+  }, [sessionId, closeTransientPanels]);
+
   const handleLongPress = useCallback((track: QueueTrack) => {
     tapMedium();
     setContextTrack(track);
@@ -576,23 +598,13 @@ export function SessionRoomScreen() {
   }, [handleToggleFavorite, handleOverdrive, handlePhantomPower, handlePhaseCancel]);
 
   // ─── Room Preset Switching (host only) ───────────────────
-  const handleChangeMode = useCallback(() => {
+  const handleSelectMode = useCallback((mode: RoomMode) => {
     if (!session || !user || user.id !== session.hostId) return;
-    const modes: RoomMode[] = ['campfire', 'spotlight', 'openFloor'];
-    const modeNames = ['🔥 Campfire — Round-robin', '🎤 Spotlight — Host curates', '⚡ Open Floor — Votes decide'];
-    const currentIdx = modes.indexOf(session.roomMode);
-    const buttons = modes.map((mode, i) => ({
-      text: `${i === currentIdx ? '● ' : ''}${modeNames[i]}`,
-      onPress: () => {
-        if (mode === session.roomMode) return;
-        tapMedium();
-        const newBehaviors = { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[mode] };
-        setSession((prev) => prev ? { ...prev, roomMode: mode, behaviors: newBehaviors } : prev);
-        changeModeEvent(sessionId, mode);
-      },
-    }));
-    buttons.push({ text: 'Cancel', onPress: () => { } });
-    Alert.alert('Switch Preset', 'This changes queue behavior for everyone.', buttons);
+    if (mode === session.roomMode) return;
+    tapMedium();
+    const newBehaviors = { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[mode] };
+    setSession((prev) => prev ? { ...prev, roomMode: mode, behaviors: newBehaviors } : prev);
+    changeModeEvent(sessionId, mode);
   }, [session, user, sessionId]);
 
   const handleShare = useCallback(() => {
@@ -671,6 +683,36 @@ export function SessionRoomScreen() {
     Keyboard.dismiss();
   }, [clearSearch]);
 
+  // ─── Derived values ────────────────────────────────────
+  const currentTrack: QueueTrack | null = queue[0] || null;
+  const isHost = user?.id === session?.hostId;
+  const sessionBehaviors = session?.behaviors || DEFAULT_BEHAVIORS;
+  const isApprovalMode = sessionBehaviors.requiresApproval;
+  const canSkip = sessionBehaviors.skipAccess === 'anyone'
+    || (sessionBehaviors.skipAccess === 'hostOnly' && isHost)
+    || sessionBehaviors.skipAccess === 'voteRequired'; // Everyone can vote-skip
+  const isVoteSkipMode = sessionBehaviors.skipAccess === 'voteRequired';
+  const hasVotedToSkip = skipVoteState?.voters?.includes(user?.id ?? '') ?? false;
+  const systemId = ((session?.joinCode || session?.id?.slice(0, 4) || '----')).toUpperCase();
+  const readout = useMemo(() => buildTacticalReadout(currentTrack), [currentTrack]);
+  const reactionCounts = useMemo(() => {
+    return (currentTrack?.reactions || []).reduce<Partial<Record<'fire' | 'vibe' | 'skip', number>>>(
+      (acc, reaction) => {
+        if (reaction.type === 'fire' || reaction.type === 'vibe' || reaction.type === 'skip') {
+          acc[reaction.type] = (acc[reaction.type] || 0) + 1;
+        }
+        return acc;
+      },
+      {},
+    );
+  }, [currentTrack?.reactions]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   // ─── Loading state ────────────────────────────────────
   if (loading || !session) {
     return (
@@ -703,24 +745,6 @@ export function SessionRoomScreen() {
     );
   }
 
-  // ─── Derived values ────────────────────────────────────
-  const currentTrack: QueueTrack | null = queue[0] || null;
-  const nextTrack: QueueTrack | null = queue[1] || null;
-  const isHost = user?.id === session.hostId;
-  const sessionBehaviors = session.behaviors || DEFAULT_BEHAVIORS;
-  const isApprovalMode = sessionBehaviors.requiresApproval;
-  const canSkip = sessionBehaviors.skipAccess === 'anyone'
-    || (sessionBehaviors.skipAccess === 'hostOnly' && isHost)
-    || sessionBehaviors.skipAccess === 'voteRequired'; // Everyone can vote-skip
-  const isVoteSkipMode = sessionBehaviors.skipAccess === 'voteRequired';
-  const hasVotedToSkip = skipVoteState?.voters?.includes(user?.id ?? '') ?? false;
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
   // ═══════════════════════════════════════════════════════════
   // ─── RENDER: Player-First Layout ──────────────────────────
   // ═══════════════════════════════════════════════════════════
@@ -729,6 +753,7 @@ export function SessionRoomScreen() {
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
         <View style={{ flex: 1 }}>
+          <TacticalGridBackground />
           {/* ─── Connection Status ──────────────────────── */}
           <OfflineBanner visible={!isConnected} />
           <ConnectionBanner />
@@ -741,136 +766,137 @@ export function SessionRoomScreen() {
           )}
 
           {/* ═══ HEADER + SIGNAL FLOW ═══════════════════════ */}
-          <RoomHeader
+          <TacticalRoomHeader
             roomName={session.name}
+            systemId={systemId}
             roomMode={session.roomMode}
-            isHost={isHost}
             onBack={() => navigation.goBack()}
-            onSettingsPress={() => setOverflowOpen(true)}
-            onModePress={handleChangeMode}
-            cvBalance={cv.balance}
-            cvCanUse={cv.canUse}
-            cvGetCooldown={cv.getCooldownRemaining}
-            onPowerMove={handlePowerMove}
-            allowOverdrive={sessionBehaviors.allowOverdrive}
-            allowPhaseCancel={sessionBehaviors.allowPhaseCancel}
-            allowPhantomPower={sessionBehaviors.allowPhantomPower}
+            onSettingsPress={() => {
+              closeTransientPanels();
+              setOverflowOpen(true);
+            }}
+          />
+
+          <TacticalPresenceStrip
+            listeners={listeners}
+            hostId={session.hostId}
+            currentUserId={user?.id}
+            currentUsername={user?.username}
+            onPress={() => {}}
           />
 
           {/* ═══ SCROLLABLE PLAYER CONTENT ═════════════════ */}
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={styles.playerContent}
+            contentContainerStyle={styles.tacticalPlayerContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* ─── Now Playing: Art + Info + Progress + Transport + Reactions ── */}
-            <NowPlayingCard
-              currentTrack={currentTrack}
-              nextTrack={queue.length > 1 ? queue[1] : null}
-              playback={playback}
-              accent={accent}
-              isVoteSkipMode={isVoteSkipMode}
+            <TacticalAlbumHero track={currentTrack} readout={readout} />
+            <TacticalTrackMeta track={currentTrack} />
+            <TacticalWaveform
+              trackId={currentTrack?.id}
+              elapsed={playback.elapsed}
+              duration={playback.duration || currentTrack?.duration || 0}
+              progress={playback.progress}
+            />
+            <TacticalTransportDeck
+              hasCurrentTrack={!!currentTrack}
+              isPlaying={playback.isPlaying}
+              isLoading={playback.isLoading}
               canSkip={canSkip}
+              isVoteSkipMode={isVoteSkipMode}
               hasVotedToSkip={hasVotedToSkip}
               skipVoteState={skipVoteState}
-              phaseCancelShield={phaseCancelShield}
+              onQueueOpen={() => {
+                closeTransientPanels();
+                setQueueSheetOpen(true);
+              }}
+              onChatOpen={() => {
+                closeTransientPanels();
+                setChatOpen(true);
+              }}
               onPlayPause={handlePlayPause}
               onSkip={handleSkip}
-              onChatOpen={() => setChatOpen(true)}
-              onReact={handleReaction}
             />
-
+            <TacticalReactionMatrix
+              counts={reactionCounts}
+              disabled={!currentTrack}
+              onReact={(type) => {
+                if (!currentTrack) return;
+                handleReaction(currentTrack.id, type);
+              }}
+            />
           </ScrollView>
-
-          {/* ═══ BOTTOM SHEET — SIGNAL CHAIN / TERMINAL LOG tabs ═══ */}
-          <TouchableOpacity
-            style={styles.bottomSheetTab}
-            onPress={() => setQueueSheetOpen(true)}
-            activeOpacity={0.9}
-          >
-            <View style={styles.bottomSheetHandle} />
-            <View style={styles.bottomSheetTabs}>
-              <TouchableOpacity
-                style={[styles.tabBtn, !chatOpen && styles.tabBtnActive]}
-                onPress={() => { setChatOpen(false); setQueueSheetOpen(true); }}
-                accessibilityRole="tab"
-                accessibilityLabel="Signal chain tab"
-                accessibilityState={{ selected: !chatOpen }}
-              >
-                <Text style={[styles.tabText, !chatOpen && styles.tabTextActive]}>SIGNAL CHAIN</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tabBtn, chatOpen && styles.tabBtnActive]}
-                onPress={() => { setChatOpen(true); setQueueSheetOpen(false); }}
-                accessibilityRole="tab"
-                accessibilityLabel="Terminal log tab"
-                accessibilityState={{ selected: chatOpen }}
-              >
-                <Text style={[styles.tabText, chatOpen && styles.tabTextActive]}>TERMINAL LOG</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
 
           {/* ─── Join/Leave Toast ─────────────────────────── */}
           <JoinLeaveToast messages={toasts} />
 
           {/* ═══ QUEUE BOTTOM SHEET (§3.9) ═════════════════ */}
-          <QueueSheet
-            visible={queueSheetOpen}
-            accent={accent}
-            queue={queue}
-            suggestedQueue={suggestedQueue}
-            playedHistory={playedHistory}
-            searchInSheet={searchInSheet}
-            query={query}
-            results={results}
-            isSearching={isSearching}
-            recentSearches={recentSearches}
-            userId={user?.id}
-            isHost={isHost}
-            isApprovalMode={isApprovalMode}
-            behaviors={sessionBehaviors}
-            keyboardVisible={keyboardVisible}
-            keyboardHeight={keyboardHeight}
-            onClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
-            onSearchToggle={setSearchInSheet}
-            onQueryChange={setQuery}
-            onCancelSearch={handleCancelSearch}
-            onAddTrack={handleAddTrack}
-            onVote={handleVote}
-            onRemoveFromQueue={(id) => {
-              setQueue((prev) => prev.filter((t) => t.id !== id));
-              removeTrack(sessionId, id);
-            }}
-            onApproveTrack={handleApproveTrack}
-            onRejectTrack={handleRejectTrack}
-            onRemoveRecentSearch={removeRecentSearch}
-            isFavorite={(id) => isFavorite(id)}
-            onToggleFavorite={handleToggleFavorite}
-            onLongPress={handleLongPress}
-            onAddSuggestion={handleAddSuggestion}
-          />
+          {queueSheetOpen && (
+            <SignalChainSheetV2
+              visible
+              roomMode={session.roomMode}
+              behaviors={sessionBehaviors}
+              queue={queue}
+              suggestedQueue={suggestedQueue}
+              playedHistory={playedHistory}
+              searchInSheet={searchInSheet}
+              query={query}
+              results={results}
+              isSearching={isSearching}
+              recentSearches={recentSearches}
+              isHost={isHost}
+              keyboardVisible={keyboardVisible}
+              keyboardHeight={keyboardHeight}
+              onClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
+              onOpenSearch={() => setSearchInSheet(true)}
+              onCloseSearch={handleCancelSearch}
+              onQueryChange={setQuery}
+              onSelectMode={handleSelectMode}
+              onAddTrack={handleAddTrack}
+              onVote={handleVote}
+              onApproveTrack={handleApproveTrack}
+              onRejectTrack={handleRejectTrack}
+              onRemoveRecentSearch={removeRecentSearch}
+              onLongPress={handleLongPress}
+              onRequeueHistory={handleAddTrack}
+            />
+          )}
 
           {/* ═══ OVERFLOW BOTTOM SHEET ═════════════════════ */}
-          <OverflowMenu
-            visible={overflowOpen}
-            joinCode={session.joinCode}
-            isHost={isHost}
-            hasCurrentTrack={!!currentTrack}
-            onClose={() => setOverflowOpen(false)}
-            onShare={handleShare}
-            onCopyCode={handleCopyCode}
-            onChatOpen={() => setChatOpen(true)}
-            onLyricsOpen={() => setLyricsVisible(true)}
-            onQRShow={() => setShowQR(true)}
-            onLeaveRoom={handleLeaveRoom}
-            onRoomSettings={() => setRoomSettingsOpen(true)}
-          />
+          {overflowOpen && (
+            <OverflowMenu
+              visible
+              joinCode={session.joinCode}
+              isHost={isHost}
+              hasCurrentTrack={!!currentTrack}
+              onClose={() => setOverflowOpen(false)}
+              onShare={handleShare}
+              onCopyCode={handleCopyCode}
+              onChatOpen={() => {
+                closeTransientPanels();
+                setChatOpen(true);
+              }}
+              onLyricsOpen={() => {
+                closeTransientPanels();
+                setLyricsVisible(true);
+              }}
+              onQRShow={() => {
+                closeTransientPanels();
+                setShowQR(true);
+              }}
+              onLeaveRoom={handleLeaveRoom}
+              onRoomSettings={() => {
+                closeTransientPanels();
+                setRoomSettingsOpen(true);
+              }}
+            />
+          )}
 
           {/* ═══ ROOM SETTINGS PANEL (host only) ════════════ */}
-          {isHost && (
+          {isHost && roomSettingsOpen && (
             <RoomSettingsPanel
-              visible={roomSettingsOpen}
+              visible
               behaviors={sessionBehaviors}
               onClose={() => setRoomSettingsOpen(false)}
               onUpdateBehaviors={handleUpdateBehaviors}
@@ -878,54 +904,52 @@ export function SessionRoomScreen() {
           )}
 
           {/* ─── Track Context Menu ─────────────────────── */}
-          <TrackContextMenu
-            visible={contextMenuVisible}
-            track={contextTrack}
-            actions={QUEUE_ACTIONS}
-            onAction={handleContextAction}
-            onClose={() => setContextMenuVisible(false)}
-          />
-
-          {/* ─── Listener Drawer ──────────────────────────── */}
-          <ListenerDrawer
-            visible={listenerDrawerOpen}
-            listeners={listeners}
-            hostId={session.hostId}
-            onClose={() => setListenerDrawerOpen(false)}
-          />
+          {contextMenuVisible && (
+            <TrackContextMenu
+              visible
+              track={contextTrack}
+              actions={QUEUE_ACTIONS}
+              onAction={handleContextAction}
+              onClose={() => setContextMenuVisible(false)}
+            />
+          )}
 
           {/* ─── Chat Panel ────────────────────────────────── */}
-          <ChatPanel
-            sessionId={session.id}
-            userId={user?.id || ''}
-            username={user?.username || ''}
-            visible={chatOpen}
-            onClose={() => setChatOpen(false)}
-          />
+          {chatOpen && (
+            <ChatPanel
+              sessionId={session.id}
+              userId={user?.id || ''}
+              username={user?.username || ''}
+              visible
+              onClose={() => setChatOpen(false)}
+            />
+          )}
 
           {/* ─── QR Code Modal ─────────────────────────────── */}
-          <Modal
-            visible={showQR}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowQR(false)}
-            accessible={true}
-            accessibilityViewIsModal={true}
-          >
-            <View style={styles.qrOverlay} accessible={true}>
-              <View style={styles.qrModal}>
-                <Text variant="h3" color={palette.frost} align="center">
-                  {session?.name}
-                </Text>
-                {session?.joinCode && (
-                  <QRCodeDisplay joinCode={session.joinCode} />
-                )}
-                <TouchableOpacity onPress={() => setShowQR(false)} style={styles.qrClose} accessibilityRole="button" accessibilityLabel="Close QR code modal" accessibilityHint="Double tap to close this dialog">
-                  <Text variant="label" color={palette.slate}>Close</Text>
-                </TouchableOpacity>
+          {showQR && (
+            <Modal
+              visible
+              transparent
+              animationType="fade"
+              onRequestClose={() => setShowQR(false)}
+              accessible={true}
+              accessibilityViewIsModal={true}
+            >
+              <View style={styles.qrOverlay} accessible={true}>
+                <View style={styles.qrModal}>
+                  <Text variant="h3" color={palette.frost} align="center">
+                    {session?.name}
+                  </Text>
+                  {session?.joinCode && (
+                    <QRCodeDisplay joinCode={session.joinCode} />
+                  )}
+                  <TouchableOpacity onPress={() => setShowQR(false)} style={styles.qrClose} accessibilityRole="button" accessibilityLabel="Close QR code modal" accessibilityHint="Double tap to close this dialog">
+                    <Text variant="label" color={palette.slate}>Close</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          </Modal>
+            </Modal>
+          )}
 
           {/* ─── Layers 3-4: Game / Economy / Environment ── */}
           <GameLayerOverlays
@@ -957,11 +981,13 @@ export function SessionRoomScreen() {
       </VoidSurface>
 
       {/* ─── Lyrics Overlay ──────────────────────────── */}
-      <LyricsOverlay
-        track={currentTrack || undefined}
-        visible={lyricsVisible}
-        onClose={() => setLyricsVisible(false)}
-      />
+      {lyricsVisible && (
+        <LyricsOverlay
+          track={currentTrack || undefined}
+          visible
+          onClose={() => setLyricsVisible(false)}
+        />
+      )}
     </SafeScreen>
   );
 }
@@ -982,51 +1008,11 @@ const styles = StyleSheet.create({
   },
 
   // ─── Player Content ───────────────────────────────────
-  playerContent: {
-    alignItems: 'center',
-    paddingBottom: spacing['2xl'],
+  tacticalPlayerContent: {
+    paddingBottom: spacing.xl,
   },
 
-  // ─── Bottom Sheet Tab Bar — SIGNAL CHAIN / TERMINAL LOG ─
-  bottomSheetTab: {
-    backgroundColor: palette.steel,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.divider,
-  },
-  bottomSheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.skeletonHighlight,
-    alignSelf: 'center',
-    marginBottom: 10,
-  },
-  bottomSheetTabs: {
-    flexDirection: 'row',
-    gap: 24,
-  },
-  tabBtn: {
-    paddingBottom: 4,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabBtnActive: {
-    borderBottomColor: palette.ice,
-  },
-  tabText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 12,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-  },
-  tabTextActive: {
-    color: palette.frost,
-  },
+
   // ─── QR Modal ─────────────────────────────────────────
   qrOverlay: {
     flex: 1,

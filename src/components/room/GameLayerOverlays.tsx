@@ -119,8 +119,23 @@ export function GameLayerOverlays({
   endedAt,
   onBounceDismiss,
 }: GameLayerOverlaysProps) {
+  // Determine if any game overlay is actively showing something.
+  // When true, we use 'box-none' so the overlay container itself won't
+  // block touches but its active children still can.
+  // When false, 'none' ensures a completely pass-through layer.
+  const anyActive =
+    (duelState.active && duelState.trackA != null && duelState.trackB != null) ||
+    forecastState.active ||
+    resonanceState.active ||
+    transientUser.active ||
+    reverbTails.length > 0 ||
+    bounceVisible;
+
   return (
-    <>
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents={anyActive ? 'box-none' : 'none'}
+    >
       {/* ─── Layer 3: Crossfader Duel (overlay) ──────── */}
       {duelState.active && duelState.trackA && duelState.trackB && (
         <View style={StyleSheet.absoluteFill}>
@@ -194,7 +209,7 @@ export function GameLayerOverlays({
           onDismiss={onBounceDismiss}
         />
       )}
-    </>
+    </View>
   );
 }
 
