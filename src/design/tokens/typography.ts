@@ -37,7 +37,7 @@ export const fontAssets = {
   'ChakraPetch-Bold': require('../fonts/ChakraPetch-Bold.ttf'),
   'SpaceMono-Regular': require('../fonts/SpaceMono-Regular.ttf'),
   'SpaceMono-Bold': require('../fonts/SpaceMono-Bold.ttf'),
-  'Outfit': require('../fonts/Outfit-Variable.ttf'),
+  'Outfit': require('../fonts/SpaceMono-Regular.ttf'), // Temporarily changed from Outfit-Variable.ttf to fix SIGBUS crash
 } as const;
 
 // ─── Type Scale (px) ────────────────────────────────────────
