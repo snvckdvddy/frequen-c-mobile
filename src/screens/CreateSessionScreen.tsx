@@ -374,15 +374,17 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.borderSubtle,
+    borderRadius: 0,
+    backgroundColor: '#111111',
+    borderWidth: 1,
+    borderColor: '#333333',
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontFamily: fontFamily.displayBold,
     fontSize: fontSize['2xl'],
-    color: palette.frost,
+    color: '#39FF14',
     letterSpacing: ls.normal,
   },
   subtitle: {
@@ -402,14 +404,14 @@ const styles = StyleSheet.create({
   },
   nameInput: {
     height: 48,
-    backgroundColor: palette.steel,
-    borderRadius: 8,
+    backgroundColor: '#111111',
+    borderRadius: 0,
     paddingHorizontal: 14,
-    fontFamily: fontFamily.body,
+    fontFamily: fontFamily.mono,
     fontSize: fontSize.lg,
     color: palette.frost,
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
+    borderColor: '#333333',
     marginBottom: spacing.xl,
   },
 
@@ -425,7 +427,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   routingNodeCardDest: {
-    borderColor: colors.accentPrimarySubtle,
+    borderColor: '#00E5FF',
   },
   routingNodeLabel: {
     fontFamily: fontFamily.mono,
@@ -437,10 +439,10 @@ const styles = StyleSheet.create({
   routingJack: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: palette.midnight,
+    borderRadius: 0,
+    backgroundColor: '#0A0A0A',
     borderWidth: 2,
-    borderColor: palette.chromeBorder,
+    borderColor: '#333333',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -448,9 +450,9 @@ const styles = StyleSheet.create({
   jackHole: {
     width: 16,
     height: 16,
-    borderRadius: 8,
+    borderRadius: 0,
     borderWidth: 2,
-    borderColor: palette.ice,
+    borderColor: '#39FF14',
     backgroundColor: 'transparent',
   },
   sourceRow: {
@@ -463,13 +465,14 @@ const styles = StyleSheet.create({
   sourceChip: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 0,
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
+    borderColor: '#333333',
+    backgroundColor: '#111111',
   },
   sourceChipActive: {
-    borderColor: palette.ice,
-    backgroundColor: colors.accentSecondarySubtle,
+    borderColor: '#39FF14',
+    backgroundColor: 'transparent',
   },
   sourceText: {
     fontFamily: fontFamily.mono,
@@ -478,14 +481,14 @@ const styles = StyleSheet.create({
     letterSpacing: ls.wide,
   },
   sourceTextActive: {
-    color: palette.ice,
+    color: '#39FF14',
   },
   vibeChipActive: {
-    borderColor: palette.orange,
-    backgroundColor: colors.accentPrimarySubtle,
+    borderColor: '#00E5FF',
+    backgroundColor: 'transparent',
   },
   vibeTextActive: {
-    color: palette.orange,
+    color: '#00E5FF',
   },
 
   // Cable
@@ -502,8 +505,8 @@ const styles = StyleSheet.create({
   cableDash: {
     width: 8,
     height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.accentPrimaryGlow,
+    borderRadius: 0,
+    backgroundColor: '#333333',
   },
 
   // Mode selector
@@ -524,14 +527,15 @@ const styles = StyleSheet.create({
     minWidth: 98,
     flexGrow: 1,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 0,
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
+    borderColor: '#333333',
+    backgroundColor: '#111111',
     alignItems: 'center',
   },
   modePillActive: {
-    borderColor: palette.orange,
-    backgroundColor: colors.accentPrimarySubtle,
+    borderColor: '#39FF14',
+    backgroundColor: 'transparent',
   },
   modePillText: {
     fontFamily: fontFamily.mono,
@@ -540,7 +544,7 @@ const styles = StyleSheet.create({
     letterSpacing: ls.wide,
   },
   modePillTextActive: {
-    color: palette.orange,
+    color: '#39FF14',
   },
   modeDesc: {
     fontFamily: fontFamily.body,
@@ -558,7 +562,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 4,
     borderTopWidth: 1,
-    borderTopColor: palette.chromeBorder,
+    borderTopColor: '#333333',
   },
   advancedToggleText: {
     fontFamily: fontFamily.mono,
@@ -583,7 +587,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle,
+    borderBottomColor: '#333333',
   },
   behaviorToggleLabel: {
     fontFamily: fontFamily.display,
@@ -605,9 +609,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: spacing.xl,
     borderTopWidth: 1,
-    borderTopColor: palette.chromeBorder,
+    borderTopColor: '#333333',
     borderBottomWidth: 1,
-    borderBottomColor: palette.chromeBorder,
+    borderBottomColor: '#333333',
   },
   toggleLabel: {
     fontFamily: fontFamily.display,
@@ -623,25 +627,25 @@ const styles = StyleSheet.create({
   toggle: {
     width: 48,
     height: 28,
-    borderRadius: 14,
-    backgroundColor: palette.steel,
+    borderRadius: 0,
+    backgroundColor: '#000000',
     padding: 2,
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
+    borderColor: '#333333',
   },
   toggleActive: {
-    backgroundColor: palette.orange,
-    borderColor: palette.orange,
+    backgroundColor: '#39FF14',
+    borderColor: '#39FF14',
   },
   toggleKnob: {
     width: 22,
     height: 22,
-    borderRadius: 11,
-    backgroundColor: palette.slate,
+    borderRadius: 0,
+    backgroundColor: '#333333',
   },
   toggleKnobActive: {
-    backgroundColor: palette.frost,
+    backgroundColor: '#000000',
     alignSelf: 'flex-end',
   },
 

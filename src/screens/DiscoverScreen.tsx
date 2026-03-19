@@ -116,7 +116,6 @@ const sonarStyles = StyleSheet.create({
     width: SONAR_SIZE,
     height: SONAR_SIZE,
     alignSelf: 'center',
-    borderRadius: SONAR_SIZE / 2,
     backgroundColor: colors.surfaceOverlay,
     borderWidth: 1,
     borderColor: colors.accentSecondarySubtle,
@@ -126,7 +125,6 @@ const sonarStyles = StyleSheet.create({
     position: 'absolute',
     borderWidth: 1,
     borderColor: colors.accentSecondarySubtle,
-    borderRadius: 999,
   },
   ringOuter: {
     width: SONAR_SIZE * 0.85,
@@ -170,20 +168,17 @@ const sonarStyles = StyleSheet.create({
     width: 2,
     height: SONAR_SIZE / 2,
     backgroundColor: palette.iceGlow,
-    borderRadius: 1,
   },
   roomDot: {
     position: 'absolute',
     width: 16,
     height: 16,
-    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   roomDotInner: {
     width: 8,
     height: 8,
-    borderRadius: 4,
     backgroundColor: palette.ice,
     shadowColor: palette.ice,
     shadowOffset: { width: 0, height: 0 },
@@ -195,7 +190,6 @@ const sonarStyles = StyleSheet.create({
     position: 'absolute',
     width: 6,
     height: 6,
-    borderRadius: 3,
     backgroundColor: palette.orange,
     left: SONAR_SIZE / 2 - 3,
     top: SONAR_SIZE / 2 - 3,
@@ -414,7 +408,6 @@ const styles = StyleSheet.create({
   knobDial: {
     width: 40,
     height: 40,
-    borderRadius: 20,
     borderWidth: 2,
     borderColor: colors.skeletonHighlight,
     backgroundColor: palette.steel,
@@ -425,7 +418,6 @@ const styles = StyleSheet.create({
   knobIndicator: {
     width: 2,
     height: 10,
-    borderRadius: 1,
     backgroundColor: palette.orange,
   },
 
@@ -434,7 +426,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: palette.steel,
-    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,

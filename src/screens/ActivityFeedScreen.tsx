@@ -251,7 +251,6 @@ const styles = StyleSheet.create({
   eventIcon: {
     width: 32,
     height: 32,
-    borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

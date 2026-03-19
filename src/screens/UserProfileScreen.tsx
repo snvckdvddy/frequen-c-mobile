@@ -317,7 +317,6 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -340,7 +339,6 @@ const styles = StyleSheet.create({
   avatar: {
     width: 80,
     height: 80,
-    borderRadius: 40,
     borderWidth: 2,
     backgroundColor: colors.surfaceCard,
     alignItems: 'center',
@@ -365,7 +363,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderWidth: 1,
     borderColor: palette.green,
-    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 4,
     backgroundColor: 'rgba(76, 175, 80, 0.08)',
@@ -373,7 +370,6 @@ const styles = StyleSheet.create({
   liveDot: {
     width: 6,
     height: 6,
-    borderRadius: 3,
     backgroundColor: palette.green,
   },
   liveText: {
@@ -389,7 +385,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderWidth: 1,
-    borderRadius: 8,
     paddingVertical: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
   },

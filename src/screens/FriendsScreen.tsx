@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   backBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36, height: 36, borderRadius: 0,
     alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: {
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.04)',
   },
   rowAvatar: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 40, height: 40, borderRadius: 0,
     borderWidth: 1, borderColor: palette.chromeBorder,
     backgroundColor: colors.surfaceCard,
     alignItems: 'center', justifyContent: 'center',
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   liveDot: {
-    width: 5, height: 5, borderRadius: 2.5,
+    width: 5, height: 5, borderRadius: 0,
     backgroundColor: palette.green,
   },
   liveLabel: {
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   },
   joinBtn: {
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionBtn: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 32, height: 32, borderRadius: 0,
     borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.03)',

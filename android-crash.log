@@ -1,0 +1,5 @@
+--------- beginning of main
+03-14 10:06:01.126 D/ReactNativeJS(26852): '[bugsnag]', 'Loaded!'
+03-14 10:16:17.211 W/ReactNativeJS(26596): [expo-av]: Expo AV has been deprecated and will be removed in SDK 54. Use the `expo-audio` and `expo-video` packages to replace the required functionality.
+03-14 10:16:17.220 W/ReactNativeJS(26596): setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+03-14 10:16:17.421 W/ReactNativeJS(26596): setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.

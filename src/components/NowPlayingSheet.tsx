@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   artImage: {
     width: ART_SIZE,
     height: ART_SIZE,
-    borderRadius: 4,                               // Rack-aesthetic flat radius
+    borderRadius: 0,
     // Chrome frame
     borderWidth: 1,
     borderColor: 'rgba(192, 223, 255, 0.15)',
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
   artPlaceholder: {
     width: ART_SIZE,
     height: ART_SIZE,
-    borderRadius: 4,
+    borderRadius: 0,
     backgroundColor: palette.midnight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -386,24 +386,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    borderRadius: 1.5,
+    borderRadius: 0,
     backgroundColor: 'rgba(192, 223, 255, 0.08)',
   },
   scrubberFill: {
     position: 'absolute',
     left: 0,
     height: 3,
-    borderRadius: 1.5,
+    borderRadius: 0,
     backgroundColor: palette.ice,
   },
   scrubberThumb: {
     position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 6,
+    height: 16,
+    borderRadius: 0,
     backgroundColor: palette.ice,
-    marginLeft: -6,
-    top: 6,
+    marginLeft: -3,
+    top: 4,
     // Ice glow on thumb
     shadowColor: palette.ice,
     shadowOffset: { width: 0, height: 0 },
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
   playPauseBtn: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: 0,
     backgroundColor: palette.ice,
     alignItems: 'center',
     justifyContent: 'center',

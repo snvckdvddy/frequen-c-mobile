@@ -1,16 +1,12 @@
 /**
- * ChromeButton → Modern Button
+ * ChromeButton → Tactical Brutalist Button
  * ─────────────────────────────────────────────────────────────
- * Clean solid-fill button with rounded corners and subtle press
- * feedback. No chrome gradients, no specular highlights.
+ * Flat background, thin glowing borders, and mono uppercase fonts.
+ * Fits Tactical V2 aesthetics, replacing old pill buttons globally.
  *
  * Variants:
- *   'default': Subtle warm surface fill
- *   'glowing': Primary accent-colored fill
- *
- * Usage:
- *   <ChromeButton onPress={() => play()}>PLAY</ChromeButton>
- *   <ChromeButton variant="glowing" size="lg">REC</ChromeButton>
+ *   'default': Flat #111 with #00E5FF neon border
+ *   'glowing': Solid neon fill with #000 text
  */
 
 import React, { useState } from 'react';
@@ -22,9 +18,9 @@ import {
   StyleProp,
   PressableProps,
 } from 'react-native';
-import { palette } from '../../tokens/materials';
 import { tapLight } from '../../../utils/haptics';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { fontFamily } from '../../tokens/typography';
 
 type ButtonVariant = 'default' | 'glowing';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -38,9 +34,9 @@ interface ChromeButtonProps extends Omit<PressableProps, 'style'> {
 }
 
 const sizeMap = {
-  sm: { paddingHorizontal: 12, paddingVertical: 7, minHeight: 30 },
-  md: { paddingHorizontal: 16, paddingVertical: 10, minHeight: 38 },
-  lg: { paddingHorizontal: 20, paddingVertical: 13, minHeight: 46 },
+  sm: { paddingHorizontal: 16, paddingVertical: 10, minHeight: 36 },
+  md: { paddingHorizontal: 20, paddingVertical: 14, minHeight: 44 },
+  lg: { paddingHorizontal: 24, paddingVertical: 18, minHeight: 52 },
 };
 
 export function ChromeButton({
@@ -53,16 +49,21 @@ export function ChromeButton({
   ...rest
 }: ChromeButtonProps) {
   const [isPressed, setIsPressed] = useState(false);
-  const { isVoltageSag, accent } = useTheme();
+  const { isVoltageSag } = useTheme();
   const sizes = sizeMap[size];
 
   const isGlowing = variant === 'glowing';
-  const bgColor = isGlowing
-    ? (isVoltageSag ? accent : palette.orange)
-    : palette.gunmetal;
-  const pressedBg = isGlowing
-    ? palette.orangeDim
-    : palette.steel;
+  
+  // Tactical colors
+  const primaryAccent = isVoltageSag ? '#FF4500' : '#39FF14';
+  const secondaryAccent = '#00E5FF';
+
+  const bgColor = isGlowing ? primaryAccent : '#111111';
+  const borderColor = isGlowing ? primaryAccent : secondaryAccent;
+  const textColor = isGlowing ? '#000000' : secondaryAccent;
+
+  const pressedBg = isGlowing ? '#0A0A0A' : '#1A1A1A';
+  const pressedTextColor = isGlowing ? primaryAccent : '#FFFFFF';
 
   const handlePress = (e: any) => {
     if (!disabled) {
@@ -82,8 +83,8 @@ export function ChromeButton({
         sizes,
         {
           backgroundColor: isPressed ? pressedBg : bgColor,
-          opacity: disabled ? 0.5 : 1,
-          borderColor: isGlowing ? 'transparent' : palette.chromeBorder,
+          borderColor: isPressed ? pressedTextColor : borderColor,
+          opacity: disabled ? 0.3 : 1,
         },
         style,
       ]}
@@ -92,7 +93,9 @@ export function ChromeButton({
       <Text
         style={[
           styles.label,
-          isGlowing && { color: palette.frost },
+          {
+            color: isPressed ? pressedTextColor : textColor,
+          },
         ]}
       >
         {children}
@@ -103,17 +106,16 @@ export function ChromeButton({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   label: {
-    fontWeight: '600',
-    fontSize: 13,
-    color: palette.frost,
-    letterSpacing: 1.2,
+    fontFamily: fontFamily.mono,
+    fontSize: 12,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
+    fontWeight: '700',
   },
 });

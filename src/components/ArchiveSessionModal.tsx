@@ -163,8 +163,8 @@ const styles = StyleSheet.create({
   },
   sheet: {
     maxHeight: '88%',
-    borderTopLeftRadius: spacing.radius.xl,
-    borderTopRightRadius: spacing.radius.xl,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     overflow: 'hidden',
   },
   header: {
@@ -193,12 +193,12 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.midnight,
+    backgroundColor: '#111111',
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
+    borderColor: '#333333',
   },
   statsRow: {
     flexDirection: 'row',
@@ -209,17 +209,17 @@ const styles = StyleSheet.create({
   },
   nowPlayingBlock: {
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    borderRadius: spacing.radius.md,
-    backgroundColor: colors.accentPrimarySubtle,
+    borderColor: '#333333',
+    borderRadius: 0,
+    backgroundColor: '#111111',
     overflow: 'hidden',
     marginBottom: spacing.md,
   },
   trackBlock: {
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    borderRadius: spacing.radius.md,
-    backgroundColor: palette.steel,
+    borderColor: '#333333',
+    borderRadius: 0,
+    backgroundColor: '#111111',
     overflow: 'hidden',
   },
   sectionLabel: {

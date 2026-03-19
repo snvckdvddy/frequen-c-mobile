@@ -9,9 +9,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, TouchableOpacity, Animated, ActivityIndicator, StyleSheet } from 'react-native';
 import { Text } from '../ui';
 import { aiApi, type GlobalForecastResult } from '../../services/api';
-import { palette } from '../../design/tokens/materials';
 import { fontFamily, fontSize } from '../../design/tokens/typography';
-import { spacing } from '../../theme/spacing';
 
 export function NetworkForecastCard() {
   const [forecast, setForecast] = useState<GlobalForecastResult | null>(null);
@@ -43,7 +41,7 @@ export function NetworkForecastCard() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.headerLabel}>✦ NETWORK FORECAST</Text>
+        <Text style={styles.headerLabel}>NETWORK FORECAST</Text>
         <TouchableOpacity
           onPress={fetchForecast}
           disabled={loading}
@@ -52,7 +50,7 @@ export function NetworkForecastCard() {
           accessibilityLabel="Refresh network forecast"
         >
           <Text style={[styles.refreshText, loading && styles.refreshTextDisabled]}>
-            {loading ? '...' : 'REFRESH'}
+            {loading ? 'SYNCING...' : 'REFRESH'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -60,8 +58,8 @@ export function NetworkForecastCard() {
       {/* Loading */}
       {loading && !forecast && (
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color={palette.amber} />
-          <Text style={styles.loadingText}>Reading the frequencies...</Text>
+          <ActivityIndicator size="small" color="#39FF14" />
+          <Text style={styles.loadingText}>READING FREQUENCIES...</Text>
         </View>
       )}
 
@@ -86,80 +84,88 @@ export function NetworkForecastCard() {
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.sm,
-    padding: spacing.md,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 184, 96, 0.07)',
+    marginHorizontal: 16,
+    marginBottom: 24,
+    backgroundColor: '#111111',
     borderWidth: 1,
-    borderColor: 'rgba(255, 184, 96, 0.24)',
+    borderColor: '#39FF14',
+    display: 'flex',
+    flexDirection: 'column',
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222222',
+    backgroundColor: '#0A0A0A',
   },
   headerLabel: {
     fontFamily: fontFamily.displayBold,
-    fontSize: fontSize.sm,
-    color: palette.amber,
-    letterSpacing: 1.2,
-    fontWeight: '700',
+    fontSize: 20,
+    color: '#39FF14',
+    textTransform: 'uppercase',
   },
   refreshText: {
-    fontFamily: fontFamily.label,
-    fontSize: 11,
-    color: palette.silver,
-    letterSpacing: 1,
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: '#00E5FF',
+    fontWeight: '700',
+    backgroundColor: '#111',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#00E5FF',
   },
   refreshTextDisabled: {
-    opacity: 0.4,
+    opacity: 0.5,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: spacing.sm,
+    padding: 16,
   },
   loadingText: {
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.sm,
-    color: palette.silver,
-    fontStyle: 'italic',
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: '#666',
+    textTransform: 'uppercase',
   },
   errorText: {
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.sm,
-    color: palette.red,
+    fontFamily: fontFamily.mono,
+    fontSize: 12,
+    color: '#FF4500',
+    padding: 16,
+    textTransform: 'uppercase',
   },
   manifesto: {
-    fontFamily: fontFamily.body,
-    fontStyle: 'italic',
-    fontSize: fontSize.lg,
-    color: palette.frost,
-    lineHeight: 32,
-    marginBottom: spacing.md,
+    fontFamily: fontFamily.mono,
+    fontSize: 12,
+    color: '#FFFFFF',
+    padding: 16,
+    lineHeight: 18,
   },
   trackRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingTop: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.12)',
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#222',
   },
   trackLabel: {
-    fontFamily: fontFamily.label,
-    fontSize: 11,
-    color: palette.amber,
-    letterSpacing: 1.1,
-    fontWeight: '700',
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: '#666',
+    textTransform: 'uppercase',
   },
   trackValue: {
     flex: 1,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.md,
-    color: palette.frost,
+    fontFamily: fontFamily.displayBold,
+    fontSize: 14,
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
 });

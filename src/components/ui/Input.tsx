@@ -1,6 +1,6 @@
 /**
  * Themed TextInput
- * Dark-mode native, with focus state glow.
+ * Tactical Brutalism — sharp solid boxes, glowing borders.
  */
 
 import React, { useState } from 'react';
@@ -54,7 +54,7 @@ export function Input({
         {...props}
       />
       {error && (
-        <Text variant="bodySmall" color={palette.red} style={styles.error}>
+        <Text variant="bodySmall" style={styles.error}>
           {error}
         </Text>
       )}
@@ -71,26 +71,27 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   input: {
-    height: 48,                              // Convergence §4 — 48pt input height
-    backgroundColor: palette.steel,
-    borderRadius: spacing.radius.md,
+    height: 48,
+    backgroundColor: '#111111',
+    borderRadius: 0,
     paddingHorizontal: spacing.inputPadding,
-    color: palette.frost,
+    color: '#ffffff',
     fontSize: typography.size.base,
     fontFamily: typography.fontFamily,
-    borderWidth: 1,                            // Convergence §4 — 1pt border
-    borderColor: palette.chromeBorder,        // Dark steel border — not cyan glow
+    borderWidth: 1,
+    borderColor: '#333333',
   },
   inputFocused: {
-    borderColor: palette.orange,
-    backgroundColor: palette.midnight,
+    borderColor: '#39FF14',
+    backgroundColor: '#0A0A0A',
   },
   inputError: {
-    borderColor: palette.red,
+    borderColor: '#FF4500',
   },
   error: {
     marginTop: spacing.xs,
     marginLeft: spacing.xs,
+    color: '#FF4500',
   },
 });
 

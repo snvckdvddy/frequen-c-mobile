@@ -66,7 +66,6 @@ const jackStyles = StyleSheet.create({
   jack: {
     width: 52,
     height: 52,
-    borderRadius: 26,
     backgroundColor: palette.midnight,
     borderWidth: 2,
     borderColor: palette.chromeBorder,
@@ -79,7 +78,6 @@ const jackStyles = StyleSheet.create({
   jackHole: {
     width: 20,
     height: 20,
-    borderRadius: 10,
     borderWidth: 2,
     borderColor: palette.slate,
     backgroundColor: 'transparent',
@@ -140,7 +138,6 @@ function CollapsibleSection({
 const sectionStyles = StyleSheet.create({
   container: {
     marginBottom: 10,
-    borderRadius: 10,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
     overflow: 'hidden',
@@ -163,8 +160,7 @@ const sectionStyles = StyleSheet.create({
   countBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: palette.steel,
+    backgroundColor: '#1E1E1E',
     borderWidth: 1,
     borderColor: palette.chromeBorder,
   },
@@ -231,140 +227,103 @@ export function FlightCasesScreen({ onOpenRoom, onOpenProfile }: FlightCasesScre
           {/* ═══ Header ════════════════════════════════════ */}
           <ADSRFadeIn index={0}>
             <View style={styles.headerRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>Signal Matrix</Text>
-                <Text style={styles.subtitle}>PHYSICAL PATCH BAY ROUTING</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={styles.tacticalHeaderBar} />
+                <Text style={styles.title}>ARCHIVES</Text>
               </View>
               <TouchableOpacity
                 onPress={onOpenProfile}
                 activeOpacity={0.7}
-                style={styles.profileBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Open profile"
+                style={styles.sysBtn}
               >
-                <Ionicons name="person-outline" size={20} color={palette.silver} />
+                <Text style={styles.sysBtnText}>[ SYS ]</Text>
               </TouchableOpacity>
             </View>
           </ADSRFadeIn>
 
-          {/* ═══ Patch Bay Panel ═══════════════════════════ */}
+          {/* ═══ DATA LOGS ═════════════════════════════════ */}
           <ADSRFadeIn index={1}>
-            <ModuleFaceplate label="PATCH BAY" screws style={styles.patchBayPanel}>
-              {/* Column headers */}
-              <View style={styles.patchBayHeaders}>
-                <Text style={styles.patchBayHeaderText}>OUTPUTS</Text>
-                <Text style={styles.patchBayHeaderText}>INPUTS</Text>
-              </View>
+            <View style={styles.tacticalSectionHeader}>
+              <Text style={styles.tacticalSectionLabelWhite}>DATA LOGS</Text>
+            </View>
 
-              {/* Row 1 */}
-              <View style={styles.patchBayRow}>
-                <PatchJack label="SPOTIFY" connected />
-                <PatchJack label="LIVE ROOM" connected />
-              </View>
-
-              {/* Row 2 */}
-              <View style={styles.patchBayRow}>
-                <PatchJack label="TAPE 01" />
-                <PatchJack label="BOUNCE" />
-              </View>
-
-              {/* Instruction */}
-              <Text style={styles.patchBayInstruction}>
-                CLICK JACKS TO PATCH SIGNALS
-              </Text>
-            </ModuleFaceplate>
+            <View style={{ gap: 8 }}>
+              {favTracks.length > 0 ? (
+                favTracks.slice(0, 3).map((track, i) => (
+                  <View key={track.id || i} style={styles.dataLogCard}>
+                    <View style={styles.dataLogLeft}>
+                      <Text style={styles.dataLogTitle} numberOfLines={1}>{track.title}</Text>
+                      <Text style={styles.dataLogSub} numberOfLines={1}>
+                        {track.duration ? `${Math.floor(track.duration / 60)}:${String(track.duration % 60).padStart(2, '0')}` : 'RAW'} · {track.artist}
+                      </Text>
+                    </View>
+                    <Text style={styles.dataLogDate}>ARCHIVED</Text>
+                  </View>
+                ))
+              ) : (
+                <>
+                  <View style={styles.dataLogCard}>
+                    <View style={styles.dataLogLeft}>
+                      <Text style={styles.dataLogTitle}>RAW AUDIO STREAM</Text>
+                      <Text style={styles.dataLogSub}>102 BPM · 29V</Text>
+                    </View>
+                    <Text style={styles.dataLogDate}>04.22.25</Text>
+                  </View>
+                  <View style={styles.dataLogCard}>
+                    <View style={styles.dataLogLeft}>
+                      <Text style={styles.dataLogTitle}>VOCAL COMP WIP</Text>
+                      <Text style={styles.dataLogSub}>-- BPM · 8V</Text>
+                    </View>
+                    <Text style={styles.dataLogDate}>04.20.25</Text>
+                  </View>
+                </>
+              )}
+            </View>
           </ADSRFadeIn>
 
-          {/* ═══ DATA CARTRIDGES (Session History) ════════ */}
+          {/* ═══ FLIGHT CASES (Session History) ════════ */}
           <ADSRFadeIn index={2}>
-            <ModuleFaceplate label="DATA CARTRIDGES" screws>
-              {historyLoading ? (
-                <View style={styles.loadingCenter}>
-                  <ActivityIndicator color={accent} size="small" />
-                </View>
-              ) : sessionHistory.length > 0 ? (
-                <View style={{ gap: 8 }}>
-                  {sessionHistory.map((session) => (
-                    <TouchableOpacity
-                      key={session.id}
-                      style={styles.cartridgeCard}
-                      onPress={() => setLoreSession(session)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Session: ${session.name}`}
-                      accessibilityHint={`Saved ${session.createdAt?.split('T')[0]}. Double tap to view archive detail.`}
-                    >
-                      {/* Red left accent */}
-                      <View style={styles.cartridgeAccent} />
-                      <View style={styles.cartridgeContent}>
-                        <Text style={styles.cartridgeName}>{session.name}</Text>
-                        <Text style={styles.cartridgeMeta}>
-                          SAVED: {(session.endedAt || session.createdAt)?.split('T')[0] || 'Unknown'} · {session.tracksPlayedCount ?? (session.queue.length + (session.currentTrack ? 1 : 0))} PLAYED
-                        </Text>
-                      </View>
-                      <TouchableOpacity style={styles.loreBadge} activeOpacity={0.7} onPress={() => setLoreSession(session)} accessibilityRole="button" accessibilityLabel="View session lore" accessibilityHint="Double tap to see additional session information">
-                        <Ionicons name="sparkles" size={10} color={accent} />
-                        <Text style={[styles.loreBadgeText, { color: accent }]}>SESSION LORE</Text>
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : (
-                <View style={styles.emptyCartridges}>
-                  <Ionicons name="disc-outline" size={28} color={palette.slate} />
-                  <Text style={styles.emptyText}>No data cartridges yet.</Text>
-                  <Text style={styles.emptySubtext}>
-                    Session archives will appear here after completed sessions.
-                  </Text>
-                </View>
-              )}
-            </ModuleFaceplate>
-          </ADSRFadeIn>
+            <View style={[styles.tacticalSectionHeader, { marginTop: 32 }]}>
+              <Text style={styles.tacticalSectionLabelDim}>FLIGHT CASES</Text>
+            </View>
 
-          {/* ═══ LIKED TRACKS ═════════════════════════════ */}
-          <ADSRFadeIn index={3}>
-            <CollapsibleSection
-              title="LIKED TRACKS"
-              count={favTracks.length}
-              defaultOpen={favTracks.length > 0}
-            >
-              {favTracks.length === 0 ? (
-                <View style={styles.emptySection}>
-                  <Ionicons name="heart-outline" size={24} color={palette.slate} />
-                  <Text style={styles.emptySubtext}>
-                    Heart tracks during a session to save them here.
-                  </Text>
-                </View>
-              ) : (
-                <View style={{ gap: 4 }}>
-                  {favTracks.map((track) => (
-                    <TrackListItem
-                      key={track.id}
-                      title={track.title}
-                      artist={track.artist}
-                      albumArt={track.albumArt}
-                      duration={track.duration}
-                      onPress={() => Alert.alert(track.title, `${track.artist}${track.duration ? ` · ${Math.floor(track.duration / 60)}:${String(track.duration % 60).padStart(2, '0')}` : ''}`)}
-                    />
-                  ))}
-                </View>
-              )}
-            </CollapsibleSection>
-          </ADSRFadeIn>
-
-          {/* ═══ COLLECTIONS (Coming Soon) ════════════════ */}
-          <ADSRFadeIn index={4}>
-            <CollapsibleSection title="COLLECTIONS" count={0}>
-              <View style={styles.emptySection}>
-                <Ionicons name="folder-open-outline" size={24} color={palette.slate} />
-                <Text style={styles.emptySubtext}>
-                  Organize sessions and tracks into collections.
-                </Text>
-                <View style={styles.comingSoonBadge}>
-                  <Text style={styles.comingSoonText}>COMING SOON</Text>
-                </View>
+            {historyLoading ? (
+              <View style={styles.loadingCenter}>
+                <ActivityIndicator color={accent} size="small" />
               </View>
-            </CollapsibleSection>
+            ) : sessionHistory.length > 0 ? (
+              <View style={{ gap: 8 }}>
+                {sessionHistory.map((session) => (
+                  <TouchableOpacity
+                    key={session.id}
+                    style={styles.flightCaseCard}
+                    onPress={() => setLoreSession(session)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.fcIconBox}>
+                      <Ionicons name="folder-outline" size={16} color="#666" />
+                    </View>
+                    <View style={styles.fcContent}>
+                      <Text style={styles.fcName} numberOfLines={1}>{session.name}</Text>
+                      <Text style={styles.fcMeta}>
+                        {session.tracksPlayedCount ?? (session.queue.length + (session.currentTrack ? 1 : 0))} TRKS // ARCHIVED
+                      </Text>
+                    </View>
+                    <View style={styles.fcBadge}>
+                      <Ionicons name="download-outline" size={16} color="#666" />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyCartridges}>
+                <Ionicons name="disc-outline" size={28} color={palette.slate} />
+                <Text style={styles.emptyText}>No flight cases yet.</Text>
+                <Text style={styles.emptySubtext}>
+                  Session archives will appear here after completed sessions.
+                </Text>
+              </View>
+            )}
           </ADSRFadeIn>
 
           <View style={{ height: 120 }} />
@@ -385,124 +344,134 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    justifyContent: 'space-between',
+    marginBottom: spacing.xl,
   },
   title: {
     fontFamily: fontFamily.displayBold,
-    fontSize: fontSize['4xl'],
-    color: palette.frost,
-    marginBottom: 4,
+    fontSize: 24,
+    color: '#FFFFFF',
+    letterSpacing: 2,
   },
-  subtitle: {
+  sysBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#333',
+    backgroundColor: '#111',
+  },
+  sysBtnText: {
     fontFamily: fontFamily.mono,
     fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.wider,
+    color: '#666',
   },
-  profileBtn: {
+
+  // Tactical Section Headers
+  tacticalSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  tacticalHeaderBar: {
+    width: 4,
+    height: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  tacticalSectionLabelWhite: {
+    fontFamily: fontFamily.mono,
+    fontSize: 12,
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    borderLeftWidth: 4,
+    borderLeftColor: '#FFFFFF',
+    paddingLeft: 8,
+  },
+  tacticalSectionLabelDim: {
+    fontFamily: fontFamily.mono,
+    fontSize: 12,
+    color: '#666666',
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    borderLeftWidth: 4,
+    borderLeftColor: '#666666',
+    paddingLeft: 8,
+  },
+
+  // ─── DATA LOGS ────────────────────────────────────────
+  dataLogCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+    backgroundColor: '#0A0A0A',
+  },
+  dataLogLeft: {
+    flex: 1,
+  },
+  dataLogTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  dataLogSub: {
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: '#666666',
+  },
+  dataLogDate: {
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: '#666666',
+  },
+
+  // ─── FLIGHT CASES ─────────────────────────────────────
+  flightCaseCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    backgroundColor: '#0A0A0A',
+  },
+  fcIconBox: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 12,
-  },
-
-  // Patch Bay Panel
-  patchBayPanel: {
-    marginBottom: spacing.xl,
-  },
-  patchBayHeaders: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  patchBayHeaderText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.wider,
-  },
-  patchBayRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  patchBayInstruction: {
-    fontFamily: fontFamily.mono,
-    fontSize: 8,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-
-  // Section labels
-  sectionLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: 11,
-    color: palette.slate,
-    letterSpacing: ls.wider,
-    marginBottom: 12,
-    marginTop: spacing.md,
-  },
-
-  // Data Cartridge cards
-  cartridgeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.midnight,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    overflow: 'hidden',
-  },
-  cartridgeAccent: {
-    width: 3,
-    height: '100%',
-    backgroundColor: palette.red,
-  },
-  cartridgeContent: {
-    flex: 1,
-    padding: 14,
-  },
-  cartridgeName: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 15,
-    color: palette.frost,
-    marginBottom: 4,
-  },
-  cartridgeMeta: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    letterSpacing: ls.normal,
-  },
-  loreBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: colors.accentPrimarySubtle,
-    borderWidth: 1,
-    borderColor: colors.accentPrimarySubtle,
     marginRight: 12,
   },
-  loreBadgeText: {
+  fcContent: {
+    flex: 1,
+  },
+  fcName: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  fcMeta: {
     fontFamily: fontFamily.mono,
-    fontSize: 8,
-    color: palette.orange,
-    letterSpacing: ls.normal,
+    fontSize: 10,
+    color: '#666666',
+  },
+  fcBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
 
   // Empty states
   emptyCartridges: {
     alignItems: 'center',
     paddingVertical: 32,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
   },
   emptyText: {
     fontFamily: fontFamily.display,
@@ -517,26 +486,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
     paddingHorizontal: 20,
-  },
-  emptySection: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    gap: 8,
-  },
-  comingSoonBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-    backgroundColor: palette.steel,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    marginTop: 4,
-  },
-  comingSoonText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 8,
-    color: palette.slate,
-    letterSpacing: ls.wider,
   },
   loadingCenter: {
     paddingVertical: 32,

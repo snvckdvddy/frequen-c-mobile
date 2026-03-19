@@ -1,7 +1,6 @@
 /**
  * Themed Button component
- * Supports primary, secondary, ghost, and destructive variants.
- * Includes loading state and haptic feedback (when expo-haptics is installed).
+ * Tactical Brutalism variants.
  */
 
 import React from 'react';
@@ -13,7 +12,6 @@ import {
   TextStyle,
 } from 'react-native';
 import { Text } from './Text';
-import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
@@ -33,24 +31,24 @@ interface ButtonProps {
 
 const variantStyles: Record<ButtonVariant, { bg: string; text: string; border: string }> = {
   primary: {
-    bg: palette.orange,        // Orange background
-    text: palette.void,   // Dark text on orange — convergence strategy §4.3
-    border: 'transparent',
+    bg: '#39FF14',
+    text: '#000000',
+    border: '#39FF14',
   },
   secondary: {
-    bg: 'transparent',
-    text: palette.orange,
-    border: palette.orange,
+    bg: '#111111',
+    text: '#00E5FF',
+    border: '#00E5FF',
   },
   ghost: {
     bg: 'transparent',
-    text: palette.frost,         // Frost white for ghost — more visible than silver
+    text: '#FFFFFF',
     border: 'transparent',
   },
   destructive: {
-    bg: 'transparent',                 // Transparent bg, not filled — convergence strategy §4.3
-    text: palette.red,   // Red text
-    border: palette.red, // Red border
+    bg: '#111111',
+    text: '#FF4500',
+    border: '#FF4500',
   },
 };
 
@@ -88,10 +86,10 @@ export function Button({
         {
           backgroundColor: v.bg,
           borderColor: v.border,
-          borderWidth: (variant === 'secondary' || variant === 'destructive') ? 1 : 0,  // §4.3 — 1pt
-          height: (variant === 'secondary' || variant === 'destructive') && size === 'md' ? 44 : s.height,  // §4.3 — secondary/destructive 44pt
+          borderWidth: 1,
+          height: s.height,
           paddingHorizontal: s.paddingH,
-          opacity: isDisabled ? 0.5 : 1,
+          opacity: isDisabled ? 0.3 : 1,
         },
         fullWidth && styles.fullWidth,
         style,
@@ -104,8 +102,14 @@ export function Button({
           {icon}
           <Text
             variant="labelLarge"
-            color={v.text}
-            style={{ fontSize: s.fontSize, marginLeft: icon ? 8 : 0 }}
+            style={{ 
+              color: v.text, 
+              fontSize: s.fontSize, 
+              marginLeft: icon ? 8 : 0, 
+              textTransform: 'uppercase', 
+              letterSpacing: 2, 
+              fontWeight: '700' 
+            }}
           >
             {title}
           </Text>
@@ -120,7 +124,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: spacing.radius.full,  // Full-round pill — convergence strategy §4.3
+    borderRadius: 0,
   },
   fullWidth: {
     width: '100%',

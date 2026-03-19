@@ -138,7 +138,7 @@ const sjStyles = StyleSheet.create({
   jack: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 0,
     backgroundColor: palette.steel,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
@@ -166,7 +166,7 @@ const sjStyles = StyleSheet.create({
   patchBtn: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 6,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
     backgroundColor: palette.steel,
@@ -472,10 +472,14 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />
           }
         >
-          {/* ═══ Header — Avatar + Close ═══════════════════ */}
+          {/* ═══ Header — Brutalist Title + Close ═══════════════════ */}
           <View style={styles.headerRow}>
-            <View style={styles.avatarCircle}>
-              <Ionicons name="person-outline" size={28} color={palette.silver} />
+            <View style={{ flex: 1, paddingRight: 16 }}>
+              <Text style={styles.systemHeader}>SYSTEM PREFERENCES</Text>
+              <Text style={styles.systemSubheader}>
+                {user?.username ? `${user.username.toUpperCase()} / ACTIVE SIGNAL` : 'ANONYMOUS / UNPATCHED'}
+                {user?.email ? `\n${user.email.toUpperCase()}` : ''}
+              </Text>
             </View>
             <TouchableOpacity
               style={styles.closeBtn}
@@ -488,15 +492,6 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
               <Ionicons name="close" size={20} color={palette.silver} />
             </TouchableOpacity>
           </View>
-
-          <Text style={styles.username}>
-            {user?.username
-              ? `${user.username.charAt(0).toUpperCase()}${user.username.slice(1)}.`
-              : 'Anonymous'}
-          </Text>
-          {user?.email && (
-            <Text style={styles.email}>{user.email}</Text>
-          )}
 
           {/* ═══ SONIC AURA (AI) ═════════════════════════ */}
           <SonicAuraCard
@@ -511,13 +506,13 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
               <Ionicons name="information-circle-outline" size={16} color={isVoltageSag ? palette.amber : palette.ice} />
               <View style={{ flex: 1 }} />
               <TouchableOpacity
-                style={[styles.toggle, readManual && styles.toggleActive]}
+                style={[styles.toggle, readManual && { backgroundColor: accent + '33', borderColor: accent }]}
                 onPress={() => setReadManual(!readManual)}
                 accessibilityRole="switch"
                 accessibilityLabel="Read the manual toggle"
                 accessibilityState={{ checked: readManual }}
               >
-                <View style={[styles.toggleKnob, readManual && styles.toggleKnobActive]} />
+                <View style={[styles.toggleKnob, readManual && { backgroundColor: accent, alignSelf: 'flex-end' }]} />
               </TouchableOpacity>
             </View>
             <Text style={styles.settingDesc}>
@@ -544,7 +539,7 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
               >
                 <View style={[
                   styles.monitorJackHole,
-                  monitorOut && { borderColor: palette.ice, backgroundColor: colors.accentSecondarySubtle },
+                  monitorOut && { borderColor: accent, backgroundColor: accent + '33' },
                 ]} />
               </TouchableOpacity>
             </View>
@@ -564,12 +559,14 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
                   styles.sliderFill,
                   {
                     width: socialBattery === 'low' ? '15%' : socialBattery === 'unity' ? '50%' : '85%',
+                    backgroundColor: socialBattery === 'hot' ? palette.red : socialBattery === 'unity' ? accent : palette.chromeBorder,
                   },
                 ]} />
                 <View style={[
                   styles.sliderThumb,
                   {
                     left: socialBattery === 'low' ? '15%' : socialBattery === 'unity' ? '50%' : '85%',
+                    backgroundColor: socialBattery === 'hot' ? palette.red : socialBattery === 'unity' ? accent : palette.silver,
                   },
                 ]} />
               </View>
@@ -598,12 +595,14 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
                   styles.sliderFill,
                   {
                     width: noiseGate === 'open' ? '15%' : noiseGate === 'gate' ? '50%' : '85%',
+                    backgroundColor: noiseGate === 'panic' ? palette.red : noiseGate === 'gate' ? accent : palette.chromeBorder,
                   },
                 ]} />
                 <View style={[
                   styles.sliderThumb,
                   {
                     left: noiseGate === 'open' ? '15%' : noiseGate === 'gate' ? '50%' : '85%',
+                    backgroundColor: noiseGate === 'panic' ? palette.red : noiseGate === 'gate' ? accent : palette.silver,
                   },
                 ]} />
               </View>
@@ -794,7 +793,7 @@ const styles = StyleSheet.create({
   avatarCircle: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: 0,
     backgroundColor: palette.midnight,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
@@ -804,25 +803,27 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 0,
     backgroundColor: palette.midnight,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  username: {
+  systemHeader: {
     fontFamily: fontFamily.displayBold,
-    fontSize: 28,
+    fontSize: 24,
     color: palette.frost,
-    marginBottom: 2,
+    letterSpacing: 2,
+    marginBottom: 4,
   },
-  email: {
+  systemSubheader: {
     fontFamily: fontFamily.mono,
-    fontSize: 11,
+    fontSize: 10,
     color: palette.slate,
-    letterSpacing: ls.normal,
-    marginBottom: spacing.xl,
+    letterSpacing: ls.wider,
+    marginBottom: spacing.md,
+    lineHeight: 14,
   },
 
   // Settings
@@ -855,7 +856,7 @@ const styles = StyleSheet.create({
   toggle: {
     width: 48,
     height: 28,
-    borderRadius: 14,
+    borderRadius: 0,
     backgroundColor: palette.steel,
     padding: 2,
     justifyContent: 'center',
@@ -863,25 +864,23 @@ const styles = StyleSheet.create({
     borderColor: palette.chromeBorder,
   },
   toggleActive: {
-    backgroundColor: palette.ice,
-    borderColor: palette.ice,
+    // Replaced inline
   },
   toggleKnob: {
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: 0,
     backgroundColor: palette.slate,
   },
   toggleKnobActive: {
-    backgroundColor: palette.frost,
-    alignSelf: 'flex-end',
+    // Replaced inline
   },
 
   // Monitor jack
   monitorJack: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 0,
     backgroundColor: palette.midnight,
     borderWidth: 2,
     borderColor: palette.chromeBorder,
@@ -891,7 +890,7 @@ const styles = StyleSheet.create({
   monitorJackHole: {
     width: 14,
     height: 14,
-    borderRadius: 7,
+    borderRadius: 0,
     borderWidth: 2,
     borderColor: palette.slate,
     backgroundColor: 'transparent',
@@ -901,7 +900,7 @@ const styles = StyleSheet.create({
   sliderTrack: {
     height: 4,
     backgroundColor: palette.steel,
-    borderRadius: 2,
+    borderRadius: 0,
     marginTop: 12,
     marginBottom: 8,
     position: 'relative',
@@ -909,14 +908,14 @@ const styles = StyleSheet.create({
   sliderFill: {
     height: 4,
     backgroundColor: palette.chromeBorder,
-    borderRadius: 2,
+    borderRadius: 0,
   },
   sliderThumb: {
     position: 'absolute',
     top: -6,
     width: 16,
     height: 16,
-    borderRadius: 3,
+    borderRadius: 0,
     backgroundColor: palette.silver,
     marginLeft: -8,
   },
@@ -946,7 +945,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: palette.steel,
-    borderRadius: 8,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
     paddingHorizontal: 14,
@@ -972,7 +971,7 @@ const styles = StyleSheet.create({
   // Services panel
   servicesPanel: {
     backgroundColor: palette.midnight,
-    borderRadius: 12,
+    borderRadius: 0,
     paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
@@ -982,7 +981,7 @@ const styles = StyleSheet.create({
   // Legal panel
   legalPanel: {
     backgroundColor: palette.midnight,
-    borderRadius: 12,
+    borderRadius: 0,
     paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: palette.chromeBorder,

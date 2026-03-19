@@ -1,20 +1,13 @@
 /**
- * ModuleFaceplate → Card
+ * ModuleFaceplate → Tactical Brutalist Card
  * ─────────────────────────────────────────────────────────────
- * Clean card container with uniform border radius and a subtle
- * warm border. No screws, no brushed steel, no flat-top radius.
- *
- * Usage:
- *   <ModuleFaceplate label="NOW PLAYING">
- *     <TrackInfo />
- *   </ModuleFaceplate>
+ * Square, mono-styled container for settings and profile modules.
+ * Fits Tactical V2 aesthetic globally.
  */
 
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import { primaryShadow } from '../../tokens/elevation';
 import { fontFamily, fontSize, letterSpacing } from '../../tokens/typography';
-import { palette } from '../../tokens/materials';
 import { useTheme } from '../../../contexts/ThemeContext';
 
 type FaceplateMaterial = 'steel' | 'chrome';
@@ -38,11 +31,11 @@ export function ModuleFaceplate({
   const { isVoltageSag } = useTheme();
 
   return (
-    <View style={[styles.card, primaryShadow('flush'), style]}>
+    <View style={[styles.card, style]}>
       {/* Section label */}
       {label && (
         <View style={styles.labelContainer}>
-          <Text style={[styles.label, isVoltageSag && { color: 'rgba(255, 184, 96, 0.55)' }]}>
+          <Text style={[styles.label, isVoltageSag && { color: '#FF4500' }]}>
             {label}
           </Text>
         </View>
@@ -56,28 +49,28 @@ export function ModuleFaceplate({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: palette.midnight,
-    borderRadius: 12,
+    backgroundColor: '#111111',
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
+    borderColor: '#333333',
+    marginBottom: 16,
     overflow: 'hidden',
   },
   labelContainer: {
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 4,
+    padding: 12,
+    backgroundColor: '#0A0A0A',
+    borderBottomWidth: 1,
+    borderBottomColor: '#222222',
   },
   label: {
-    fontFamily: fontFamily.label,
-    fontSize: fontSize.xs,
-    letterSpacing: letterSpacing.widest,
+    fontFamily: fontFamily.displayBold,
+    fontSize: 16,
+    letterSpacing: letterSpacing.wide,
     textTransform: 'uppercase',
-    color: palette.textDim,
+    color: '#39FF14',
     fontWeight: '700',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 14,
-    paddingBottom: 14,
+    padding: 16,
   },
 });

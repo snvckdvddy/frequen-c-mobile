@@ -96,7 +96,7 @@ function CreateTabButton({ onPress }: { onPress?: BottomTabBarButtonProps['onPre
       accessibilityLabel="Create a new session"
     >
       <View style={createBtnStyles.button}>
-        <Ionicons name="stop" size={22} color={palette.frost} />
+        <Ionicons name="add" size={28} color={palette.void} />
       </View>
     </TouchableOpacity>
   );
@@ -104,23 +104,16 @@ function CreateTabButton({ onPress }: { onPress?: BottomTabBarButtonProps['onPre
 
 const createBtnStyles = StyleSheet.create({
   container: {
-    top: -12,
+    flex: 1, // Let it fill its tab slot
     justifyContent: 'center',
     alignItems: 'center',
   },
   button: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: palette.orange,
+    width: '100%',
+    height: '100%',
+    backgroundColor: palette.frost, // White square filling the tab
     alignItems: 'center',
     justifyContent: 'center',
-    // Orange glow
-    shadowColor: palette.orange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    elevation: 8,
   },
 });
 
@@ -155,131 +148,128 @@ function TabNavigator() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.midnight }}>
       <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        // §7: 200ms ease-in-out cross-fade on tab switch
-        animation: 'fade',
-        tabBarStyle: {
-          backgroundColor: palette.midnight,             // Dark rack surface
-          borderTopColor: 'rgba(192, 223, 255, 0.08)',   // Chrome divider line
-          borderTopWidth: 1,
-          height: 80,
-          paddingBottom: 24,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: palette.orange,             // Orange active (Gemini V7)
-        tabBarInactiveTintColor: palette.slate,          // Slate inactive
-        tabBarLabelStyle: {
-          fontFamily: 'ChakraPetch-Medium',              // Rack label font
-          fontSize: 10,
-          letterSpacing: 1,
-        },
-      }}
-    >
-      {/* Tab 1: Home — Your rooms, recent activity */}
-      <Tab.Screen
-        name="Home"
-        options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons
-              name={focused ? 'home' : 'home-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      >
-        {(props) => (
-          <ErrorBoundary screenName="Home">
-            <HomeScreen
-              onCreateSession={() => props.navigation.getParent()?.navigate('CreateSession')}
-              onJoinSession={() => props.navigation.getParent()?.navigate('JoinSession')}
-              onOpenRoom={(sessionId: string) =>
-                props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
-              }
-              onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
-              onOpenFriends={() => props.navigation.getParent()?.navigate('Friends')}
-              onOpenActivityFeed={() => props.navigation.getParent()?.navigate('ActivityFeed')}
-            />
-          </ErrorBoundary>
-        )}
-      </Tab.Screen>
-
-      {/* Tab 2: Discover — Browse public rooms, trending, genre filters */}
-      <Tab.Screen
-        name="Discover"
-        options={{
-          tabBarLabel: 'Discover',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons
-              name={focused ? 'compass' : 'compass-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      >
-        {(props) => (
-          <ErrorBoundary screenName="Discover">
-            <DiscoverScreen
-              onOpenRoom={(sessionId: string) =>
-                props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
-              }
-            />
-          </ErrorBoundary>
-        )}
-      </Tab.Screen>
-
-      {/* Tab 3: Create — Center elevated button (opens modal, no screen) */}
-      <Tab.Screen
-        name="Create"
-        component={CreatePlaceholder}
-        options={{
-          tabBarLabel: '',
-          tabBarIcon: () => null,
-          tabBarButton: (props) => (
-            <CreateTabButton
-              onPress={props.onPress || (() => {})}
-            />
-          ),
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            // Prevent navigating to the Create tab screen
-            e.preventDefault();
-            // Open CreateSession modal instead
-            navigation.getParent()?.navigate('CreateSession');
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+          tabBarStyle: {
+            backgroundColor: palette.midnight,             // Dark rack surface
+            borderTopColor: 'rgba(192, 223, 255, 0.08)',   // Chrome divider line
+            borderTopWidth: 1,
+            height: 70, // Slightly taller to allow touch targets and bottom safe area
+            paddingBottom: 0,
+            paddingTop: 0,
           },
-        })}
-      />
-
-      {/* Tab 4: Library — Saved tracks, session history, collections */}
-      <Tab.Screen
-        name="Library"
-        options={{
-          tabBarLabel: 'Library',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons
-              name={focused ? 'library' : 'library-outline'}
-              size={22}
-              color={color}
-            />
-          ),
+          tabBarItemStyle: {
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 0,
+            margin: 0,
+          },
+          tabBarIconStyle: { display: 'none' }, // Tactical V2 uses text-only tabs
         }}
       >
-        {(props) => (
-          <ErrorBoundary screenName="Library">
-            <FlightCasesScreen
-              onOpenRoom={(sessionId: string) =>
-                props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
-              }
-              onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
-            />
-          </ErrorBoundary>
-        )}
-      </Tab.Screen>
-    </Tab.Navigator>
+        {/* Tab 1: Home — RADAR */}
+        <Tab.Screen
+          name="Home"
+          options={{
+            tabBarLabel: ({ focused }) => (
+              <View style={[styles.tacticalTab, focused && styles.tacticalTabActive]}>
+                <Text style={[styles.tacticalTabLabel, focused && { color: palette.green }]}>
+                  RADAR
+                </Text>
+              </View>
+            ),
+          }}
+        >
+          {(props) => (
+            <ErrorBoundary screenName="Home">
+              <HomeScreen
+                onCreateSession={() => props.navigation.getParent()?.navigate('CreateSession')}
+                onJoinSession={() => props.navigation.getParent()?.navigate('JoinSession')}
+                onOpenRoom={(sessionId: string) =>
+                  props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
+                }
+                onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
+                onOpenFriends={() => props.navigation.getParent()?.navigate('Friends')}
+                onOpenActivityFeed={() => props.navigation.getParent()?.navigate('ActivityFeed')}
+                onViewAllFlightCases={() => props.navigation.navigate('Library')}
+              />
+            </ErrorBoundary>
+          )}
+        </Tab.Screen>
+
+        {/* Tab 2: Discover — ROOM */}
+        <Tab.Screen
+          name="Discover"
+          options={{
+            tabBarLabel: ({ focused }) => (
+              <View style={[styles.tacticalTab, focused && styles.tacticalTabActive]}>
+                <Text style={[styles.tacticalTabLabel, focused && { color: palette.green }]}>
+                  ROOM
+                </Text>
+              </View>
+            ),
+          }}
+        >
+          {(props) => (
+            <ErrorBoundary screenName="Discover">
+              <DiscoverScreen
+                onOpenRoom={(sessionId: string) =>
+                  props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
+                }
+              />
+            </ErrorBoundary>
+          )}
+        </Tab.Screen>
+
+        {/* Tab 3: Library — ARCHIVE */}
+        <Tab.Screen
+          name="Library"
+          options={{
+            tabBarLabel: ({ focused }) => (
+              <View style={[styles.tacticalTab, focused && styles.tacticalTabActive]}>
+                <Text style={[styles.tacticalTabLabel, focused && { color: palette.green }]}>
+                  ARCHIVE
+                </Text>
+              </View>
+            ),
+          }}
+        >
+          {(props) => (
+            <ErrorBoundary screenName="Library">
+              <FlightCasesScreen
+                onOpenRoom={(sessionId: string) =>
+                  props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
+                }
+                onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
+              />
+            </ErrorBoundary>
+          )}
+        </Tab.Screen>
+
+        {/* Tab 4: Create — Solid White Right-Side Button */}
+        <Tab.Screen
+          name="Create"
+          component={CreatePlaceholder}
+          options={{
+            tabBarLabel: '',
+            tabBarIcon: () => null,
+            tabBarButton: (props) => (
+              <CreateTabButton
+                onPress={props.onPress || (() => {})}
+              />
+            ),
+          }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              // Prevent navigating to the Create tab screen
+              e.preventDefault();
+              // Open CreateSession modal instead
+              navigation.getParent()?.navigate('CreateSession');
+            },
+          })}
+        />
+      </Tab.Navigator>
 
       {currentTrack && globalRoom.playback && (
         <View style={{ position: 'absolute', bottom: 80, left: 0, right: 0 }}>
@@ -486,6 +476,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: palette.void,
+  },
+  tacticalTab: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  tacticalTabActive: {
+    borderBottomColor: palette.green,
+    backgroundColor: 'rgba(0, 255, 65, 0.05)',
+  },
+  tacticalTabLabel: {
+    fontFamily: 'ChakraPetch-Medium',
+    fontSize: 11,
+    letterSpacing: 2,
+    color: palette.slate,
   },
 });
 

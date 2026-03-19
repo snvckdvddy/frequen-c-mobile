@@ -34,3 +34,4 @@ export { LivePulse } from './LivePulse';
 export { CrossfadeSwitch } from './CrossfadeSwitch';
 export { CVPill } from './CVPill';
 export { VoltageMeter } from './VoltageMeter';
+export { AudioMeter } from './AudioMeter';

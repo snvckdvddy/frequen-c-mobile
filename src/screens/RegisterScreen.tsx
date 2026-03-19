@@ -90,7 +90,7 @@ const signalStyles = StyleSheet.create({
     position: 'absolute',
     width: 180,
     height: 60,
-    borderRadius: 30,
+    borderRadius: 0,
     backgroundColor: palette.orange,
     shadowColor: palette.orange,
     shadowOffset: { width: 0, height: 0 },

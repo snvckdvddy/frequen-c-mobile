@@ -151,12 +151,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sheet: {
-    backgroundColor: palette.steel,
-    borderTopLeftRadius: spacing.radius.lg,
-    borderTopRightRadius: spacing.radius.lg,
+    backgroundColor: '#111',
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     paddingHorizontal: spacing.screenPadding,
     paddingTop: spacing.lg,
     paddingBottom: spacing['3xl'],
+    borderTopWidth: 1,
+    borderTopColor: palette.chromeBorder,
   },
   trackPreview: {
     flexDirection: 'row',
@@ -166,11 +168,13 @@ const styles = StyleSheet.create({
   art: {
     width: 48,
     height: 48,
-    borderRadius: spacing.radius.sm,
+    borderRadius: 0,
     backgroundColor: palette.steel,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: palette.chromeBorder,
   },
   trackInfo: {
     flex: 1,
