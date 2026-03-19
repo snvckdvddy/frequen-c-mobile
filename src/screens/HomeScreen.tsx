@@ -21,7 +21,7 @@ import {
   Image, FlatList, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen, ADSRFadeIn, ErrorState } from '../components/ui';
+import { Text, SafeScreen, ADSRFadeIn, ErrorState, AudioMeter } from '../components/ui';
 import { NetworkForecastCard } from '../components/home/NetworkForecastCard';
 import { NotificationDrawer } from '../components/NotificationDrawer';
 import { ArchiveSessionModal } from '../components/ArchiveSessionModal';
@@ -35,6 +35,7 @@ import { palette } from '../design/tokens/materials';
 import { colors } from '../design/tokens/colors';
 import { fontFamily, fontSize, letterSpacing as ls } from '../design/tokens/typography';
 import type { Session, RoomMode } from '../types';
+import PowerRoutingSheet from '../features/power-routing/PowerRoutingSheet';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FLIGHT_CASE_WIDTH = (SCREEN_WIDTH - 48 - 12) / 2.4; // ~2.4 cards visible
@@ -64,6 +65,7 @@ export function HomeScreen({
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [archivePreview, setArchivePreview] = useState<Session | null>(null);
+  const [powerRoutingOpen, setPowerRoutingOpen] = useState(false);
 
   const fetchMyRooms = useCallback(async () => {
     try {
@@ -125,121 +127,94 @@ export function HomeScreen({
           )}
 
           {/* ═══ TOP BAR — F-C FREQUEN-C  ⚡145  [avatar] ══ */}
+          {/* ═══ TOP BAR — GLOBAL RADAR ═ */}
           <ADSRFadeIn index={0}>
             <View style={styles.topBar}>
-              {/* Left: flat inline wordmark */}
               <View style={styles.logoGroup}>
-                <Text style={styles.logoText}>F-C</Text>
-                <Text style={styles.appName}>FREQUEN-C</Text>
+                <Text style={styles.radarTitle}>GLOBAL RADAR</Text>
+                <Text style={styles.radarSubtitle}>SCANNING FREQUENCIES...</Text>
               </View>
 
               <View style={styles.topBarRight}>
-                {/* CV Balance pill */}
-                <View style={styles.cvBadge}>
-                  <Ionicons name="flash" size={11} color={isVoltageSag ? accent : palette.green} />
-                  <LEDReadout value={String(cv.balance)} size="sm" variant={isVoltageSag ? 'amber' : 'ice'} />
-                </View>
-
-                {/* Notification bell */}
+                {/* CV Balance pill (Tactical Cyan) */}
                 <TouchableOpacity
-                  onPress={() => setShowNotifications(true)}
-                  style={styles.headerIconBtn}
+                  style={styles.cvTacticalBadge}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+                  onPress={() => setPowerRoutingOpen(true)}
                 >
-                  <Ionicons
-                    name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
-                    size={20}
-                    color={unreadCount > 0 ? accent : palette.silver}
-                  />
-                  {unreadCount > 0 && (
-                    <View style={styles.notifBadge}>
-                      <Text style={styles.notifBadgeText}>
-                        {unreadCount > 9 ? '9+' : String(unreadCount)}
-                      </Text>
-                    </View>
-                  )}
+                  <Text style={styles.cvTacticalText}>⚡ {cv.balance}V</Text>
                 </TouchableOpacity>
 
-                {/* Profile avatar */}
+                {/* Profile / Notifications can be reached via other means, or we can keep a minimal avatar */}
                 <TouchableOpacity
                   onPress={onOpenProfile}
                   style={styles.avatarBtn}
                   activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open profile"
                 >
-                  <Ionicons name="person-outline" size={20} color={palette.silver} />
+                  <Ionicons name="person-outline" size={16} color={palette.silver} />
                 </TouchableOpacity>
               </View>
             </View>
           </ADSRFadeIn>
 
-          {/* ═══ LIVE CONNECTION ══════════════════════════════ */}
+          {/* ═══ ACTIVE PATCH (Live) ══════════════════════════════ */}
           <ADSRFadeIn index={1}>
-            <Text style={styles.sectionLabel}>LIVE CONNECTION</Text>
+            <View style={styles.tacticalSectionHeader}>
+              <View style={[styles.tacticalSectionBarGreen, { backgroundColor: '#39FF14' }]} />
+              <Text style={[styles.tacticalSectionLabelGreen, { color: '#39FF14' }]}>ACTIVE PATCH</Text>
+            </View>
 
             {liveRoom ? (
-              <ModuleFaceplate label="LIVE" screws>
-                <TouchableOpacity
-                  style={styles.liveCard}
-                  onPress={() => onOpenRoom(liveRoom.id)}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Open live room: ${liveRoom.name}`}
-                >
-                {/* Listener count */}
-                <View style={styles.liveCardHeader}>
-                  <StatusLight variant="pulse" color="red" size="sm" />
-                  <LEDReadout value={`${liveRoom.listeners?.length || 0}/10`} size="sm" variant="ice" style={styles.listenerCount} />
+              <TouchableOpacity
+                style={styles.activePatchCard}
+                onPress={() => onOpenRoom(liveRoom.id)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.activePatchHeader}>
+                  <Text style={styles.activePatchTitle} numberOfLines={1}>{liveRoom.name}</Text>
+                  <View style={styles.liveRecBadge}>
+                    <Text style={styles.liveRecText}>LIVE REC</Text>
+                  </View>
                 </View>
 
-                {/* Room name */}
-                <Text style={styles.liveRoomName}>{liveRoom.name}</Text>
-
-                {/* Current track + play button */}
-                <View style={styles.liveTrackRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.liveTrackTitle} numberOfLines={1}>
+                <View style={styles.activePatchBody}>
+                  {liveRoom.currentTrack?.albumArt ? (
+                    <Image
+                      source={{ uri: liveRoom.currentTrack.albumArt }}
+                      style={styles.activePatchArt}
+                    />
+                  ) : (
+                    <View style={[styles.activePatchArt, { backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="musical-notes" size={24} color="#333" />
+                    </View>
+                  )}
+                  <View style={styles.activePatchInfo}>
+                    <Text style={styles.activePatchTrackTitle} numberOfLines={1}>
                       {liveRoom.currentTrack?.title || 'No track playing'}
                     </Text>
-                    <Text style={styles.liveTrackArtist} numberOfLines={1}>
+                    <Text style={styles.activePatchTrackArtist} numberOfLines={1}>
                       {liveRoom.currentTrack?.artist || 'Add a track to start'}
                     </Text>
                   </View>
-                  <View style={[styles.playBtnSmall, {
-                    backgroundColor: accent,
-                    shadowColor: accent,
-                    shadowOffset: { width: 0, height: 0 },
-                    shadowOpacity: 0.4,
-                    shadowRadius: 8,
-                    elevation: 6,
-                  }]}>
-                    <Ionicons name="play" size={20} color={palette.void} style={{ marginLeft: 2 }} />
+                  {/* Real bouncing audio meter */}
+                  <View style={styles.fakeFreqBars}>
+                    <AudioMeter bars={4} width={40} height={24} color="#39FF14" gap={2} />
                   </View>
                 </View>
               </TouchableOpacity>
-              </ModuleFaceplate>
             ) : (
-              /* Empty state — no live connection */
-              <ModuleFaceplate label="EMPTY">
-                <TouchableOpacity
-                  style={styles.emptyLiveCard}
-                  onPress={onCreateSession}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Create a new session"
-                >
-                <View style={styles.emptyLiveInner}>
-                  <Ionicons name="radio-outline" size={28} color={palette.slate} />
-                  <Text style={styles.emptyLiveText}>Nothing playing right now.</Text>
-                  <Text style={styles.emptyLiveSubtext}>
-                    Start a room and invite friends to listen together.
-                  </Text>
+              <TouchableOpacity
+                style={[styles.activePatchCard, { borderColor: '#333', opacity: 0.7 }]}
+                onPress={onCreateSession}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.activePatchInner, { padding: 24, alignItems: 'center' }]}>
+                  <Ionicons name="radio-outline" size={28} color="#666" />
+                  <Text style={[styles.activePatchTitle, { color: '#666', marginTop: 10 }]}>No Active Patch</Text>
+                  <Text style={styles.activePatchTrackArtist}>Tap to create a new live room</Text>
                 </View>
               </TouchableOpacity>
-              </ModuleFaceplate>
             )}
           </ADSRFadeIn>
 
@@ -248,65 +223,58 @@ export function HomeScreen({
             <NetworkForecastCard />
           </ADSRFadeIn>
 
-          {/* ═══ RECENT FLIGHT CASES ═════════════════════════ */}
+          {/* ═══ AVAILABLE FREQUENCIES (Grid) ═══════════════════════ */}
           <ADSRFadeIn index={3}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionLabel}>RECENT FLIGHT CASES</Text>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={onViewAllFlightCases}
-                accessibilityRole="button"
-                accessibilityLabel="View all flight cases"
-              >
-                <Text style={styles.viewAllText}>VIEW ALL</Text>
-              </TouchableOpacity>
+            <View style={[styles.tacticalSectionHeader, { marginTop: spacing.xl }]}>
+              <Text style={[styles.tacticalSectionLabel, { borderLeftWidth: 4, borderLeftColor: '#666', paddingLeft: 8 }]}>FREQUENCY TUNER</Text>
+            </View>
+
+            <View style={styles.tunerBlock}>
+              <View style={styles.tunerDisplay}>
+                <TouchableOpacity style={styles.tBtn} activeOpacity={0.7}><Text style={styles.tBtnText}>◀</Text></TouchableOpacity>
+                <Text style={styles.tValue}>BASS // 140</Text>
+                <TouchableOpacity style={styles.tBtn} activeOpacity={0.7}><Text style={styles.tBtnText}>▶</Text></TouchableOpacity>
+              </View>
+              <View style={styles.tunerTicks}>
+                <View style={[styles.tick, styles.tickMajor]} /><View style={styles.tick} /><View style={styles.tick} /><View style={styles.tick} />
+                <View style={[styles.tick, styles.tickMajor]} /><View style={styles.tick} /><View style={styles.tick} /><View style={styles.tick} />
+                <View style={[styles.tick, styles.tickMajor]} /><View style={styles.tick} /><View style={styles.tick} /><View style={styles.tick} />
+                <View style={[styles.tick, styles.tickMajor]} />
+              </View>
             </View>
 
             {archiveRooms.length > 0 ? (
-              <FlatList
-                horizontal
-                data={archiveRooms.slice(0, 10)}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.flightCaseList}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item, index }) => (
-                  <ADSRFadeIn index={index} staggerMs={60} slideFrom="right">
+              <View style={styles.tacticalGrid}>
+                {archiveRooms.slice(0, 4).map((item, index) => {
+                  const isLiveValue = (item.tracksPlayedCount ?? 0) === 0; // Using tracksPlayedCount as mock logic for OPEN FLR / CAMPFIRE
+                  const modeText = isLiveValue ? 'OPEN FLR' : 'ARCHIVED';
+                  const themeColor = isLiveValue ? '#00E5FF' : '#FF4500';
+                  const dotColor = isLiveValue ? '#FF4500' : '#666';
+
+                  return (
                     <TouchableOpacity
-                      style={styles.flightCaseCard}
+                      key={item.id}
+                      style={styles.radarNode}
                       onPress={() => setArchivePreview(item)}
                       activeOpacity={0.8}
-                      accessibilityHint="Double tap to view archived session details"
                     >
-                      {/* Album art placeholder */}
-                      <View style={styles.flightCaseArt}>
-                        {item.currentTrack?.albumArt ? (
-                          <Image
-                            source={{ uri: item.currentTrack.albumArt }}
-                            style={styles.flightCaseArtImage}
-                          />
-                        ) : (
-                          <Ionicons name="disc-outline" size={24} color={palette.slate} />
-                        )}
+                      <View style={styles.rHead}>
+                        <View style={[styles.rDot, { backgroundColor: dotColor, shadowColor: dotColor, shadowOpacity: dotColor === '#FF4500' ? 1 : 0, shadowRadius: 8 }]} />
+                        <Text style={styles.rUsers}>{item.listeners?.length || 0} USERS</Text>
                       </View>
-                      <Text style={styles.flightCaseName} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      <Text style={styles.flightCaseDate} numberOfLines={1}>
-                        {formatTimeAgo(item.endedAt || item.createdAt)}
-                      </Text>
-                      <Text style={styles.flightCaseDate} numberOfLines={1}>
-                        {(item.tracksPlayedCount ?? 0) > 0
-                          ? `${item.tracksPlayedCount} played`
-                          : `${item.queue.length + (item.currentTrack ? 1 : 0)} captured`}
+                      <Text style={styles.rTitle} numberOfLines={1}>{item.name}</Text>
+                      
+                      <Text style={[styles.rMeta, { color: themeColor, borderColor: themeColor }]}>
+                        {modeText}
                       </Text>
                     </TouchableOpacity>
-                  </ADSRFadeIn>
-                )}
-              />
+                  );
+                })}
+              </View>
             ) : (
               <View style={styles.emptyFlightCases}>
                 <Text style={styles.emptyFlightCaseText}>
-                  No sessions yet. Your listening history will show up here.
+                  No frequencies detected.
                 </Text>
               </View>
             )}
@@ -333,6 +301,12 @@ export function HomeScreen({
         session={archivePreview}
         onClose={() => setArchivePreview(null)}
       />
+      <PowerRoutingSheet
+        visible={powerRoutingOpen}
+        voltage={cv.balance}
+        onClose={() => setPowerRoutingOpen(false)}
+        onExecute={() => setPowerRoutingOpen(false)}
+      />
     </SafeScreen>
   );
 }
@@ -353,87 +327,62 @@ function formatTimeAgo(dateStr?: string): string {
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.md,       // 18px — SafeAreaView already handles safe area inset
+    paddingTop: spacing.md,
   },
   errorContainer: {
     marginBottom: spacing.lg,
   },
 
-  // ─── Top Bar ──────────────────────────────────────────
+  // ─── Tactical Top Bar ─────────────────────────────────
   topBar: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: spacing.lg,    // 28px — tighter than xl (40px)
+    marginBottom: spacing.xl,
+    marginTop: spacing.md,
   },
   logoGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,                     // Take available space, don't push icons off
-    minWidth: 0,
+    flexDirection: 'column',
+    flex: 1,
   },
-  logoText: {
+  radarTitle: {
     fontFamily: fontFamily.displayBold,
-    fontSize: fontSize.base,     // 14px — tight monospace accent
-    color: palette.orange,
-    letterSpacing: ls.wider,
-    flexShrink: 0,
-  },
-  appName: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: fontSize.base,     // 14px — same weight, flat inline
+    fontSize: 28,
     color: palette.frost,
-    letterSpacing: ls.wide,
-    flexShrink: 1,
+    letterSpacing: 1,
+  },
+  radarSubtitle: {
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: palette.green,
+    letterSpacing: 2,
+    marginTop: 4,
   },
   topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    flexShrink: 0,               // Right side never shrinks
+    gap: 12,
   },
-  cvBadge: {
+  cvTacticalBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.statusSuccessSubtle,
+    gap: 6,
     borderWidth: 1,
-    borderColor: colors.statusSuccessBorder,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderColor: 'cyan',
+    backgroundColor: 'rgba(0, 255, 255, 0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  headerIconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  notifBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    minWidth: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: palette.red,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  notifBadgeText: {
+  cvTacticalText: {
     fontFamily: fontFamily.mono,
-    fontSize: 8,
-    color: palette.frost,
+    fontSize: 12,
+    color: 'cyan',
     fontWeight: '700',
   },
   avatarBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 2, // Slightly boxy for tactical vibe
     borderWidth: 1,
     borderColor: palette.chromeBorder,
     backgroundColor: palette.steel,
@@ -441,143 +390,205 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // ─── Section Labels ───────────────────────────────────
-  sectionLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.sm,
-    color: palette.slate,
-    letterSpacing: ls.wider,
-    marginBottom: 12,
-  },
-  sectionHeaderRow: {
+  // ─── Tactical Section Headers ─────────────────────────
+  tacticalSectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-    marginTop: spacing.xl,
+    marginTop: spacing.md,
   },
-  viewAllText: {
+  tacticalSectionBarGreen: {
+    width: 4,
+    height: 14,
+    backgroundColor: palette.green,
+    marginRight: 8,
+  },
+  tacticalSectionLabelGreen: {
     fontFamily: fontFamily.mono,
-    fontSize: fontSize.sm,
-    color: palette.silver,
-    letterSpacing: ls.wide,
+    fontSize: 12,
+    color: palette.green,
+    letterSpacing: 2,
+  },
+  tacticalSectionLabel: {
+    fontFamily: fontFamily.mono,
+    fontSize: 12,
+    color: palette.slate,
+    letterSpacing: 2,
   },
 
-  // ─── Live Connection Card ─────────────────────────────
-  liveCard: {
-    padding: 4,
+  // ─── ACTIVE PATCH Widget ──────────────────────────────
+  activePatchCard: {
+    borderWidth: 1,
+    borderColor: '#39FF14',
+    backgroundColor: '#111111',
+    marginBottom: 32,
+    flexDirection: 'column',
   },
-  liveCardHeader: {
+  activePatchInner: {},
+  activePatchHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222',
+    backgroundColor: '#0A0A0A',
   },
-  listenerCount: {
-    backgroundColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  liveRoomName: {
+  activePatchTitle: {
     fontFamily: fontFamily.displayBold,
-    fontSize: fontSize['3xl'],
-    color: palette.frost,
-    marginBottom: 10,
+    fontSize: 20,
+    color: '#39FF14',
+    textTransform: 'uppercase',
   },
-  liveTrackRow: {
+  liveRecBadge: {
+    backgroundColor: '#39FF14',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  liveRecText: {
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: '#000000',
+    fontWeight: 'bold',
+  },
+  activePatchBody: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 12,
+    gap: 12,
   },
-  liveTrackTitle: {
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.lg,
-    color: palette.frost,
-    marginBottom: 2,
-  },
-  liveTrackArtist: {
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.base,
-    color: palette.silver,
-  },
-  playBtnSmall: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
-
-  // ─── Empty Live State ─────────────────────────────────
-  emptyLiveCard: {
-  },
-  emptyLiveInner: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-  },
-  emptyLiveText: {
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.lg,
-    color: palette.silver,
-    marginTop: 10,
-  },
-  emptyLiveSubtext: {
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.base,
-    color: palette.slate,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-
-  // ─── Flight Case Cards ────────────────────────────────
-  flightCaseList: {
-    paddingRight: spacing.screenPadding,
-  },
-  flightCaseCard: {
-    width: FLIGHT_CASE_WIDTH,
-    marginRight: 12,
-  },
-  flightCaseArt: {
-    width: '100%',
-    aspectRatio: 1,
-    backgroundColor: palette.steel,
-    borderRadius: 8,
+  activePatchArt: {
+    width: 60,
+    height: 60,
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    overflow: 'hidden',
+    borderColor: '#333',
   },
-  flightCaseArtImage: {
-    width: '100%',
-    height: '100%',
+  activePatchInfo: {
+    flex: 1,
+    gap: 4,
   },
-  flightCaseName: {
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.base,
-    color: palette.frost,
-    marginBottom: 2,
+  activePatchTrackTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 14,
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
-  flightCaseDate: {
+  activePatchTrackArtist: {
     fontFamily: fontFamily.mono,
-    fontSize: fontSize.sm,
-    color: palette.slate,
+    fontSize: 10,
+    color: '#666666',
   },
+  fakeFreqBars: {
+    marginLeft: 'auto',
+  },
+  
+  // ─── Tactical Grid ────────────────────────────────────
+  tunerBlock: {
+    borderWidth: 1,
+    borderColor: '#333',
+    backgroundColor: '#111111',
+    marginBottom: 24,
+  },
+  tunerDisplay: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222',
+  },
+  tBtn: {
+    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: '#333',
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tBtnText: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.mono,
+  },
+  tValue: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 24,
+    color: '#00E5FF',
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(0,229,255,0.4)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  tunerTicks: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    opacity: 0.5,
+  },
+  tick: {
+    width: 2,
+    height: 8,
+    backgroundColor: '#666666',
+  },
+  tickMajor: {
+    height: 16,
+    backgroundColor: '#00E5FF',
+  },
+  tacticalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  radarNode: {
+    width: '48%',
+    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: '#333',
+    padding: 12,
+    flexDirection: 'column',
+    gap: 8,
+    marginBottom: 12,
+  },
+  rHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  rDot: {
+    width: 8,
+    height: 8,
+  },
+  rUsers: {
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    color: '#666666',
+  },
+  rTitle: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: 16,
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+  },
+  rMeta: {
+    fontFamily: fontFamily.mono,
+    fontSize: 9,
+    borderWidth: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+  },
+
   emptyFlightCases: {
-    backgroundColor: colors.skeleton,
-    borderRadius: 8,
-    padding: 20,
+    padding: 24,
     borderWidth: 1,
     borderColor: palette.chromeBorder,
+    alignItems: 'center',
   },
   emptyFlightCaseText: {
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.base,
+    fontFamily: fontFamily.mono,
+    fontSize: 12,
     color: palette.slate,
-    textAlign: 'center',
   },
 });
 

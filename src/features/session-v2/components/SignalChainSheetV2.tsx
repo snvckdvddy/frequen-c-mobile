@@ -32,6 +32,7 @@ interface SignalChainSheetV2Props {
   queue: QueueTrack[];
   suggestedQueue: QueueTrack[];
   playedHistory: QueueTrack[];
+  voltage: number;
   searchInSheet: boolean;
   query: string;
   results: Track[];
@@ -63,6 +64,18 @@ function formatDuration(duration?: number) {
 
 function formatLogId(index: number) {
   return `LOG.${String(index + 1).padStart(3, '0')}`;
+}
+
+function formatPatchedBy(track: QueueTrack): string {
+  const anyTrack = track as any;
+  const addedBy = anyTrack?.addedBy;
+  if (typeof addedBy === 'string') return addedBy;
+  if (addedBy && typeof addedBy === 'object') {
+    if (typeof addedBy.username === 'string') return addedBy.username;
+    if (typeof addedBy.name === 'string') return addedBy.name;
+  }
+  if (typeof anyTrack?.addedByUsername === 'string') return anyTrack.addedByUsername;
+  return anyTrack?.artist || 'SYSTEM';
 }
 
 function SearchResultRow({
@@ -146,7 +159,7 @@ function RecentHistoryFooter({
                     {track.title.toUpperCase()}
                   </Text>
                   <Text style={styles.historyRowMeta} numberOfLines={1}>
-                    PATCHED BY {track.addedBy?.toUpperCase?.() || '@SYSTEM'}
+                    PATCHED BY @{formatPatchedBy(track).toUpperCase()}
                   </Text>
                 </View>
                 <View style={styles.historyRowStat}>
@@ -250,6 +263,7 @@ export function SignalChainSheetV2({
   queue,
   suggestedQueue,
   playedHistory,
+  voltage,
   searchInSheet,
   query,
   results,
@@ -304,6 +318,11 @@ export function SignalChainSheetV2({
     />
   );
 
+  const handleAddFromSearch = (track: Track) => {
+    onAddTrack(track);
+    onCloseSearch();
+  };
+
   return (
     <Modal
       visible={visible}
@@ -322,7 +341,7 @@ export function SignalChainSheetV2({
           <View style={styles.headerRow}>
             <Text style={styles.headerTitle}>SIGNAL CHAIN</Text>
             <View style={styles.voltageBlock}>
-              <Text style={styles.voltageText}>50V</Text>
+              <Text style={styles.voltageText}>{String(voltage).padStart(2, '0')}V</Text>
             </View>
           </View>
 
@@ -390,7 +409,7 @@ export function SignalChainSheetV2({
                         <FlatList
                           data={results}
                           keyExtractor={(item) => item.id}
-                          renderItem={({ item }) => <SearchResultRow track={item} onAdd={onAddTrack} />}
+                          renderItem={({ item }) => <SearchResultRow track={item} onAdd={handleAddFromSearch} />}
                           keyboardShouldPersistTaps="handled"
                           contentContainerStyle={styles.resultsContent}
                           ListEmptyComponent={

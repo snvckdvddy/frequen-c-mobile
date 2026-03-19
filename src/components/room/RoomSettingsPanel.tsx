@@ -103,7 +103,7 @@ export function RoomSettingsPanel({
 
           {/* Header */}
           <View style={styles.headerRow}>
-            <LEDReadout value="ROOM SETTINGS" variant="amber" size="md" />
+            <LEDReadout value="ROOM SETTINGS" variant="ice" size="md" />
             <TouchableOpacity
               onPress={onClose}
               accessibilityRole="button"
@@ -207,17 +207,17 @@ const styles = StyleSheet.create({
   },
   sheet: {
     maxHeight: '80%',
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     overflow: 'hidden',
     borderTopWidth: 1,
-    borderTopColor: palette.iceGlow,
+    borderTopColor: '#39FF14',
   },
   handle: {
     width: 40,
     height: 3,
-    borderRadius: 1.5,
-    backgroundColor: palette.iceGlow,
+    borderRadius: 0,
+    backgroundColor: '#39FF14',
     alignSelf: 'center',
     marginTop: 10,
     marginBottom: 6,
@@ -255,14 +255,15 @@ const styles = StyleSheet.create({
   pill: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 4,
+    borderRadius: 0,
     borderWidth: 1,
-    borderColor: palette.slate,
+    borderColor: '#333333',
+    backgroundColor: '#111111',
     alignItems: 'center',
   },
   pillActive: {
-    borderColor: palette.amber,
-    backgroundColor: 'rgba(255, 191, 0, 0.1)',
+    borderColor: '#39FF14',
+    backgroundColor: 'transparent',
   },
   pillText: {
     fontFamily: fontFamily.mono,
@@ -271,7 +272,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   pillTextActive: {
-    color: palette.amber,
+    color: '#39FF14',
     fontWeight: '700',
   },
 
@@ -298,23 +299,26 @@ const styles = StyleSheet.create({
   toggle: {
     width: 44,
     height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 0,
+    backgroundColor: '#000000',
     justifyContent: 'center',
     paddingHorizontal: 2,
     marginLeft: spacing.sm,
+    borderWidth: 1,
+    borderColor: '#333333',
   },
   toggleActive: {
-    backgroundColor: 'rgba(255, 191, 0, 0.25)',
+    backgroundColor: '#39FF14',
+    borderColor: '#39FF14',
   },
   toggleKnob: {
     width: 20,
     height: 20,
-    borderRadius: 10,
-    backgroundColor: palette.slate,
+    borderRadius: 0,
+    backgroundColor: '#333333',
   },
   toggleKnobActive: {
-    backgroundColor: palette.amber,
+    backgroundColor: '#000000',
     alignSelf: 'flex-end',
   },
 });

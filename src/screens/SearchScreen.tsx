@@ -509,8 +509,8 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     backgroundColor: palette.steel,
-    borderRadius: spacing.radius.md,
-    paddingHorizontal: spacing.inputPadding,
+    overflow: 'hidden',
+    padding: 16,
     color: palette.frost,
     fontSize: 15,
   },
@@ -528,7 +528,6 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 16,
     backgroundColor: palette.steel,
   },
   chipActive: {
@@ -563,7 +562,6 @@ const styles = StyleSheet.create({
   favoriteArt: {
     width: 120,
     height: 120,
-    borderRadius: spacing.radius.md,
     backgroundColor: palette.steel,
     alignItems: 'center',
     justifyContent: 'center',
@@ -578,7 +576,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginRight: 8,
   },
   recentItem: {
     flexDirection: 'row',
@@ -600,9 +598,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   sessionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 32,
+    height: 32,
     backgroundColor: palette.orange,
   },
 

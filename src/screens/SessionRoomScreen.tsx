@@ -18,7 +18,7 @@ import {
   ScrollView, Dimensions, Image, Animated,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, SafeScreen, RoomModeBadge, ErrorState } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
@@ -72,8 +72,6 @@ import { TrackContextMenu } from '../components/ui';
 import { QUEUE_ACTIONS, type ContextMenuAction } from '../components/ui/TrackContextMenu';
 import { Skeleton, TrackCardSkeleton } from '../components/ui/Skeleton';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
-import { ParticipantAvatarBar } from '../components/ui/ParticipantAvatarBar';
-import { ReactionBar } from '../components/ui/ReactionBar';
 import { useCV } from '../hooks/useCV';
 import { useVoltageSag } from '../hooks/useVoltageSag';
 import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
@@ -87,6 +85,7 @@ import TacticalWaveform from '../features/session-v2/components/TacticalWaveform
 import TacticalTransportDeck from '../features/session-v2/components/TacticalTransportDeck';
 import TacticalReactionMatrix from '../features/session-v2/components/TacticalReactionMatrix';
 import SignalChainSheetV2 from '../features/session-v2/components/SignalChainSheetV2';
+import SearchHudOverlay from '../features/search-hud/SearchHudOverlay';
 
 type SocketReactionType = "fire" | "vibe" | "skip";
 
@@ -115,8 +114,8 @@ function getBehaviorSummary(behaviors: RoomBehaviors, isHost: boolean): string {
 // ─── Main Screen ─────────────────────────────────────────────
 
 export function SessionRoomScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation();
+  const route = useRoute<RouteProp<{ SessionRoom: { sessionId: string } }, 'SessionRoom'>>();
   const { user } = useAuth();
   const sessionId = route.params?.sessionId;
   const { clearActiveSession } = useActiveSession();
@@ -151,6 +150,7 @@ export function SessionRoomScreen() {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
   const [searchInSheet, setSearchInSheet] = useState(false);
+  const [searchHudOpen, setSearchHudOpen] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
@@ -354,8 +354,8 @@ export function SessionRoomScreen() {
       } else {
         Alert.alert('Track Not Found', `Couldn't find "${title}" by ${artist} on Spotify.`);
       }
-    } catch (err: any) {
-      console.warn('[AI Suggestion] Search failed:', err.message);
+    } catch (err: unknown) {
+      console.warn('[AI Suggestion] Search failed:', err instanceof Error ? err.message : String(err));
       Alert.alert('Error', 'Failed to search for suggested track.');
     }
   }, [handleAddTrack]);
@@ -406,7 +406,7 @@ export function SessionRoomScreen() {
   }, [queue]);
 
   const handleToggleFavorite = useCallback((track: Track) => {
-    const favoriteTrack = { ...track, id: (track as any).sourceId || track.id };
+    const favoriteTrack = { ...track, id: track.sourceId || track.id };
     toggleFavorite(favoriteTrack);
   }, [toggleFavorite]);
 
@@ -556,6 +556,7 @@ export function SessionRoomScreen() {
     setOverflowOpen(false);
     setRoomSettingsOpen(false);
     setSearchInSheet(false);
+    setSearchHudOpen(false);
     setChatOpen(false);
     setShowQR(false);
     setContextMenuVisible(false);
@@ -720,14 +721,14 @@ export function SessionRoomScreen() {
         <VoidSurface style={{ flex: 1 }}>
           <View style={styles.skeletonContainer}>
             <View style={styles.skeletonHeader}>
-              <Skeleton width={28} height={28} borderRadius={14} />
+              <Skeleton width={28} height={28} borderRadius={0} />
               <View style={{ flex: 1, marginLeft: spacing.sm }}>
                 <Skeleton fill height={18} style={{ maxWidth: 180 }} />
               </View>
-              <Skeleton width={60} height={24} borderRadius={12} />
+              <Skeleton width={60} height={24} borderRadius={0} />
             </View>
             <View style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
-              <Skeleton width={ALBUM_ART_SIZE} height={ALBUM_ART_SIZE} borderRadius={spacing.radius.sm} />
+              <Skeleton width={ALBUM_ART_SIZE} height={ALBUM_ART_SIZE} borderRadius={0} />
             </View>
             <View style={{ alignItems: 'center', gap: 8, paddingBottom: spacing.lg }}>
               <Skeleton width={200} height={22} />
@@ -735,9 +736,9 @@ export function SessionRoomScreen() {
             </View>
             <Skeleton fill height={2} style={{ marginHorizontal: spacing.screenPadding }} />
             <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 40, paddingVertical: spacing.md }}>
-              <Skeleton width={32} height={32} borderRadius={16} />
-              <Skeleton width={56} height={56} borderRadius={28} />
-              <Skeleton width={32} height={32} borderRadius={16} />
+              <Skeleton width={32} height={32} borderRadius={0} />
+              <Skeleton width={56} height={56} borderRadius={0} />
+              <Skeleton width={32} height={32} borderRadius={0} />
             </View>
           </View>
         </VoidSurface>
@@ -840,6 +841,7 @@ export function SessionRoomScreen() {
               queue={queue}
               suggestedQueue={suggestedQueue}
               playedHistory={playedHistory}
+              voltage={cv.balance}
               searchInSheet={searchInSheet}
               query={query}
               results={results}
@@ -849,7 +851,11 @@ export function SessionRoomScreen() {
               keyboardVisible={keyboardVisible}
               keyboardHeight={keyboardHeight}
               onClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
-              onOpenSearch={() => setSearchInSheet(true)}
+              onOpenSearch={() => {
+                setQueueSheetOpen(false);
+                setSearchInSheet(false);
+                setSearchHudOpen(true);
+              }}
               onCloseSearch={handleCancelSearch}
               onQueryChange={setQuery}
               onSelectMode={handleSelectMode}
@@ -860,6 +866,23 @@ export function SessionRoomScreen() {
               onRemoveRecentSearch={removeRecentSearch}
               onLongPress={handleLongPress}
               onRequeueHistory={handleAddTrack}
+            />
+          )}
+
+          {/* ═══ SEARCH HUD OVERLAY (Never Leave the Room) ═══ */}
+          {searchHudOpen && (
+            <SearchHudOverlay
+              visible
+              query={query}
+              onQueryChange={setQuery}
+              results={results}
+              isSearching={isSearching}
+              queuedTrackIds={queue.map((t) => t.id)}
+              onClose={() => setSearchHudOpen(false)}
+              onPatchTrack={(track) => {
+                handleAddTrack(track);
+                setSearchHudOpen(false);
+              }}
             />
           )}
 
@@ -1022,7 +1045,6 @@ const styles = StyleSheet.create({
   },
   qrModal: {
     backgroundColor: palette.midnight,
-    borderRadius: 4,
     padding: spacing.xl,
     width: 300,
     alignItems: 'center',
