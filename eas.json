@@ -23,7 +23,11 @@
         "buildType": "apk"
       },
       "env": {
-        "APP_ENV": "preview"
+        "APP_ENV": "preview",
+        "EXPO_PUBLIC_USE_MOCKS": "false",
+        "EXPO_PUBLIC_BYPASS_AUTH": "false",
+        "EXPO_PUBLIC_API_BASE_URL": "https://REPLACE_WITH_RAILWAY_DOMAIN/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://REPLACE_WITH_RAILWAY_DOMAIN"
       }
     },
     "preview:apk": {
@@ -33,13 +37,21 @@
         "gradleCommand": ":app:assembleRelease"
       },
       "env": {
-        "APP_ENV": "preview"
+        "APP_ENV": "preview",
+        "EXPO_PUBLIC_USE_MOCKS": "false",
+        "EXPO_PUBLIC_BYPASS_AUTH": "false",
+        "EXPO_PUBLIC_API_BASE_URL": "https://REPLACE_WITH_RAILWAY_DOMAIN/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://REPLACE_WITH_RAILWAY_DOMAIN"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "APP_ENV": "production"
+        "APP_ENV": "production",
+        "EXPO_PUBLIC_USE_MOCKS": "false",
+        "EXPO_PUBLIC_BYPASS_AUTH": "false",
+        "EXPO_PUBLIC_API_BASE_URL": "https://REPLACE_WITH_RAILWAY_DOMAIN/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://REPLACE_WITH_RAILWAY_DOMAIN"
       }
     }
   }
