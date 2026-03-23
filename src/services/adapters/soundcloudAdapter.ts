@@ -14,14 +14,19 @@ class SoundCloudAdapter implements MusicServiceAdapter {
         return this.connected;
     }
 
-    async search(query: string): Promise<Track[]> {
+    async search(query: string, options?: { silent?: boolean; rethrow?: boolean }): Promise<Track[]> {
         if (!this.connected) return [];
         try {
             // Proxy through backend to avoid CORS and attach server-side OAuth token
             const res = await apiFetch<{ tracks: Track[] }>(`/auth/soundcloud/search?q=${encodeURIComponent(query)}`);
             return res.tracks;
         } catch (e) {
-            console.error('SoundCloudAdapter search failed:', e);
+            if (options?.rethrow) {
+                throw e;
+            }
+            if (!options?.silent) {
+                console.log('SoundCloudAdapter search unavailable:', e);
+            }
             return [];
         }
     }
@@ -31,7 +36,7 @@ class SoundCloudAdapter implements MusicServiceAdapter {
             const res = await apiFetch<{ url: string }>(`/auth/soundcloud/stream/${trackId}`);
             return res.url;
         } catch (e) {
-            console.error('SoundCloudAdapter getStreamUrl failed:', e);
+            console.log('SoundCloudAdapter getStreamUrl unavailable:', e);
             return '';
         }
     }

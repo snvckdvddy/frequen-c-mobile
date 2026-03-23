@@ -9,7 +9,7 @@ export interface MusicServiceAdapter {
     /**
      * Search for tracks on this service
      */
-    search(query: string): Promise<Track[]>;
+    search(query: string, options?: { silent?: boolean; rethrow?: boolean }): Promise<Track[]>;
 
     /**
      * Retrieve an audio stream URL (or equivalent identifier) for playback

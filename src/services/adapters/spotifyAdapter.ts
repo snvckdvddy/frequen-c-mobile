@@ -15,14 +15,19 @@ class SpotifyAdapter implements MusicServiceAdapter {
         return this.connected;
     }
 
-    async search(query: string): Promise<Track[]> {
+    async search(query: string, options?: { silent?: boolean; rethrow?: boolean }): Promise<Track[]> {
         if (!this.connected) return [];
         try {
             // Calls existing backend endpoint which uses the stored access token
             const res = await apiFetch<{ tracks: Track[] }>(`/search/tracks?q=${encodeURIComponent(query)}`);
             return res.tracks;
         } catch (e) {
-            console.error('SpotifyAdapter search failed:', e);
+            if (options?.rethrow) {
+                throw e;
+            }
+            if (!options?.silent) {
+                console.log('SpotifyAdapter search unavailable:', e);
+            }
             return [];
         }
     }
@@ -39,7 +44,7 @@ class SpotifyAdapter implements MusicServiceAdapter {
             // This keeps playback working without the user ever noticing the source swap.
             return this.fallbackToItunes(res.track.title, res.track.artist);
         } catch (e) {
-            console.error('SpotifyAdapter getStreamUrl failed:', e);
+            console.log('SpotifyAdapter getStreamUrl unavailable:', e);
             return '';
         }
     }

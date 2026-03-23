@@ -97,6 +97,27 @@ const providerLabel: Record<DisconnectableProvider, string> = {
   lastfm: 'Last.fm',
 };
 
+function summarizeConnectedServices(user: User | null) {
+  return {
+    spotify: {
+      connected: !!user?.connectedServices?.spotify?.connected,
+      username: user?.connectedServices?.spotify?.username,
+    },
+    soundcloud: {
+      connected: !!user?.connectedServices?.soundcloud?.connected,
+      username: user?.connectedServices?.soundcloud?.username,
+    },
+    tidal: {
+      connected: !!user?.connectedServices?.tidal?.connected,
+      username: user?.connectedServices?.tidal?.username,
+    },
+    lastfm: {
+      connected: !!user?.connectedServices?.lastfm?.connected,
+      username: user?.connectedServices?.lastfm?.username,
+    },
+  };
+}
+
 function friendlyAuthError(service: 'SoundCloud' | 'Tidal', detail?: string) {
   const lower = (detail || '').toLowerCase();
   if (lower.includes('redirect') || lower.includes('callback') || lower.includes('mismatch')) {
@@ -191,7 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     {
       responseType: ResponseType.Code,
       clientId: config.SPOTIFY_CLIENT_ID,
-      scopes: ['user-read-email', 'user-read-private', 'playlist-read-private', 'streaming'],
+      scopes: ['user-read-email', 'user-read-private', 'playlist-read-private'],
       usePKCE: true,
       redirectUri: authDiagnostics.spotifyRedirectUri,
     },
@@ -212,6 +233,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sync external adapter dependency tree with active user connectedServices
   useEffect(() => {
     setCurrentServices(state.user?.connectedServices);
+    const isDevRuntime = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+    if (isDevRuntime) {
+      console.log(`[SearchTruth][auth] ${JSON.stringify({
+        userId: state.user?.id || null,
+        connectedServices: summarizeConnectedServices(state.user),
+      })}`);
+    }
   }, [state.user?.connectedServices]);
 
   // Catch the Spotify Auth Response
