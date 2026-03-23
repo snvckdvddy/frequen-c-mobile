@@ -159,6 +159,8 @@ export interface Track {
   duration: number; // seconds
   source: 'spotify' | 'appleMusic' | 'soundcloud' | 'youtube' | 'tidal' | 'itunes';
   sourceId?: string;
+  availableSources?: Array<'spotify' | 'appleMusic' | 'soundcloud' | 'youtube' | 'tidal' | 'itunes'>;
+  resultOrigin?: 'direct' | 'open';
   // Queue metadata (present when track is in a session queue)
   addedBy?: { userId: string; username: string };
   votes?: number;

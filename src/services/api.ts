@@ -20,6 +20,285 @@ export function setCurrentServices(services?: ConnectedServices) {
   currentServices = services;
 }
 
+export type SearchHudProvider = 'spotify' | 'soundcloud';
+
+const SEARCH_PROVIDER_ENDPOINTS: Record<SearchHudProvider, string> = {
+  spotify: '/search/tracks',
+  soundcloud: '/auth/soundcloud/search',
+};
+
+export type SearchProviderState = 'direct' | 'empty' | 'error' | 'off' | 'unpatched';
+
+export interface SearchConnectionSnapshot {
+  connected: boolean;
+  username?: string;
+}
+
+export interface SearchProviderDiagnostic {
+  source: SearchHudProvider;
+  requested: boolean;
+  connected: boolean;
+  endpoint: string;
+  httpStatus: number | null;
+  upstreamStatus: number | null;
+  resultCount: number;
+  state: SearchProviderState;
+  code:
+    | 'NOT_REQUESTED'
+    | 'NOT_CONNECTED'
+    | 'DIRECT_RESULTS'
+    | 'NO_RESULTS'
+    | 'TOKEN_EXPIRED'
+    | 'APP_SUBSCRIPTION_REQUIRED'
+    | 'UPSTREAM_AUTH_ERROR'
+    | 'ENDPOINT_AUTH_ERROR'
+    | 'UPSTREAM_ERROR'
+    | 'NETWORK_ERROR'
+    | 'BACKEND_CONFIG_MISSING';
+  message?: string;
+}
+
+export interface SearchDiagnostics {
+  query: string;
+  requestedSources: SearchHudProvider[];
+  authSnapshot: Record<SearchHudProvider, SearchConnectionSnapshot>;
+  providers: Record<SearchHudProvider, SearchProviderDiagnostic>;
+  directMatchCount: number;
+  openFallbackCount: number;
+  fallbackUsed: boolean;
+}
+
+export interface SearchTracksResponse {
+  tracks: Track[];
+  fallbackUsed: boolean;
+  providerStates: Record<SearchHudProvider, SearchProviderState>;
+  diagnostics: SearchDiagnostics;
+}
+
+function getSearchConnectionSnapshot(): Record<SearchHudProvider, SearchConnectionSnapshot> {
+  return {
+    spotify: {
+      connected: !!currentServices?.spotify?.connected,
+      username: currentServices?.spotify?.username,
+    },
+    soundcloud: {
+      connected: !!currentServices?.soundcloud?.connected,
+      username: currentServices?.soundcloud?.username,
+    },
+  };
+}
+
+function createSearchProviderDiagnostic(
+  source: SearchHudProvider,
+  connected: boolean,
+  requested: boolean,
+): SearchProviderDiagnostic {
+  return {
+    source,
+    requested,
+    connected,
+    endpoint: SEARCH_PROVIDER_ENDPOINTS[source],
+    httpStatus: null,
+    upstreamStatus: null,
+    resultCount: 0,
+    state: connected ? (requested ? 'empty' : 'off') : 'unpatched',
+    code: connected ? (requested ? 'NO_RESULTS' : 'NOT_REQUESTED') : 'NOT_CONNECTED',
+  };
+}
+
+function getProviderStatesFromDiagnostics(
+  diagnostics: Record<SearchHudProvider, SearchProviderDiagnostic>,
+): Record<SearchHudProvider, SearchProviderState> {
+  return {
+    spotify: diagnostics.spotify.state,
+    soundcloud: diagnostics.soundcloud.state,
+  };
+}
+
+function getApiErrorBodyRecord(error: unknown): Record<string, unknown> | undefined {
+  if (!(error instanceof ApiError) || !error.body || typeof error.body !== 'object') {
+    return undefined;
+  }
+
+  return error.body as Record<string, unknown>;
+}
+
+export function classifyProviderSearchFailure(
+  source: SearchHudProvider,
+  connected: boolean,
+  error: unknown,
+): SearchProviderDiagnostic {
+  const base = createSearchProviderDiagnostic(source, connected, true);
+  const body = getApiErrorBodyRecord(error);
+  const debugCode = typeof body?.debugCode === 'string' ? body.debugCode : undefined;
+  const upstreamStatus = typeof body?.upstreamStatus === 'number' ? body.upstreamStatus : null;
+  const message =
+    typeof body?.message === 'string'
+      ? body.message
+      : error instanceof Error
+        ? error.message
+        : 'Provider search failed';
+
+  if (!connected || debugCode === 'NOT_CONNECTED') {
+    return {
+      ...base,
+      httpStatus: error instanceof ApiError ? error.status : null,
+      upstreamStatus,
+      state: 'unpatched',
+      code: 'NOT_CONNECTED',
+      message,
+    };
+  }
+
+  if (debugCode === 'TOKEN_EXPIRED') {
+    return {
+      ...base,
+      httpStatus: error instanceof ApiError ? error.status : null,
+      upstreamStatus,
+      state: 'error',
+      code: 'TOKEN_EXPIRED',
+      message,
+    };
+  }
+
+  if (debugCode === 'APP_SUBSCRIPTION_REQUIRED') {
+    return {
+      ...base,
+      httpStatus: error instanceof ApiError ? error.status : null,
+      upstreamStatus,
+      state: 'error',
+      code: 'APP_SUBSCRIPTION_REQUIRED',
+      message,
+    };
+  }
+
+  if (debugCode === 'UPSTREAM_AUTH_ERROR') {
+    return {
+      ...base,
+      httpStatus: error instanceof ApiError ? error.status : null,
+      upstreamStatus,
+      state: 'error',
+      code: 'UPSTREAM_AUTH_ERROR',
+      message,
+    };
+  }
+
+  if (debugCode === 'BACKEND_CONFIG_MISSING') {
+    return {
+      ...base,
+      httpStatus: error instanceof ApiError ? error.status : null,
+      upstreamStatus,
+      state: 'error',
+      code: 'BACKEND_CONFIG_MISSING',
+      message,
+    };
+  }
+
+  if (error instanceof ApiError && error.status === 0) {
+    return {
+      ...base,
+      httpStatus: 0,
+      upstreamStatus,
+      state: 'error',
+      code: 'NETWORK_ERROR',
+      message,
+    };
+  }
+
+  if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+    return {
+      ...base,
+      httpStatus: error.status,
+      upstreamStatus,
+      state: 'error',
+      code: 'ENDPOINT_AUTH_ERROR',
+      message,
+    };
+  }
+
+  return {
+    ...base,
+    httpStatus: error instanceof ApiError ? error.status : null,
+    upstreamStatus,
+    state: 'error',
+    code: 'UPSTREAM_ERROR',
+    message,
+  };
+}
+
+function createSearchDiagnostics(
+  query: string,
+  requestedSources: SearchHudProvider[],
+): SearchDiagnostics {
+  const authSnapshot = getSearchConnectionSnapshot();
+
+  return {
+    query,
+    requestedSources,
+    authSnapshot,
+    providers: {
+      spotify: createSearchProviderDiagnostic(
+        'spotify',
+        authSnapshot.spotify.connected,
+        requestedSources.includes('spotify'),
+      ),
+      soundcloud: createSearchProviderDiagnostic(
+        'soundcloud',
+        authSnapshot.soundcloud.connected,
+        requestedSources.includes('soundcloud'),
+      ),
+    },
+    directMatchCount: 0,
+    openFallbackCount: 0,
+    fallbackUsed: false,
+  };
+}
+
+export function getIdleSearchDiagnostics(): SearchDiagnostics {
+  return createSearchDiagnostics('', []);
+}
+
+function logSearchTruth(scope: string, diagnostics: SearchDiagnostics) {
+  const isDevRuntime = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+  if (!isDevRuntime) return;
+
+  const compactProviders = (Object.entries(diagnostics.providers) as Array<[SearchHudProvider, SearchProviderDiagnostic]>)
+    .reduce<Record<SearchHudProvider, Record<string, unknown>>>((acc, [source, diagnostic]) => {
+      acc[source] = {
+        connected: diagnostic.connected,
+        requested: diagnostic.requested,
+        state: diagnostic.state,
+        code: diagnostic.code,
+        httpStatus: diagnostic.httpStatus,
+        upstreamStatus: diagnostic.upstreamStatus,
+        resultCount: diagnostic.resultCount,
+        message: diagnostic.message,
+      };
+      return acc;
+    }, {
+      spotify: {},
+      soundcloud: {},
+    });
+
+  console.log(`[SearchTruth][${scope}] ${JSON.stringify({
+    query: diagnostics.query,
+    requestedSources: diagnostics.requestedSources,
+    authSnapshot: diagnostics.authSnapshot,
+    providers: compactProviders,
+    directMatchCount: diagnostics.directMatchCount,
+    openFallbackCount: diagnostics.openFallbackCount,
+    fallbackUsed: diagnostics.fallbackUsed,
+  })}`);
+}
+
+export function getIdleSearchProviderStates(): Record<SearchHudProvider, SearchProviderState> {
+  const snapshot = getSearchConnectionSnapshot();
+  return {
+    spotify: snapshot.spotify.connected ? 'off' : 'unpatched',
+    soundcloud: snapshot.soundcloud.connected ? 'off' : 'unpatched',
+  };
+}
+
 export type DisconnectableProvider = 'spotify' | 'soundcloud' | 'tidal' | 'lastfm';
 
 export interface ProviderConfigStatus {
@@ -371,8 +650,183 @@ export const sessionApi = {
 
 // ─── Search Endpoints ───────────────────────────────────────
 
+function squeezeAvailabilityToken(value: string) {
+  return value
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizePrimaryArtist(value: string) {
+  const normalized = value
+    .replace(/\s+(feat|featuring|ft)\.?\s+.*$/i, '')
+    .replace(/\s*&\s*/g, ',')
+    .replace(/\s*\/\s*/g, ',');
+  return normalized.split(',')[0]?.trim() || normalized;
+}
+
+function availabilityTitleMatches(a: string, b: string) {
+  const left = squeezeAvailabilityToken(a);
+  const right = squeezeAvailabilityToken(b);
+  return !!left && !!right && (left === right || left.includes(right) || right.includes(left));
+}
+
+function availabilityArtistMatches(a: string, b: string) {
+  const left = squeezeAvailabilityToken(normalizePrimaryArtist(a));
+  const right = squeezeAvailabilityToken(normalizePrimaryArtist(b));
+  return !!left && !!right && (left === right || left.includes(right) || right.includes(left));
+}
+
+function tracksShareAvailabilityIdentity(
+  left: { title: string; artist: string },
+  right: { title: string; artist: string },
+) {
+  return availabilityTitleMatches(left.title, right.title) &&
+    availabilityArtistMatches(left.artist, right.artist);
+}
+
+function buildAvailabilityKey(track: { title: string; artist: string }) {
+  return `${squeezeAvailabilityToken(track.title)}::${squeezeAvailabilityToken(normalizePrimaryArtist(track.artist))}`;
+}
+
+function mergeAvailabilityTracks(tracks: Track[]) {
+  const grouped = new Map<string, Track>();
+
+  for (const track of tracks) {
+    const matchedKey = Array.from(grouped.entries()).find(([, existing]) =>
+      tracksShareAvailabilityIdentity(existing, track),
+    )?.[0] || buildAvailabilityKey(track);
+    const existing = grouped.get(matchedKey);
+
+    if (!existing) {
+      grouped.set(matchedKey, { ...track, availableSources: [track.source] });
+      continue;
+    }
+
+    const nextSources = Array.from(
+      new Set([...(existing.availableSources || [existing.source]), track.source]),
+    ) as Track['availableSources'];
+    const preferredTrack =
+      existing.source === 'spotify'
+        ? existing
+        : track.source === 'spotify'
+          ? track
+          : existing;
+
+    grouped.set(matchedKey, {
+      ...preferredTrack,
+      availableSources: nextSources,
+    });
+  }
+
+  return Array.from(grouped.values());
+}
+
+function enrichOpenCatalogTracks(tracks: Track[]) {
+  return tracks.map((track) => ({
+    ...track,
+    resultOrigin: 'open' as const,
+    availableSources: undefined,
+  }));
+}
+
+async function queryProviderTracks(
+  query: string,
+  requestedSources: SearchHudProvider[],
+  options?: { silent?: boolean },
+) {
+  const diagnostics = createSearchDiagnostics(query, requestedSources);
+  if (requestedSources.length === 0) {
+    return {
+      tracks: [] as Track[],
+      diagnostics,
+    };
+  }
+
+  const deduped = new Map<string, Track>();
+  const [{ spotifyAdapter }, { soundcloudAdapter }] = await Promise.all([
+    import('./adapters/spotifyAdapter'),
+    import('./adapters/soundcloudAdapter'),
+  ]);
+
+  spotifyAdapter.setConnected(diagnostics.authSnapshot.spotify.connected);
+  soundcloudAdapter.setConnected(diagnostics.authSnapshot.soundcloud.connected);
+
+  const searches: Array<{ source: SearchHudProvider; promise: Promise<Track[]> }> = [];
+
+  if (requestedSources.includes('spotify')) {
+    if (!diagnostics.authSnapshot.spotify.connected) {
+      diagnostics.providers.spotify = {
+        ...diagnostics.providers.spotify,
+        state: 'unpatched',
+        code: 'NOT_CONNECTED',
+        message: 'Spotify is not connected in the current auth snapshot.',
+      };
+    } else {
+      searches.push({
+        source: 'spotify',
+        promise: spotifyAdapter.search(query, { ...options, rethrow: true }),
+      });
+    }
+  }
+
+  if (requestedSources.includes('soundcloud')) {
+    if (!diagnostics.authSnapshot.soundcloud.connected) {
+      diagnostics.providers.soundcloud = {
+        ...diagnostics.providers.soundcloud,
+        state: 'unpatched',
+        code: 'NOT_CONNECTED',
+        message: 'SoundCloud is not connected in the current auth snapshot.',
+      };
+    } else {
+      searches.push({
+        source: 'soundcloud',
+        promise: soundcloudAdapter.search(query, { ...options, rethrow: true }),
+      });
+    }
+  }
+
+  const settled = await Promise.allSettled(searches.map((entry) => entry.promise));
+  settled.forEach((entry, index) => {
+    const source = searches[index]?.source;
+    if (!source) return;
+
+    if (entry.status !== 'fulfilled') {
+      diagnostics.providers[source] = classifyProviderSearchFailure(
+        source,
+        diagnostics.authSnapshot[source].connected,
+        entry.reason,
+      );
+      return;
+    }
+
+    diagnostics.providers[source] = {
+      ...diagnostics.providers[source],
+      httpStatus: 200,
+      upstreamStatus: 200,
+      resultCount: entry.value.length,
+      state: entry.value.length > 0 ? 'direct' : 'empty',
+      code: entry.value.length > 0 ? 'DIRECT_RESULTS' : 'NO_RESULTS',
+      message: entry.value.length > 0 ? `${entry.value.length} direct matches returned.` : 'Provider returned zero direct matches.',
+    };
+
+    for (const track of entry.value) {
+      const key = `${track.source}:${track.sourceId || track.id}`;
+      if (!deduped.has(key)) {
+        deduped.set(key, track);
+      }
+    }
+  });
+
+  return { tracks: Array.from(deduped.values()), diagnostics };
+}
+
 export const searchApi = {
-  tracks: async (query: string) => {
+  tracks: async (query: string, sources?: SearchHudProvider[]): Promise<SearchTracksResponse> => {
+    const requestedSources = Array.from(new Set(sources || []));
+
     if (USE_MOCKS) {
       await mockDelay(200, 500);
       const filtered = mockSearchResults.filter(
@@ -380,22 +834,138 @@ export const searchApi = {
           t.title.toLowerCase().includes(query.toLowerCase()) ||
           t.artist.toLowerCase().includes(query.toLowerCase())
       );
-      return { tracks: filtered.length > 0 ? filtered : mockSearchResults };
+
+      const tracks = filtered.length > 0 ? filtered : mockSearchResults;
+      const diagnostics = createSearchDiagnostics(query, requestedSources);
+      if (requestedSources.includes('spotify')) {
+        diagnostics.providers.spotify = {
+          ...diagnostics.providers.spotify,
+          httpStatus: 200,
+          upstreamStatus: 200,
+          resultCount: tracks.filter((track) => track.source === 'spotify').length,
+          state: tracks.some((track) => track.source === 'spotify') ? 'direct' : 'empty',
+          code: tracks.some((track) => track.source === 'spotify') ? 'DIRECT_RESULTS' : 'NO_RESULTS',
+        };
+      }
+      if (requestedSources.includes('soundcloud')) {
+        diagnostics.providers.soundcloud = {
+          ...diagnostics.providers.soundcloud,
+          httpStatus: 200,
+          upstreamStatus: 200,
+          resultCount: tracks.filter((track) => track.source === 'soundcloud').length,
+          state: tracks.some((track) => track.source === 'soundcloud') ? 'direct' : 'empty',
+          code: tracks.some((track) => track.source === 'soundcloud') ? 'DIRECT_RESULTS' : 'NO_RESULTS',
+        };
+      }
+      diagnostics.directMatchCount = tracks.length;
+      logSearchTruth('searchApi.mock', diagnostics);
+      return {
+        tracks: tracks.map((track) => ({ ...track, resultOrigin: 'direct' as const })),
+        fallbackUsed: false,
+        providerStates: getProviderStatesFromDiagnostics(diagnostics.providers),
+        diagnostics,
+      };
     }
 
-    // Try connected streaming service first
+    if (requestedSources.length > 0) {
+      const { tracks: providerTracks, diagnostics } = await queryProviderTracks(query, requestedSources, { silent: true });
+      const directMatches = mergeAvailabilityTracks(providerTracks).map((track) => ({
+        ...track,
+        resultOrigin: 'direct' as const,
+      }));
+
+      const { searchItunes } = await import('./itunesSearch');
+      const fallbackCatalogTracks = await searchItunes(query).catch(() => []);
+      const fallbackTracks = enrichOpenCatalogTracks(fallbackCatalogTracks);
+      const uniqueFallbackTracks = fallbackTracks.filter((fallbackTrack) =>
+        !directMatches.some((directTrack) => tracksShareAvailabilityIdentity(directTrack, fallbackTrack)),
+      );
+
+      diagnostics.directMatchCount = directMatches.length;
+      diagnostics.openFallbackCount = uniqueFallbackTracks.length;
+      diagnostics.fallbackUsed = uniqueFallbackTracks.length > 0;
+      logSearchTruth('searchApi.providers', diagnostics);
+
+      return {
+        tracks: [...directMatches, ...uniqueFallbackTracks],
+        fallbackUsed: uniqueFallbackTracks.length > 0,
+        providerStates: getProviderStatesFromDiagnostics(diagnostics.providers),
+        diagnostics,
+      };
+    }
+
+    const diagnostics = createSearchDiagnostics(query, requestedSources);
+
     const { getActiveAdapter } = await import('./adapters/musicServiceAdapter');
     const adapter = getActiveAdapter(currentServices);
 
     if (adapter.isConnected()) {
       const tracks = await adapter.search(query);
-      if (tracks.length > 0) return { tracks };
+      if (tracks.length > 0) {
+        diagnostics.directMatchCount = tracks.length;
+        logSearchTruth('searchApi.default', diagnostics);
+        return {
+          tracks: tracks.map((track) => ({ ...track, resultOrigin: 'direct' as const })),
+          fallbackUsed: false,
+          providerStates: getProviderStatesFromDiagnostics(diagnostics.providers),
+          diagnostics,
+        };
+      }
     }
 
-    // Fallback: iTunes Search API — free, no auth, 30-sec previews
     const { searchItunes } = await import('./itunesSearch');
-    const tracks = await searchItunes(query);
-    return { tracks };
+    const tracks = (await searchItunes(query)).map((track) => ({
+      ...track,
+      resultOrigin: 'open' as const,
+    }));
+    diagnostics.openFallbackCount = tracks.length;
+    diagnostics.fallbackUsed = tracks.length > 0;
+    logSearchTruth('searchApi.default', diagnostics);
+    return {
+      tracks,
+      fallbackUsed: tracks.length > 0,
+      providerStates: getProviderStatesFromDiagnostics(diagnostics.providers),
+      diagnostics,
+    };
+  },
+
+  enrichTrackAvailability: async (
+    query: string,
+    tracks: Track[],
+    sources: SearchHudProvider[],
+  ) => {
+    if (tracks.length === 0 || sources.length === 0) {
+      return tracks;
+    }
+
+    const openTracks = tracks.filter((track) => track.resultOrigin === 'open');
+    if (openTracks.length === 0) {
+      return tracks;
+    }
+
+    const { tracks: providerTracks } = await queryProviderTracks(query, Array.from(new Set(sources)), { silent: true });
+    if (providerTracks.length === 0) {
+      return tracks;
+    }
+
+    const mergedProviderTracks = mergeAvailabilityTracks(providerTracks);
+    return tracks.map((track) => {
+      if (track.resultOrigin !== 'open') {
+        return track;
+      }
+
+      const matchingTrack = mergedProviderTracks.find((providerTrack) =>
+        tracksShareAvailabilityIdentity(providerTrack, track),
+      );
+      if (!matchingTrack?.availableSources?.length) {
+        return track;
+      }
+
+      return {
+        ...track,
+        availableSources: matchingTrack.availableSources,
+      };
+    });
   },
 
   sessions: async (query: string) => {
