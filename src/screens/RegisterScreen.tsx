@@ -1,285 +1,307 @@
-/**
- * Register Screen — New Signal Creation
- *
- * "Claim your frequency" — matches LoginScreen's
- * Modular Synthesis visual language.
- */
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
-  Alert,
+  Pressable,
   ScrollView,
-  Animated,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
-import { Text, Button, Input } from '../components/ui';
+import { Ionicons } from '@expo/vector-icons';
+import { Button, Input, SafeScreen } from '../components/ui';
+import { ManualPanel } from '../components/manual/ManualPanel';
 import { VoidSurface } from '../design/components';
 import { useAuth } from '../contexts/AuthContext';
-import { palette } from '../design/tokens/materials';
-import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
-import { spacing } from '../theme/spacing';
+import { useManualMode } from '../hooks/useManualMode';
+import { armWelcomeBoot, clearWelcomeBoot } from '../features/onboarding/welcomeBootState';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
 interface RegisterScreenProps {
   onSwitchToLogin: () => void;
 }
 
-/** Rising sawtooth waveform — "building your signal" */
-function SignalBuild() {
-  const pulseAnim = useRef(new Animated.Value(0.4)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 0.75,
-          duration: 2000,
-          useNativeDriver: false,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0.4,
-          duration: 2000,
-          useNativeDriver: false,
-        }),
-      ])
-    ).start();
-  }, [pulseAnim]);
-
-  return (
-    <View style={signalStyles.container}>
-      <Animated.View
-        style={[
-          signalStyles.glow,
-          {
-            opacity: pulseAnim,
-            transform: [{
-              scale: pulseAnim.interpolate({
-                inputRange: [0.4, 0.75],
-                outputRange: [0.9, 1.08],
-              }),
-            }],
-          },
-        ]}
-      />
-      {/* Sawtooth wave — ascending signal */}
-      <Svg width={160} height={40} viewBox="0 0 160 40" style={signalStyles.wave}>
-        <Path
-          d="M 0 36 L 20 4 L 20 36 L 40 4 L 40 36 L 60 4 L 60 36 L 80 4 L 80 36 L 100 4 L 100 36 L 120 4 L 120 36 L 140 4 L 140 36 L 160 4"
-          stroke={palette.orange}
-          strokeWidth={1.5}
-          fill="none"
-          opacity={0.7}
-        />
-      </Svg>
-    </View>
-  );
+function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+  return <Text {...props} />;
 }
-
-const signalStyles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 80,
-    marginBottom: spacing.sm,
-  },
-  glow: {
-    position: 'absolute',
-    width: 180,
-    height: 60,
-    borderRadius: 0,
-    backgroundColor: palette.orange,
-    shadowColor: palette.orange,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 40,
-    elevation: 12,
-    opacity: 0.06,
-  },
-  wave: {
-    zIndex: 1,
-  },
-});
 
 export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
   const { register } = useAuth();
+  const { readManual } = useManualMode();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  function validate(): boolean {
-    const newErrors: Record<string, string> = {};
-    if (!username.trim()) newErrors.username = 'Pick a handle';
-    if (username.length < 3) newErrors.username = 'At least 3 characters';
-    if (!email.trim()) newErrors.email = 'Email required';
-    if (!email.includes('@')) newErrors.email = 'Invalid email';
-    if (!password) newErrors.password = 'Password required';
-    if (password.length < 6) newErrors.password = 'At least 6 characters';
-    if (password !== confirmPassword) newErrors.confirmPassword = 'Signals don\'t match';
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }
+  const validate = () => {
+    const next: Record<string, string> = {};
+    if (!username.trim()) next.username = 'Pick a handle';
+    if (username.trim().length < 3) next.username = 'At least 3 characters';
+    if (!email.trim()) next.email = 'Email required';
+    if (!email.includes('@')) next.email = 'Invalid email';
+    if (!password) next.password = 'Password required';
+    if (password.length < 6) next.password = 'At least 6 characters';
+    if (password !== confirmPassword) next.confirmPassword = "Signals don't match";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
-  async function handleRegister() {
+  const handleRegister = async () => {
     if (!validate()) return;
+    setSubmitError(null);
     setLoading(true);
     try {
+      armWelcomeBoot();
       await register(username.trim(), email.trim(), password);
     } catch (error: any) {
-      Alert.alert('Signal lost', error.message || 'Something went wrong. Try again.');
+      clearWelcomeBoot();
+      setSubmitError((error?.message || 'Something went wrong. Try again.').toUpperCase());
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <VoidSurface style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+    <SafeScreen>
+      <VoidSurface style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          {/* Sawtooth brand mark */}
-          <SignalBuild />
+          <View style={styles.screen}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <TacticalGridBackground opacity={0.58} />
+            </View>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Text variant="labelSmall" color={palette.slate} style={styles.brandTag}>
-            FREQUEN-C
-          </Text>
-          <Text variant="h1" color={palette.frost}>
-            Claim your frequency.
-          </Text>
-          <Text variant="body" color={palette.silver} style={styles.subtitle}>
-            Build your signal chain from scratch.
-          </Text>
-        </View>
+            <ScrollView
+              contentContainerStyle={styles.content}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.signalPlate}>
+                <View style={styles.signalRise} />
+                <View style={styles.signalRiseTall} />
+                <View style={styles.signalRiseMax} />
+              </View>
 
-        {/* Form */}
-        <View style={styles.form}>
-          <Input
-            label="Handle"
-            placeholder="What should people call you?"
-            value={username}
-            onChangeText={setUsername}
-            error={errors.username}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="next"
-            accessibilityLabel="Username or handle input"
-          />
-          <Input
-            label="Email"
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            error={errors.email}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="next"
-            accessibilityLabel="Email address input"
-          />
-          <Input
-            label="Password"
-            placeholder="At least 6 characters"
-            value={password}
-            onChangeText={setPassword}
-            error={errors.password}
-            secureTextEntry
-            returnKeyType="next"
-            accessibilityLabel="Password input"
-          />
-          <Input
-            label="Confirm"
-            placeholder="Match your signal"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            error={errors.confirmPassword}
-            secureTextEntry
-            returnKeyType="done"
-            onSubmitEditing={handleRegister}
-            accessibilityLabel="Confirm password input"
-          />
+              <View style={styles.header}>
+                <MonoText style={[styles.mono, styles.eyebrow]}>SYS.FREQ // AUTH BUS</MonoText>
+                <MonoText style={[styles.display, styles.title]}>GENERATE SIGNAL</MonoText>
+                <MonoText style={[styles.mono, styles.subtitle]}>
+                  Claim your frequency, cut a clean profile, and arm the room flow.
+                </MonoText>
+              </View>
 
-          <Button
-            title="Generate Signal"
-            onPress={handleRegister}
-            loading={loading}
-            fullWidth
-            size="lg"
-            style={styles.submitButton}
-          />
-        </View>
+              {readManual ? (
+                <ManualPanel
+                  contextLabel="AUTH BUS"
+                  variant="compact"
+                  style={styles.manualRailInline}
+                  title="ACCOUNT SETUP"
+                  subtitle="Use this once to create a profile, then the app will route you into the main entry flow."
+                  steps={[
+                    { tag: 'HANDLE', text: 'Your handle is the public identity other users will see in rooms.' },
+                    { tag: 'EMAIL', text: 'Email becomes the recovery and login route for the profile.' },
+                    { tag: 'CLAIM', text: 'Claim Frequency creates the account and moves you into the app.' },
+                  ]}
+                  callouts={[
+                    { label: 'HANDLE', value: 'Shown publicly in rooms, queue badges, and profile surfaces.' },
+                    { label: 'EMAIL', value: 'Used for future login and recovery.' },
+                  ]}
+                  footer="If you already have an account, switch to Patch In instead of creating a new one."
+                />
+              ) : null}
 
-        {/* Switch to login */}
-        <View style={styles.footer}>
-          <Text variant="body" color={palette.slate}>
-            Already patched in?{' '}
-          </Text>
-          <TouchableOpacity onPress={onSwitchToLogin} accessibilityRole="button" accessibilityLabel="Reconnect, switch to login">
-            <Text variant="body" color={palette.orange}>
-              Reconnect
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <View style={styles.panel}>
+                <Input
+                  label="HANDLE"
+                  placeholder="What should people call you?"
+                  value={username}
+                  onChangeText={setUsername}
+                  error={errors.username}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  accessibilityLabel="Username or handle input"
+                />
+                <Input
+                  label="EMAIL"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  error={errors.email}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  accessibilityLabel="Email address input"
+                />
+                <Input
+                  label="PASSWORD"
+                  placeholder="At least 6 characters"
+                  value={password}
+                  onChangeText={setPassword}
+                  error={errors.password}
+                  secureTextEntry
+                  returnKeyType="next"
+                  accessibilityLabel="Password input"
+                />
+                <Input
+                  label="CONFIRM"
+                  placeholder="Match your signal"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  error={errors.confirmPassword}
+                  secureTextEntry
+                  returnKeyType="done"
+                  onSubmitEditing={handleRegister}
+                  accessibilityLabel="Confirm password input"
+                />
 
-        {/* Build tag */}
-        <Text variant="labelSmall" color={palette.slate} style={styles.buildTag}>
-          DESN 374-040
-        </Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </VoidSurface>
+                {submitError ? (
+                  <View style={styles.errorRail}>
+                    <Ionicons name="warning-outline" size={16} color={tacticalTokens.colors.orange} />
+                    <MonoText style={[styles.mono, styles.errorText]}>{submitError}</MonoText>
+                  </View>
+                ) : null}
+
+                <Button
+                  title="CLAIM FREQUENCY"
+                  onPress={handleRegister}
+                  loading={loading}
+                  fullWidth
+                  size="lg"
+                  style={styles.submitButton}
+                />
+              </View>
+
+              <View style={styles.switchRow}>
+                <MonoText style={[styles.mono, styles.switchCopy]}>ALREADY PATCHED IN?</MonoText>
+                <Pressable onPress={onSwitchToLogin} style={({ pressed }) => [pressed && styles.pressed]}>
+                  <MonoText style={[styles.monoBold, styles.switchAction]}>RECONNECT</MonoText>
+                </Pressable>
+              </View>
+
+              <MonoText style={[styles.mono, styles.buildTag]}>DESN 374-040</MonoText>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </VoidSurface>
+    </SafeScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
+  screen: { flex: 1 },
+  content: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: spacing.screenPadding,
-    paddingVertical: spacing['2xl'],
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+  },
+  pressed: { opacity: 0.82 },
+  mono: { fontFamily: tacticalTokens.fonts.mono },
+  monoBold: { fontFamily: tacticalTokens.fonts.monoBold },
+  display: { fontFamily: tacticalTokens.fonts.display },
+  signalPlate: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  signalRise: {
+    width: 22,
+    height: 24,
+    backgroundColor: tacticalTokens.colors.white,
+  },
+  signalRiseTall: {
+    width: 22,
+    height: 42,
+    backgroundColor: tacticalTokens.colors.ice,
+  },
+  signalRiseMax: {
+    width: 22,
+    height: 58,
+    backgroundColor: tacticalTokens.colors.orange,
   },
   header: {
-    marginBottom: spacing.xl,
+    marginBottom: 20,
   },
-  brandTag: {
-    marginBottom: spacing.sm,
-    letterSpacing: ls.ultraWide,
+  eyebrow: {
+    fontSize: 10,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 2,
+  },
+  title: {
+    marginTop: 2,
+    fontSize: 32,
+    color: tacticalTokens.colors.white,
   },
   subtitle: {
-    marginTop: spacing.sm,
+    marginTop: 4,
+    fontSize: 12,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 20,
   },
-  form: {
-    marginBottom: spacing.xl,
+  manualRailInline: {
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  panel: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(8, 8, 8, 0.94)',
+    padding: 16,
+  },
+  errorRail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: '#1A120D',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 10,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.2,
   },
   submitButton: {
-    marginTop: spacing.sm,
+    marginTop: 12,
   },
-  footer: {
+  switchRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 8,
+    marginTop: 20,
+  },
+  switchCopy: {
+    fontSize: 10,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.4,
+  },
+  switchAction: {
+    fontSize: 10,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 1.5,
   },
   buildTag: {
+    marginTop: 24,
     textAlign: 'center',
-    marginTop: spacing['2xl'],
-    opacity: 0.3,
-    letterSpacing: ls.wider,
     fontSize: 9,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 2,
+    opacity: 0.5,
   },
 });
 

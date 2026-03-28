@@ -9,25 +9,31 @@
  *
  * Queue is a pull-up bottom sheet, not inline.
  * CV/Power Moves accessible via CV pill expansion.
+ *
+ * Session Room V2 guardrails:
+ * - Keep room overlays on the tactical V2 path; do not reintroduce legacy OverflowMenu/RoomSettingsPanel or native Alert-based room prompts.
+ * - Queue adds are intentionally free in-room. CV is reserved for Power Routing and special room mechanics, not baseline queueing.
+ * - Presence stays compact at the top; only the listener count pill should open the roster drawer.
+ * - New room overlays must be folded into `closeTransientPanels()` so broad touch blockers never stack.
  */
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, StyleSheet, TouchableOpacity,
-  Alert, Share, Keyboard, Modal, Platform,
-  ScrollView, Dimensions, Image, Animated,
+  Share, Keyboard, Modal, Platform,
+  ScrollView, Dimensions, Image, Animated, Text as RNText,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen, RoomModeBadge, ErrorState } from '../components/ui';
+import { Text, SafeScreen, RoomModeBadge, ErrorState, showToast } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import api, { searchApi } from '../services/api';
 import {
   addToQueue, voteTrack, sendReaction, skipTrack, removeTrack, voteSkip, trackEnded,
   approveTrackEvent, rejectTrackEvent, changeModeEvent, endSessionEvent,
   updateBehaviors, spendCV, duelVote, submitForecast, phantomPower,
-  overdrive, phaseCancel, listenHeartbeat, joinSession, leaveSession,
+  overdrive, phaseCancel, listenHeartbeat, joinSession, leaveSession, startForecast, startDuel,
   onSessionEvent
 } from '../services/socket';
 import {
@@ -39,7 +45,7 @@ import {
   togglePlayPause, type PlaybackState,
 } from '../services/playbackEngine';
 import { USE_MOCKS } from '../services/config';
-import { JoinLeaveToast, type ToastMessage } from '../components/ListenerPresence';
+import { JoinLeaveToast, ListenerDrawer, type ToastMessage } from '../components/ListenerPresence';
 import { ChatPanel } from '../components/ChatPanel';
 import { useSearch } from '../hooks/useSearch';
 import { useRecentSearches } from '../hooks/useRecentSearches';
@@ -47,7 +53,7 @@ import { useActiveSession } from '../contexts/ActiveSessionContext';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
 
 import { spacing } from '../theme/spacing';
-import { tapMedium, tapLight, tapHeavy, notifySuccess } from '../utils/haptics';
+import { tapMedium, tapLight, tapHeavy, notifyError, notifySuccess, notifyWarning } from '../utils/haptics';
 // ─── Design System: Rack × Chrome visual language ──────────
 import { VoidSurface, ModuleFaceplate, LEDReadout, ChromeButton, StatusLight } from '../design/components';
 import { palette } from '../design/tokens/materials';
@@ -55,7 +61,7 @@ import { colors } from '../design/tokens/colors';
 import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
 import { notifyParticipantJoined, notifyTrackChanged } from '../services/notifications';
 import {
-  OverflowMenu, GameLayerOverlays, RoomSettingsPanel,
+  GameLayerOverlays,
   type DuelState, type ForecastState, type ResonanceState, type TransientState, type ReverbTailEntry,
 } from '../components/room';
 import type { Session, QueueTrack, Track, RoomMode, Listener, RoomBehaviors } from '../types';
@@ -75,6 +81,7 @@ import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { useCV } from '../hooks/useCV';
 import { useVoltageSag } from '../hooks/useVoltageSag';
 import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
+import PowerRoutingSheet, { type PowerMove, type PowerMoveId } from '../features/power-routing/PowerRoutingSheet';
 import { buildTacticalReadout } from '../features/session-v2/adapters/buildTacticalReadout';
 import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
 import TacticalRoomHeader from '../features/session-v2/components/TacticalRoomHeader';
@@ -84,14 +91,21 @@ import TacticalTrackMeta from '../features/session-v2/components/TacticalTrackMe
 import TacticalWaveform from '../features/session-v2/components/TacticalWaveform';
 import TacticalTransportDeck from '../features/session-v2/components/TacticalTransportDeck';
 import TacticalReactionMatrix from '../features/session-v2/components/TacticalReactionMatrix';
+import TacticalSystemPreferencesPanel from '../features/session-v2/components/TacticalSystemPreferencesPanel';
+import TacticalActionPrompt from '../features/session-v2/components/TacticalActionPrompt';
 import SignalChainSheetV2 from '../features/session-v2/components/SignalChainSheetV2';
 import SearchHudOverlay from '../features/search-hud/SearchHudOverlay';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
 type SocketReactionType = "fire" | "vibe" | "skip";
 
 const isValidReaction = (type: string): type is SocketReactionType => {
   return ["fire", "vibe", "skip"].includes(type);
 };
+
+type PendingPowerPrompt =
+  | { type: 'overdrive'; trackId: string }
+  | { type: 'phase_cancel' };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ALBUM_ART_SIZE = SCREEN_WIDTH - 48;
@@ -125,12 +139,16 @@ export function SessionRoomScreen() {
 
   const [chatOpen, setChatOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [listenerDrawerOpen, setListenerDrawerOpen] = useState(false);
+  const [sharePromptOpen, setSharePromptOpen] = useState(false);
+  const [leavePromptOpen, setLeavePromptOpen] = useState(false);
+  const [pendingPowerPrompt, setPendingPowerPrompt] = useState<PendingPowerPrompt | null>(null);
 
   const {
     session, setSession,
     queue, setQueue,
     suggestedQueue, setSuggestedQueue,
-    playedHistory, loading,
+    playedHistory, loading, error, retrySession,
     listeners, setListeners,
     toasts, setToasts,
     playback, setPlayback,
@@ -147,8 +165,8 @@ export function SessionRoomScreen() {
 
   // ─── Bottom sheet & overflow state ─────────────────────────
   const [queueSheetOpen, setQueueSheetOpen] = useState(false);
-  const [overflowOpen, setOverflowOpen] = useState(false);
-  const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
+  const [systemPreferencesOpen, setSystemPreferencesOpen] = useState(false);
+  const [powerRoutingOpen, setPowerRoutingOpen] = useState(false);
   const [searchInSheet, setSearchInSheet] = useState(false);
   const [searchHudOpen, setSearchHudOpen] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -182,10 +200,23 @@ export function SessionRoomScreen() {
   const cv = useCV();
 
   // Crossfader Duel
-  const [duelState, setDuelState] = useState<DuelState>({ active: false, trackA: null, trackB: null, votes: { a: 0, b: 0 }, timeRemaining: 0, totalTime: 0, userVote: null });
+  const [duelState, setDuelState] = useState<DuelState>({
+    active: false,
+    trackA: null,
+    trackB: null,
+    votes: { a: 0, b: 0 },
+    timeRemaining: 0,
+    totalTime: 0,
+    userVote: null,
+    lockedVotes: {},
+  });
 
   // Frequency Forecast
   const [forecastState, setForecastState] = useState<ForecastState>({ active: false, candidates: [], reward: 0, timeRemaining: 0, userPick: null, lastResult: null });
+  const duelDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const forecastDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const duelOptimisticStartRef = useRef(false);
+  const forecastOptimisticStartRef = useRef(false);
 
   // Phase 6: Lyrics
   const [lyricsVisible, setLyricsVisible] = useState(false);
@@ -210,8 +241,142 @@ export function SessionRoomScreen() {
   const [sessionStartTime] = useState(Date.now());
 
 
-  const { query, setQuery, results, isSearching, clearSearch } = useSearch();
+  const { query, setQuery, sources, setSources, results, fallbackUsed, providerStates, diagnostics, isSearching, clearSearch } = useSearch();
   const { searches: recentSearches, addSearch: saveRecentSearch, removeSearch: removeRecentSearch } = useRecentSearches();
+
+  const resetDuelState = useCallback(() => {
+    duelOptimisticStartRef.current = false;
+    setDuelState({
+      active: false,
+      trackA: null,
+      trackB: null,
+      votes: { a: 0, b: 0 },
+      timeRemaining: 0,
+      totalTime: 0,
+      userVote: null,
+      lockedVotes: {},
+    });
+  }, []);
+
+  const dismissDuelOverlay = useCallback(() => {
+    if (duelDismissTimerRef.current) {
+      clearTimeout(duelDismissTimerRef.current);
+      duelDismissTimerRef.current = null;
+    }
+    resetDuelState();
+  }, [resetDuelState]);
+
+  const resetForecastState = useCallback(() => {
+    forecastOptimisticStartRef.current = false;
+    setForecastState({
+      active: false,
+      candidates: [],
+      reward: 0,
+      timeRemaining: 0,
+      userPick: null,
+      lastResult: null,
+    });
+  }, []);
+
+  const dismissForecastOverlay = useCallback(() => {
+    if (forecastDismissTimerRef.current) {
+      clearTimeout(forecastDismissTimerRef.current);
+      forecastDismissTimerRef.current = null;
+    }
+    resetForecastState();
+  }, [resetForecastState]);
+
+  const armDuelOverlay = useCallback((trackA: QueueTrack, trackB: QueueTrack, duration: number) => {
+    if (duelDismissTimerRef.current) {
+      clearTimeout(duelDismissTimerRef.current);
+      duelDismissTimerRef.current = null;
+    }
+    setDuelState((prev) => {
+      const sameMatch =
+        prev.active &&
+        prev.trackA?.id === trackA.id &&
+        prev.trackB?.id === trackB.id;
+
+      return {
+        active: true,
+        trackA,
+        trackB,
+        votes: sameMatch ? prev.votes : { a: 0, b: 0 },
+        timeRemaining: duration,
+        totalTime: duration,
+        userVote: sameMatch ? prev.userVote : null,
+        lockedVotes: sameMatch ? prev.lockedVotes : {},
+      };
+    });
+  }, []);
+
+  const armForecastOverlay = useCallback((candidates: QueueTrack[], reward: number, duration: number) => {
+    if (forecastDismissTimerRef.current) {
+      clearTimeout(forecastDismissTimerRef.current);
+      forecastDismissTimerRef.current = null;
+    }
+    setForecastState((prev) => {
+      const sameCandidateIds =
+        prev.active &&
+        prev.candidates.length === candidates.length &&
+        prev.candidates.every((candidate, index) => candidate.id === candidates[index]?.id);
+
+      return {
+        active: true,
+        candidates,
+        reward,
+        timeRemaining: duration,
+        userPick: sameCandidateIds ? prev.userPick : null,
+        lastResult: null,
+      };
+    });
+  }, []);
+
+  const applyDuelQueueResult = useCallback((winnerId: string, loserId: string) => {
+    setQueue((prev) => {
+      if (prev.length === 0) return prev;
+      const current = prev[0] || null;
+      const challengers = prev.slice(1);
+      const winner = challengers.find((track) => track.id === winnerId) || null;
+      const remaining = challengers.filter((track) => track.id !== winnerId && track.id !== loserId);
+
+      if (current) {
+        return winner ? [current, winner, ...remaining] : [current, ...remaining];
+      }
+
+      return winner ? [winner, ...remaining] : remaining;
+    });
+  }, []);
+
+  const finalizeDuel = useCallback((
+    winner: 'a' | 'b',
+    trackA: QueueTrack,
+    trackB: QueueTrack,
+    votes: { a: number; b: number },
+  ) => {
+    const winnerTrack = winner === 'a' ? trackA : trackB;
+    const loserTrack = winner === 'a' ? trackB : trackA;
+
+    applyDuelQueueResult(winnerTrack.id, loserTrack.id);
+    setDuelState((prev) => ({
+      ...prev,
+      active: true,
+      trackA,
+      trackB,
+      votes,
+      timeRemaining: 0,
+      totalTime: prev.totalTime || 18,
+    }));
+    showToast(`${winnerTrack.title} won the duel. ${loserTrack.title} dropped.`, 'success', '!');
+
+    if (duelDismissTimerRef.current) {
+      clearTimeout(duelDismissTimerRef.current);
+    }
+    duelDismissTimerRef.current = setTimeout(() => {
+      resetDuelState();
+      duelDismissTimerRef.current = null;
+    }, 2400);
+  }, [applyDuelQueueResult, resetDuelState]);
 
 
 
@@ -292,6 +457,147 @@ export function SessionRoomScreen() {
     return () => clearTimeout(timer);
   }, [session?.id]);
 
+  useEffect(() => {
+    const unsubs = [
+      onSessionEvent('duel:start', (data) => {
+        armDuelOverlay(data.trackA, data.trackB, data.duration);
+        tapLight();
+        if (duelOptimisticStartRef.current) {
+          duelOptimisticStartRef.current = false;
+        } else {
+          showToast('Crossfader Duel is live. Lock a side.', 'info', '!');
+        }
+      }),
+      onSessionEvent('duel:vote', (data) => {
+        setDuelState((prev) => {
+          if (!prev.active || prev.lockedVotes[data.userId]) return prev;
+          return {
+            ...prev,
+            votes: {
+              a: prev.votes.a + (data.side === 'a' ? 1 : 0),
+              b: prev.votes.b + (data.side === 'b' ? 1 : 0),
+            },
+            lockedVotes: {
+              ...prev.lockedVotes,
+              [data.userId]: data.side,
+            },
+            userVote: data.userId === user?.id ? data.side : prev.userVote,
+          };
+        });
+      }),
+      onSessionEvent('duel:end', (data) => {
+        if (duelDismissTimerRef.current) return;
+        duelOptimisticStartRef.current = false;
+        finalizeDuel(data.winner, data.trackA, data.trackB, data.votes);
+      }),
+      onSessionEvent('forecast:start', (data) => {
+        armForecastOverlay(data.candidates, data.reward, data.duration);
+        tapLight();
+        if (forecastOptimisticStartRef.current) {
+          forecastOptimisticStartRef.current = false;
+        } else {
+          showToast('Frequency Forecast is live. Lock your prediction.', 'info', '!');
+        }
+      }),
+      onSessionEvent('forecast:result', (data) => {
+        if (forecastDismissTimerRef.current) return;
+        forecastOptimisticStartRef.current = false;
+        setForecastState((prev) => {
+          const predicted = data.predictions[user?.id || ''] || prev.userPick;
+          return {
+            ...prev,
+            timeRemaining: 0,
+            lastResult: predicted
+              ? {
+                  predicted,
+                  actual: data.winnerId,
+                  correct: predicted === data.winnerId,
+                  earned: predicted === data.winnerId ? prev.reward : 0,
+                }
+              : null,
+          };
+        });
+        forecastDismissTimerRef.current = setTimeout(() => {
+          resetForecastState();
+          forecastDismissTimerRef.current = null;
+        }, 3200);
+      }),
+    ];
+
+    return () => {
+      unsubs.forEach((fn) => fn());
+      if (duelDismissTimerRef.current) {
+        clearTimeout(duelDismissTimerRef.current);
+        duelDismissTimerRef.current = null;
+      }
+      if (forecastDismissTimerRef.current) {
+        clearTimeout(forecastDismissTimerRef.current);
+        forecastDismissTimerRef.current = null;
+      }
+    };
+  }, [armDuelOverlay, armForecastOverlay, finalizeDuel, resetForecastState, user?.id]);
+
+  useEffect(() => {
+    if (!duelState.active || duelState.timeRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setDuelState((prev) =>
+        prev.active && prev.timeRemaining > 0
+          ? { ...prev, timeRemaining: prev.timeRemaining - 1 }
+          : prev,
+      );
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [duelState.active, duelState.timeRemaining]);
+
+  useEffect(() => {
+    if (!duelState.active || duelState.timeRemaining > 0) return;
+    if (duelDismissTimerRef.current || !duelState.trackA || !duelState.trackB) return;
+
+    const winner: 'a' | 'b' = duelState.votes.b > duelState.votes.a ? 'b' : 'a';
+    finalizeDuel(winner, duelState.trackA, duelState.trackB, duelState.votes);
+  }, [
+    duelState.active,
+    duelState.timeRemaining,
+    duelState.trackA,
+    duelState.trackB,
+    duelState.votes,
+    finalizeDuel,
+  ]);
+
+  useEffect(() => {
+    if (!forecastState.active || forecastState.timeRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setForecastState((prev) =>
+        prev.active && prev.timeRemaining > 0
+          ? { ...prev, timeRemaining: prev.timeRemaining - 1 }
+          : prev,
+      );
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [forecastState.active, forecastState.timeRemaining]);
+
+  useEffect(() => {
+    if (!forecastState.active || forecastState.timeRemaining > 0) return;
+    if (forecastState.lastResult || forecastDismissTimerRef.current) return;
+
+    const winnerId = forecastState.candidates[0]?.id || '';
+    setForecastState((prev) => ({
+      ...prev,
+      lastResult: prev.userPick
+        ? {
+            predicted: prev.userPick,
+            actual: winnerId,
+            correct: prev.userPick === winnerId,
+            earned: prev.userPick === winnerId ? prev.reward : 0,
+          }
+        : null,
+    }));
+    forecastDismissTimerRef.current = setTimeout(() => {
+      resetForecastState();
+      forecastDismissTimerRef.current = null;
+    }, 3200);
+  }, [forecastState.active, forecastState.timeRemaining, forecastState.lastResult, forecastState.candidates, resetForecastState]);
+
   // ─── Playback engine ────────────────────────────────────
   useEffect(() => {
     const unsub = onProgress((s) => setPlayback(s));
@@ -326,6 +632,8 @@ export function SessionRoomScreen() {
   }, [advanceQueue, sessionId]);
 
   // ─── Handlers ─────────────────────────────────────────
+  // Queueing is intentionally passive/free in Session V2.
+  // Do not attach CV spend, tactical prompts, or power-routing costs to baseline add-to-queue.
   const handleAddTrack = useCallback((track: Track) => {
     if (!user || !session) return false;
     if (!getGlobalLimiter().canDo('addTrack')) return false;
@@ -352,11 +660,13 @@ export function SessionRoomScreen() {
       if (data.tracks && data.tracks.length > 0) {
         handleAddTrack(data.tracks[0]);
       } else {
-        Alert.alert('Track Not Found', `Couldn't find "${title}" by ${artist} on Spotify.`);
+        notifyWarning();
+        showToast(`No match found for ${title} by ${artist}.`, 'warning', '!');
       }
     } catch (err: unknown) {
       console.warn('[AI Suggestion] Search failed:', err instanceof Error ? err.message : String(err));
-      Alert.alert('Error', 'Failed to search for suggested track.');
+      notifyError();
+      showToast('Failed to search suggested track.', 'error', '!');
     }
   }, [handleAddTrack]);
 
@@ -422,7 +732,8 @@ export function SessionRoomScreen() {
         voteSkip(sessionId);
         return;
       }
-      Alert.alert('Skip restricted', 'You don\'t have permission to skip in this room.');
+      notifyWarning();
+      showToast('Skip is restricted in this room.', 'warning', '!');
       return;
     }
     tapHeavy();
@@ -452,10 +763,48 @@ export function SessionRoomScreen() {
   const handleDuelVote = useCallback((side: 'a' | 'b') => {
     if (!user || !session) return;
     if (!getGlobalLimiter().canDo('duelVote')) return;
+    if (duelState.userVote) return;
     tapHeavy();
     setDuelState((prev) => ({ ...prev, userVote: side }));
     duelVote(sessionId, user.id, side);
-  }, [user, session, sessionId]);
+  }, [user, session, sessionId, duelState.userVote]);
+
+  const handleStartDuel = useCallback(() => {
+    if (!user || !session) return false;
+    const hostCanStartDuel = user.id === session.hostId;
+    const duelEnabled = (session.behaviors || DEFAULT_BEHAVIORS).duelEnabled;
+    const challengerA = queue[1];
+    const challengerB = queue[2];
+
+    if (!hostCanStartDuel) {
+      notifyWarning();
+      showToast('Only the host can start a duel.', 'warning', '!');
+      return false;
+    }
+    if (!duelEnabled) {
+      notifyWarning();
+      showToast('Enable Crossfader Duel in room settings first.', 'warning', '!');
+      return false;
+    }
+    if (duelState.active) {
+      notifyWarning();
+      showToast('A duel is already active in this room.', 'info', '!');
+      return false;
+    }
+    if (!challengerA || !challengerB || queue.length < 3) {
+      notifyWarning();
+      showToast('Need at least 3 queued tracks to launch a duel.', 'warning', '!');
+      return false;
+    }
+
+    tapMedium();
+
+    duelOptimisticStartRef.current = true;
+    armDuelOverlay(challengerA, challengerB, 18);
+    startDuel(sessionId, challengerA.id, challengerB.id, 18);
+    showToast('Duel armed. Lock a side.', 'info', '!');
+    return true;
+  }, [user, session, duelState.active, queue, sessionId, armDuelOverlay]);
 
   const handleForecastPick = useCallback((trackId: string) => {
     if (!user || !session) return;
@@ -465,11 +814,47 @@ export function SessionRoomScreen() {
     setForecastState((prev) => ({ ...prev, userPick: trackId }));
   }, [user, session, sessionId]);
 
+  const handleStartForecast = useCallback(() => {
+    if (!user || !session) return false;
+    const hostCanStartForecast = user.id === session.hostId;
+    const forecastEnabled = (session.behaviors || DEFAULT_BEHAVIORS).forecastEnabled;
+
+    if (!hostCanStartForecast) {
+      notifyWarning();
+      showToast('Only the host can start a forecast.', 'warning', '!');
+      return false;
+    }
+    if (!forecastEnabled) {
+      notifyWarning();
+      showToast('Enable Frequency Forecast in room settings first.', 'warning', '!');
+      return false;
+    }
+    if (forecastState.active) {
+      notifyWarning();
+      showToast('A forecast is already in progress.', 'info', '!');
+      return false;
+    }
+    if (queue.length < 2) {
+      notifyWarning();
+      showToast('Need at least 2 tracks in queue to forecast.', 'warning', '!');
+      return false;
+    }
+
+    tapMedium();
+
+    forecastOptimisticStartRef.current = true;
+    armForecastOverlay(queue.slice(0, Math.min(5, queue.length)), 2, 20);
+    startForecast(sessionId);
+    showToast('Forecast armed. Lock a prediction.', 'info', '!');
+    return true;
+  }, [user, session, forecastState.active, queue, sessionId, armForecastOverlay]);
+
   const handlePhantomPower = useCallback((trackId: string) => {
     if (!user || !session) return;
     if (!getGlobalLimiter().canDo('cvSpend')) return;
     if (!cv.canUse('phantom_power')) {
-      Alert.alert('Insufficient CV', 'You need 5 CV for Phantom Power.');
+      notifyWarning();
+      showToast('Need 5 CV for Phantom Power.', 'warning', '!');
       return;
     }
     tapHeavy();
@@ -486,53 +871,26 @@ export function SessionRoomScreen() {
     if (!user || !session) return;
     if (!getGlobalLimiter().canDo('cvSpend')) return;
     if (!cv.canUse('overdrive')) {
-      Alert.alert('Insufficient CV', 'You need 25 CV for Overdrive.');
+      notifyWarning();
+      showToast('Need 25 CV for Overdrive.', 'warning', '!');
       return;
     }
-    Alert.alert(
-      '⚡ Overdrive',
-      'Spend 25 CV to force this track to the top of the queue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Overdrive',
-          style: 'destructive',
-          onPress: () => {
-            tapHeavy();
-            cv.spend('overdrive');
-            overdrive(sessionId, trackId, user.id);
-          },
-        },
-      ],
-    );
+    setPendingPowerPrompt({ type: 'overdrive', trackId });
   }, [user, session, sessionId, cv]);
 
   const handlePhaseCancel = useCallback(() => {
     if (!user || !session) return;
     if (!getGlobalLimiter().canDo('cvSpend')) return;
     if (!cv.canUse('phase_cancel')) {
-      Alert.alert('Insufficient CV', 'You need 15 CV for Phase Cancel.');
+      notifyWarning();
+      showToast('Need 15 CV for Phase Cancel.', 'warning', '!');
       return;
     }
-    Alert.alert(
-      '🛡️ Phase Cancel',
-      'Spend 15 CV to block the next skip in this room?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Activate',
-          onPress: () => {
-            tapHeavy();
-            cv.spend('phase_cancel');
-            phaseCancel(sessionId, user.id);
-          },
-        },
-      ],
-    );
+    setPendingPowerPrompt({ type: 'phase_cancel' });
   }, [user, session, sessionId, cv]);
 
   // ─── CVPill power move dispatch ────────────────────────
-  const handlePowerMove = useCallback((moveType: string) => {
+  const handlePowerMove = useCallback((moveType: PowerMoveId) => {
     const track = queue[0]; // Power moves act on current track
     switch (moveType) {
       case 'overdrive':
@@ -551,14 +909,20 @@ export function SessionRoomScreen() {
   const [contextTrack, setContextTrack] = useState<QueueTrack | null>(null);
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
 
+  // Central authority for mutually-exclusive room overlays.
+  // Any new modal/panel introduced in SessionRoomScreen should be closed here before it is considered "safe" to render in-room.
   const closeTransientPanels = useCallback(() => {
     setQueueSheetOpen(false);
-    setOverflowOpen(false);
-    setRoomSettingsOpen(false);
+    setSystemPreferencesOpen(false);
+    setPowerRoutingOpen(false);
     setSearchInSheet(false);
     setSearchHudOpen(false);
     setChatOpen(false);
     setShowQR(false);
+    setListenerDrawerOpen(false);
+    setSharePromptOpen(false);
+    setLeavePromptOpen(false);
+    setPendingPowerPrompt(null);
     setContextMenuVisible(false);
     setLyricsVisible(false);
   }, []);
@@ -608,74 +972,61 @@ export function SessionRoomScreen() {
     changeModeEvent(sessionId, mode);
   }, [session, user, sessionId]);
 
+  // Share/leave now live on tactical prompts so the room flow stays visually consistent.
+  // Keep native OS UI only for the actual Share API handoff.
   const handleShare = useCallback(() => {
     if (!session) return;
-    Alert.alert('Share Room', 'How do you want to share?', [
-      { text: 'Show QR Code', onPress: () => setShowQR(true) },
-      {
-        text: 'Share Link',
-        onPress: () =>
-          Share.share({
-            message: `Join my Frequen-C room "${session.name}"!\nfrequenc://join/${session.joinCode}`,
-            url: `frequenc://join/${session.joinCode}`,
-          }),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setSharePromptOpen(true);
+  }, [session]);
+
+  const handleShareLink = useCallback(() => {
+    if (!session) return;
+    setSharePromptOpen(false);
+    void Share.share({
+      message: `Join my Frequen-C room "${session.name}"!\nfrequenc://join/${session.joinCode}`,
+      url: `frequenc://join/${session.joinCode}`,
+    });
   }, [session]);
 
   const handleCopyCode = useCallback(async () => {
     if (!session?.joinCode) return;
     await Clipboard.setStringAsync(session.joinCode);
     tapLight();
-    Alert.alert('Copied!', `Room code "${session.joinCode}" copied to clipboard.`);
+    showToast(`Room code ${session.joinCode} copied.`, 'success', '!');
   }, [session]);
 
   // ─── Leave / End Session ───────────────────────────────
   const handleLeaveRoom = useCallback(() => {
     if (!user || !session) return;
-    const userIsHost = user.id === session.hostId;
-
-    if (userIsHost) {
-      Alert.alert(
-        'End Session',
-        'This will close the room for everyone. Are you sure?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'End Session',
-            style: 'destructive',
-            onPress: () => {
-              tapHeavy();
-              endSessionEvent(sessionId);
-              clearActiveSession();
-              setConnectionId(null);
-              navigation.goBack();
-            },
-          },
-        ],
-      );
-    } else {
-      Alert.alert(
-        'Leave Room',
-        `Leave "${session.name}"?`,
-        [
-          { text: 'Stay', style: 'cancel' },
-          {
-            text: 'Leave',
-            style: 'destructive',
-            onPress: () => {
-              tapHeavy();
-              leaveSession(sessionId, user.id);
-              clearActiveSession();
-              setConnectionId(null);
-              navigation.goBack();
-            },
-          },
-        ],
-      );
-    }
+    setLeavePromptOpen(true);
   }, [user, session, sessionId, navigation, clearActiveSession]);
+
+  const handleConfirmLeaveRoom = useCallback(() => {
+    if (!user || !session) return;
+    setLeavePromptOpen(false);
+    tapHeavy();
+    if (user.id === session.hostId) {
+      endSessionEvent(sessionId);
+    } else {
+      leaveSession(sessionId, user.id);
+    }
+    clearActiveSession();
+    setConnectionId(null);
+    navigation.goBack();
+  }, [user, session, sessionId, navigation, clearActiveSession, setConnectionId]);
+
+  const handleConfirmPowerPrompt = useCallback(() => {
+    if (!user || !session || !pendingPowerPrompt) return;
+    tapHeavy();
+    if (pendingPowerPrompt.type === 'overdrive') {
+      cv.spend('overdrive');
+      overdrive(sessionId, pendingPowerPrompt.trackId, user.id);
+    } else {
+      cv.spend('phase_cancel');
+      phaseCancel(sessionId, user.id);
+    }
+    setPendingPowerPrompt(null);
+  }, [user, session, pendingPowerPrompt, cv, sessionId]);
 
   // ─── Search within queue sheet ─────────────────────────
   const handleCancelSearch = useCallback(() => {
@@ -688,6 +1039,64 @@ export function SessionRoomScreen() {
   const currentTrack: QueueTrack | null = queue[0] || null;
   const isHost = user?.id === session?.hostId;
   const sessionBehaviors = session?.behaviors || DEFAULT_BEHAVIORS;
+  const canStartDuel = !!isHost
+    && sessionBehaviors.duelEnabled
+    && !duelState.active
+    && queue.length >= 3;
+  const duelActionDescription = !isHost
+    ? 'Host-only head-to-head queue battles.'
+    : !sessionBehaviors.duelEnabled
+      ? 'Enable Crossfader Duel in Room Settings first.'
+      : duelState.active
+        ? 'A head-to-head battle is already active in this room.'
+        : queue.length < 3
+          ? 'Need at least 3 queued tracks so two challengers can battle behind the live track.'
+          : 'Launch a timed battle between the next two challengers in queue.';
+  const canStartForecast = !!isHost
+    && sessionBehaviors.forecastEnabled
+    && !forecastState.active
+    && queue.length >= 2;
+  const forecastActionDescription = !isHost
+    ? 'Host-only prediction rounds.'
+    : !sessionBehaviors.forecastEnabled
+      ? 'Enable Frequency Forecast in Room Settings first.'
+      : forecastState.active
+        ? 'A prediction round is already live in this room.'
+        : queue.length < 2
+          ? 'Need at least 2 tracks in queue to launch a forecast.'
+          : 'Launch a 20-second prediction round for the current queue.';
+  const powerRoutingMoves = useMemo<PowerMove[]>(() => {
+    const hasTrackTarget = !!currentTrack;
+    return [
+      {
+        id: 'phantom_power',
+        name: 'PHANTOM_PWR',
+        cost: 5,
+        description: hasTrackTarget
+          ? 'Inject +5 votes to the active track in this room.'
+          : 'Requires an active track in the room.',
+        variant: 'acid',
+        disabled: !hasTrackTarget,
+      },
+      {
+        id: 'phase_cancel',
+        name: 'PHASE_CANCEL',
+        cost: 15,
+        description: 'Block the next skip attempt. Guarantee your track plays.',
+        variant: 'ice',
+      },
+      {
+        id: 'overdrive',
+        name: 'OVERDRIVE',
+        cost: 25,
+        description: hasTrackTarget
+          ? 'Force the active room track to the top of the queue.'
+          : 'Requires an active track in the room.',
+        variant: 'hotPink',
+        disabled: !hasTrackTarget,
+      },
+    ];
+  }, [currentTrack]);
   const isApprovalMode = sessionBehaviors.requiresApproval;
   const canSkip = sessionBehaviors.skipAccess === 'anyone'
     || (sessionBehaviors.skipAccess === 'hostOnly' && isHost)
@@ -715,7 +1124,7 @@ export function SessionRoomScreen() {
   };
 
   // ─── Loading state ────────────────────────────────────
-  if (loading || !session) {
+  if (loading) {
     return (
       <SafeScreen>
         <VoidSurface style={{ flex: 1 }}>
@@ -746,6 +1155,19 @@ export function SessionRoomScreen() {
     );
   }
 
+  if (error || !session) {
+    return (
+      <SafeScreen>
+        <VoidSurface style={{ flex: 1 }}>
+          <ErrorState
+            message={error || 'Session bus unavailable.'}
+            onRetry={retrySession}
+          />
+        </VoidSurface>
+      </SafeScreen>
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════
   // ─── RENDER: Player-First Layout ──────────────────────────
   // ═══════════════════════════════════════════════════════════
@@ -753,8 +1175,10 @@ export function SessionRoomScreen() {
   return (
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
-        <View style={{ flex: 1 }}>
-          <TacticalGridBackground />
+        <View style={{ flex: 1 }} pointerEvents="box-none">
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <TacticalGridBackground />
+          </View>
           {/* ─── Connection Status ──────────────────────── */}
           <OfflineBanner visible={!isConnected} />
           <ConnectionBanner />
@@ -774,7 +1198,7 @@ export function SessionRoomScreen() {
             onBack={() => navigation.goBack()}
             onSettingsPress={() => {
               closeTransientPanels();
-              setOverflowOpen(true);
+              setSystemPreferencesOpen(true);
             }}
           />
 
@@ -783,17 +1207,32 @@ export function SessionRoomScreen() {
             hostId={session.hostId}
             currentUserId={user?.id}
             currentUsername={user?.username}
-            onPress={() => {}}
+            // Keep the broad top strip passive; only the count pill should open the roster drawer.
+            onPress={() => {
+              closeTransientPanels();
+              setListenerDrawerOpen(true);
+            }}
           />
 
           {/* ═══ SCROLLABLE PLAYER CONTENT ═════════════════ */}
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={styles.tacticalPlayerContent}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={[
+              styles.tacticalPlayerContent,
+              !currentTrack && styles.tacticalPlayerContentIdle,
+            ]}
             showsVerticalScrollIndicator={false}
           >
             <TacticalAlbumHero track={currentTrack} readout={readout} />
-            <TacticalTrackMeta track={currentTrack} />
+            <TacticalTrackMeta
+              track={currentTrack}
+              voltage={cv.balance}
+              onOpenPowerRouting={() => {
+                closeTransientPanels();
+                setPowerRoutingOpen(true);
+              }}
+            />
             <TacticalWaveform
               trackId={currentTrack?.id}
               elapsed={playback.elapsed}
@@ -845,6 +1284,7 @@ export function SessionRoomScreen() {
               searchInSheet={searchInSheet}
               query={query}
               results={results}
+              searchFallbackUsed={fallbackUsed}
               isSearching={isSearching}
               recentSearches={recentSearches}
               isHost={isHost}
@@ -852,7 +1292,6 @@ export function SessionRoomScreen() {
               keyboardHeight={keyboardHeight}
               onClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
               onOpenSearch={() => {
-                setQueueSheetOpen(false);
                 setSearchInSheet(false);
                 setSearchHudOpen(true);
               }}
@@ -860,6 +1299,7 @@ export function SessionRoomScreen() {
               onQueryChange={setQuery}
               onSelectMode={handleSelectMode}
               onAddTrack={handleAddTrack}
+              onAddSuggestion={handleAddSuggestion}
               onVote={handleVote}
               onApproveTrack={handleApproveTrack}
               onRejectTrack={handleRejectTrack}
@@ -869,60 +1309,71 @@ export function SessionRoomScreen() {
             />
           )}
 
-          {/* ═══ SEARCH HUD OVERLAY (Never Leave the Room) ═══ */}
           {searchHudOpen && (
             <SearchHudOverlay
               visible
               query={query}
               onQueryChange={setQuery}
+              sources={sources}
+              onSourcesChange={setSources}
               results={results}
+              fallbackUsed={fallbackUsed}
+              providerStates={providerStates}
+              diagnostics={diagnostics}
               isSearching={isSearching}
               queuedTrackIds={queue.map((t) => t.id)}
               onClose={() => setSearchHudOpen(false)}
               onPatchTrack={(track) => {
                 handleAddTrack(track);
-                setSearchHudOpen(false);
               }}
+              onAddSuggestion={handleAddSuggestion}
             />
           )}
 
-          {/* ═══ OVERFLOW BOTTOM SHEET ═════════════════════ */}
-          {overflowOpen && (
-            <OverflowMenu
+          {/* ═══ SYSTEM PREFERENCES PANEL V2 ═══════════════ */}
+          {systemPreferencesOpen && (
+            <TacticalSystemPreferencesPanel
               visible
-              joinCode={session.joinCode}
               isHost={isHost}
               hasCurrentTrack={!!currentTrack}
-              onClose={() => setOverflowOpen(false)}
+              roomCode={session.joinCode}
+              behaviors={sessionBehaviors}
+              onClose={() => setSystemPreferencesOpen(false)}
               onShare={handleShare}
               onCopyCode={handleCopyCode}
-              onChatOpen={() => {
+              onOpenChat={() => {
                 closeTransientPanels();
                 setChatOpen(true);
               }}
-              onLyricsOpen={() => {
+              onOpenLyrics={() => {
                 closeTransientPanels();
                 setLyricsVisible(true);
               }}
-              onQRShow={() => {
+              onShowQrCode={() => {
                 closeTransientPanels();
                 setShowQR(true);
               }}
               onLeaveRoom={handleLeaveRoom}
-              onRoomSettings={() => {
-                closeTransientPanels();
-                setRoomSettingsOpen(true);
-              }}
+              duelActionEnabled={canStartDuel}
+              duelActionDescription={duelActionDescription}
+              onStartDuel={handleStartDuel}
+              canStartForecast={canStartForecast}
+              forecastActionDescription={forecastActionDescription}
+              onStartForecast={handleStartForecast}
+              onUpdateBehaviors={handleUpdateBehaviors}
             />
           )}
 
-          {/* ═══ ROOM SETTINGS PANEL (host only) ════════════ */}
-          {isHost && roomSettingsOpen && (
-            <RoomSettingsPanel
+          {powerRoutingOpen && (
+            <PowerRoutingSheet
               visible
-              behaviors={sessionBehaviors}
-              onClose={() => setRoomSettingsOpen(false)}
-              onUpdateBehaviors={handleUpdateBehaviors}
+              voltage={cv.balance}
+              moves={powerRoutingMoves}
+              onClose={() => setPowerRoutingOpen(false)}
+              onExecute={(moveId) => {
+                setPowerRoutingOpen(false);
+                handlePowerMove(moveId);
+              }}
             />
           )}
 
@@ -948,27 +1399,146 @@ export function SessionRoomScreen() {
             />
           )}
 
+          {listenerDrawerOpen && (
+            <ListenerDrawer
+              visible
+              listeners={listeners}
+              hostId={session.hostId}
+              onClose={() => setListenerDrawerOpen(false)}
+            />
+          )}
+
+          {sharePromptOpen && (
+            <TacticalActionPrompt
+              visible
+              eyebrow="SYS.FREQ // SHARE BUS"
+              title="SHARE ROOM"
+              description="Distribute the room link or open an in-room QR handoff."
+              onClose={() => setSharePromptOpen(false)}
+              actions={[
+                {
+                  label: 'Show QR Code',
+                  description: 'Display the room join code as a tactical QR overlay.',
+                  icon: 'qr-code-outline',
+                  onPress: () => {
+                    setSharePromptOpen(false);
+                    setShowQR(true);
+                  },
+                },
+                {
+                  label: 'Share Link',
+                  description: 'Open the native share sheet with the room deep link.',
+                  icon: 'share-social-outline',
+                  onPress: handleShareLink,
+                },
+              ]}
+            />
+          )}
+
+          {leavePromptOpen && (
+            <TacticalActionPrompt
+              visible
+              eyebrow={user?.id === session.hostId ? 'SYS.FREQ // HOST EXIT' : 'SYS.FREQ // EXIT BUS'}
+              title={user?.id === session.hostId ? 'END SESSION' : 'LEAVE ROOM'}
+              description={
+                user?.id === session.hostId
+                  ? 'This will close the room for everyone and terminate the active session.'
+                  : `Exit "${session.name}" and return to the room list.`
+              }
+              onClose={() => setLeavePromptOpen(false)}
+              actions={[
+                {
+                  label: user?.id === session.hostId ? 'Stay Online' : 'Stay In Room',
+                  description: 'Dismiss this prompt and continue in the session.',
+                  icon: 'arrow-undo-outline',
+                  onPress: () => setLeavePromptOpen(false),
+                },
+                {
+                  label: user?.id === session.hostId ? 'End Session' : 'Leave Room',
+                  description: user?.id === session.hostId
+                    ? 'Close the room for everyone connected right now.'
+                    : 'Disconnect from this session and leave the room.',
+                  icon: 'exit-outline',
+                  tone: 'danger',
+                  onPress: handleConfirmLeaveRoom,
+                },
+              ]}
+            />
+          )}
+
+          {pendingPowerPrompt && (
+            <TacticalActionPrompt
+              visible
+              eyebrow={pendingPowerPrompt.type === 'overdrive' ? 'SYS.FREQ // POWER ROUTE' : 'SYS.FREQ // SHIELD BUS'}
+              title={pendingPowerPrompt.type === 'overdrive' ? 'CONFIRM OVERDRIVE' : 'CONFIRM PHASE CANCEL'}
+              description={
+                pendingPowerPrompt.type === 'overdrive'
+                  ? 'Spend 25 CV to force the targeted track to the top of the queue.'
+                  : 'Spend 15 CV to block the next skip in this room.'
+              }
+              onClose={() => setPendingPowerPrompt(null)}
+              actions={[
+                {
+                  label: 'Cancel',
+                  description: 'Dismiss this power route request.',
+                  icon: 'close-outline',
+                  onPress: () => setPendingPowerPrompt(null),
+                },
+                {
+                  label: pendingPowerPrompt.type === 'overdrive' ? 'Spend 25 CV' : 'Spend 15 CV',
+                  description: pendingPowerPrompt.type === 'overdrive'
+                    ? 'Execute Overdrive on the targeted track.'
+                    : 'Activate Phase Cancel for the room.',
+                  icon: pendingPowerPrompt.type === 'overdrive' ? 'flash-outline' : 'shield-outline',
+                  tone: 'danger',
+                  onPress: handleConfirmPowerPrompt,
+                },
+              ]}
+            />
+          )}
+
           {/* ─── QR Code Modal ─────────────────────────────── */}
           {showQR && (
             <Modal
               visible
               transparent
               animationType="fade"
+              statusBarTranslucent
               onRequestClose={() => setShowQR(false)}
               accessible={true}
               accessibilityViewIsModal={true}
             >
               <View style={styles.qrOverlay} accessible={true}>
+                <TouchableOpacity
+                  style={styles.qrBackdrop}
+                  onPress={() => setShowQR(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close QR code overlay"
+                />
                 <View style={styles.qrModal}>
-                  <Text variant="h3" color={palette.frost} align="center">
-                    {session?.name}
-                  </Text>
+                  <TacticalGridBackground opacity={0.86} />
+                  <View style={styles.qrContent}>
+                    <View style={styles.qrHeader}>
+                      <View style={styles.qrHeaderText}>
+                        <RNText style={styles.qrSysText}>SYS.FREQ // JOIN LINK</RNText>
+                        <RNText style={styles.qrTitleText} numberOfLines={1}>
+                          {(session?.name || 'ROOM QR').toUpperCase()}
+                        </RNText>
+                        <RNText style={styles.qrSubText}>SCAN TO JOIN THIS SESSION</RNText>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setShowQR(false)}
+                        style={styles.qrCloseButton}
+                        accessibilityRole="button"
+                        accessibilityLabel="Close QR code modal"
+                      >
+                        <Ionicons name="close" size={18} color={tacticalTokens.colors.white} />
+                      </TouchableOpacity>
+                    </View>
                   {session?.joinCode && (
-                    <QRCodeDisplay joinCode={session.joinCode} />
+                      <QRCodeDisplay joinCode={session.joinCode} size={190} />
                   )}
-                  <TouchableOpacity onPress={() => setShowQR(false)} style={styles.qrClose} accessibilityRole="button" accessibilityLabel="Close QR code modal" accessibilityHint="Double tap to close this dialog">
-                    <Text variant="label" color={palette.slate}>Close</Text>
-                  </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </Modal>
@@ -978,9 +1548,10 @@ export function SessionRoomScreen() {
           <GameLayerOverlays
             duelState={duelState}
             onDuelVote={handleDuelVote}
-            onDuelEnd={() => setDuelState((prev) => ({ ...prev, active: false }))}
+            onDuelEnd={dismissDuelOverlay}
             forecastState={forecastState}
             onForecastPick={handleForecastPick}
+            onForecastDismiss={dismissForecastOverlay}
             resonanceState={resonanceState}
             onResonanceComplete={() => setResonanceState((prev) => ({ ...prev, active: false }))}
             transientUser={transientUser}
@@ -1034,26 +1605,73 @@ const styles = StyleSheet.create({
   tacticalPlayerContent: {
     paddingBottom: spacing.xl,
   },
+  tacticalPlayerContentIdle: {
+    paddingBottom: spacing.lg,
+  },
 
 
   // ─── QR Modal ─────────────────────────────────────────
   qrOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  qrModal: {
-    backgroundColor: palette.midnight,
-    padding: spacing.xl,
-    width: 300,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.iceGlow,
+  qrBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
   },
-  qrClose: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.sm,
+  qrModal: {
+    width: 320,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+    overflow: 'hidden',
+  },
+  qrContent: {
+    alignItems: 'stretch',
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingTop: tacticalTokens.spacing.lg,
+    paddingBottom: tacticalTokens.spacing.lg,
+  },
+  qrHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: tacticalTokens.spacing.sm,
+    marginBottom: tacticalTokens.spacing.md,
+  },
+  qrHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  qrSysText: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textDim,
+    letterSpacing: 1.8,
+  },
+  qrTitleText: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.display,
+    color: tacticalTokens.colors.white,
+    textTransform: 'uppercase',
+  },
+  qrSubText: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.2,
+  },
+  qrCloseButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
   },
 });
 

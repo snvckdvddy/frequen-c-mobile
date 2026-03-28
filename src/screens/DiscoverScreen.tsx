@@ -1,57 +1,73 @@
-/**
- * Discover Screen — "Live Sonar" (Gemini V7)
- *
- * Structure:
- *   Live Sonar                         ← Title
- *   SCANNING LOCAL FREQUENCIES         ← Subtitle (monospace)
- *   ┌─────────────────────────────┐
- *   │                             │
- *   │     ·  Sonar Radar  ·       │    ← Animated radar with room dots
- *   │         Visualization       │
- *   │                             │
- *   └─────────────────────────────┘
- *   [LP FILTER]  [HP FILTER]          ← Knob-style filters
- *   🔍 Ping a vibe (e.g. Rainy 2AM)  ← Search bar
- *   ─────────────────────────────────
- *   LIVE SIGNALS                       ← Room list section
- *   [room] [room] [room]
- */
-
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  RefreshControl, TextInput, Dimensions, Animated, Easing,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Easing,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen, RoomCard, ErrorState, ADSRFadeIn } from '../components/ui';
+import { ErrorState, SafeScreen } from '../components/ui';
+import { VoidSurface } from '../design/components';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import {
+  formatModeLabel,
+  getModeBlockColors,
+  tacticalTokens,
+} from '../features/session-v2/theme/tacticalTokens';
 import { sessionApi } from '../services/api';
-import { spacing } from '../theme/spacing';
-import type { Session, RoomMode } from '../types';
-import { VoidSurface, StatusLight } from '../design/components';
-import { palette } from '../design/tokens/materials';
-import { useTheme } from '../contexts/ThemeContext';
-import { colors } from '../design/tokens/colors';
-import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
+import type { RoomMode, Session } from '../types';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SONAR_SIZE = SCREEN_WIDTH - 64;
-
-// ─── Props ──────────────────────────────────────────────────
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const RADAR_SIZE = Math.min(SCREEN_WIDTH - 40, 320);
 
 interface DiscoverScreenProps {
   onOpenRoom?: (sessionId: string) => void;
 }
 
-// ─── Sonar Radar Visualization ──────────────────────────────
+type ModeFilter = 'all' | RoomMode;
 
-function SonarRadar({ rooms, onRoomPress }: { rooms: Session[]; onRoomPress?: (id: string) => void }) {
+function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+  return <Text {...props} />;
+}
+
+function SummaryChip({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+}) {
+  return (
+    <View style={styles.summaryChip}>
+      <MonoText style={[styles.display, styles.summaryValue, { color: accent }]}>{value}</MonoText>
+      <MonoText style={[styles.mono, styles.summaryLabel]}>{label}</MonoText>
+    </View>
+  );
+}
+
+function SonarRadar({
+  rooms,
+  onOpenRoom,
+}: {
+  rooms: Session[];
+  onOpenRoom?: (sessionId: string) => void;
+}) {
   const spinAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.loop(
       Animated.timing(spinAnim, {
         toValue: 1,
-        duration: 4000,
+        duration: 4200,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
@@ -63,152 +79,137 @@ function SonarRadar({ rooms, onRoomPress }: { rooms: Session[]; onRoomPress?: (i
     outputRange: ['0deg', '360deg'],
   });
 
-  // Place rooms pseudo-randomly on the radar
-  const roomDots = useMemo(() => {
-    return rooms.slice(0, 8).map((room, i) => {
-      const angle = (i / Math.max(rooms.length, 1)) * 2 * Math.PI + 0.3 * i;
-      const distance = 0.25 + (i % 3) * 0.2; // 25-65% from center
-      const x = SONAR_SIZE / 2 + Math.cos(angle) * (SONAR_SIZE / 2) * distance - 6;
-      const y = SONAR_SIZE / 2 + Math.sin(angle) * (SONAR_SIZE / 2) * distance - 6;
-      return { ...room, x, y };
-    });
-  }, [rooms]);
+  const roomDots = useMemo(
+    () =>
+      rooms.slice(0, 8).map((room, index) => {
+        const angle = (index / Math.max(rooms.length, 1)) * Math.PI * 2 + index * 0.36;
+        const distance = 0.28 + (index % 3) * 0.18;
+        const x = RADAR_SIZE / 2 + Math.cos(angle) * (RADAR_SIZE / 2) * distance - 8;
+        const y = RADAR_SIZE / 2 + Math.sin(angle) * (RADAR_SIZE / 2) * distance - 8;
+        return { room, x, y };
+      }),
+    [rooms],
+  );
 
   return (
-    <View style={sonarStyles.container}>
-      {/* Concentric circles */}
-      <View style={[sonarStyles.ring, sonarStyles.ringOuter]} />
-      <View style={[sonarStyles.ring, sonarStyles.ringMiddle]} />
-      <View style={[sonarStyles.ring, sonarStyles.ringInner]} />
+    <View style={styles.radarFrame}>
+      <View style={styles.radarField}>
+        <View style={[styles.radarRing, styles.radarOuter]} />
+        <View style={[styles.radarRing, styles.radarMiddle]} />
+        <View style={[styles.radarRing, styles.radarInner]} />
+        <View style={styles.radarCrossHorizontal} />
+        <View style={styles.radarCrossVertical} />
 
-      {/* Crosshairs */}
-      <View style={sonarStyles.crossH} />
-      <View style={sonarStyles.crossV} />
+        <Animated.View style={[styles.radarSweep, { transform: [{ rotate: spin }] }]}>
+          <View style={styles.radarSweepLine} />
+        </Animated.View>
 
-      {/* Sweep line */}
-      <Animated.View style={[sonarStyles.sweepArm, { transform: [{ rotate: spin }] }]}>
-        <View style={sonarStyles.sweepLine} />
-      </Animated.View>
+        {roomDots.map(({ room, x, y }) => {
+          const modeColors = getModeBlockColors(room.roomMode);
+          return (
+            <Pressable
+              key={room.id}
+              onPress={() => onOpenRoom?.(room.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${room.name}`}
+              style={({ pressed }) => [
+                styles.radarDot,
+                { left: x, top: y, borderColor: modeColors.borderColor },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={[styles.radarDotCore, { backgroundColor: modeColors.borderColor }]} />
+            </Pressable>
+          );
+        })}
 
-      {/* Room dots */}
-      {roomDots.map((room) => (
-        <TouchableOpacity
-          key={room.id}
-          style={[sonarStyles.roomDot, { left: room.x, top: room.y }]}
-          onPress={() => onRoomPress?.(room.id)}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`Room: ${room.name}`}
-          accessibilityHint={`${room.hostUsername}'s ${room.roomMode} room. Double tap to join.`}
-        >
-          <View style={sonarStyles.roomDotInner} accessible={false} />
-        </TouchableOpacity>
-      ))}
+        <View style={styles.radarCenter} />
 
-      {/* Center point */}
-      <View style={sonarStyles.centerDot} />
+        {!rooms.length ? (
+          <View pointerEvents="none" style={styles.radarEmptyOverlay}>
+            <MonoText style={[styles.display, styles.radarEmptyTitle]}>NO ACTIVE PINGS</MonoText>
+            <MonoText style={[styles.mono, styles.radarEmptyCopy]}>
+              SCAN QUEUE IS IDLE. PULL TO REFRESH OR WAIT FOR PUBLIC ROOMS TO GO LIVE.
+            </MonoText>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
 
-const sonarStyles = StyleSheet.create({
-  container: {
-    width: SONAR_SIZE,
-    height: SONAR_SIZE,
-    alignSelf: 'center',
-    backgroundColor: colors.surfaceOverlay,
-    borderWidth: 1,
-    borderColor: colors.accentSecondarySubtle,
-    overflow: 'hidden',
-  },
-  ring: {
-    position: 'absolute',
-    borderWidth: 1,
-    borderColor: colors.accentSecondarySubtle,
-  },
-  ringOuter: {
-    width: SONAR_SIZE * 0.85,
-    height: SONAR_SIZE * 0.85,
-    left: SONAR_SIZE * 0.075,
-    top: SONAR_SIZE * 0.075,
-  },
-  ringMiddle: {
-    width: SONAR_SIZE * 0.55,
-    height: SONAR_SIZE * 0.55,
-    left: SONAR_SIZE * 0.225,
-    top: SONAR_SIZE * 0.225,
-  },
-  ringInner: {
-    width: SONAR_SIZE * 0.25,
-    height: SONAR_SIZE * 0.25,
-    left: SONAR_SIZE * 0.375,
-    top: SONAR_SIZE * 0.375,
-  },
-  crossH: {
-    position: 'absolute',
-    width: '100%',
-    height: 1,
-    top: '50%',
-    backgroundColor: palette.iceGlow,
-  },
-  crossV: {
-    position: 'absolute',
-    height: '100%',
-    width: 1,
-    left: '50%',
-    backgroundColor: palette.iceGlow,
-  },
-  sweepArm: {
-    position: 'absolute',
-    width: SONAR_SIZE,
-    height: SONAR_SIZE,
-    alignItems: 'center',
-  },
-  sweepLine: {
-    width: 2,
-    height: SONAR_SIZE / 2,
-    backgroundColor: palette.iceGlow,
-  },
-  roomDot: {
-    position: 'absolute',
-    width: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  roomDotInner: {
-    width: 8,
-    height: 8,
-    backgroundColor: palette.ice,
-    shadowColor: palette.ice,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  centerDot: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    backgroundColor: palette.orange,
-    left: SONAR_SIZE / 2 - 3,
-    top: SONAR_SIZE / 2 - 3,
-    shadowColor: palette.orange,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
-  },
-});
+function RoomSignalCard({
+  room,
+  onOpenRoom,
+}: {
+  room: Session;
+  onOpenRoom?: (sessionId: string) => void;
+}) {
+  const modeColors = getModeBlockColors(room.roomMode);
 
-// ─── Main Screen ────────────────────────────────────────────
+  return (
+    <Pressable
+      onPress={() => onOpenRoom?.(room.id)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${room.name}`}
+      style={({ pressed }) => [styles.roomCard, pressed && styles.pressed]}
+    >
+      <View style={styles.roomCardTop}>
+        <View style={[styles.modeBlock, { backgroundColor: modeColors.backgroundColor, borderColor: modeColors.borderColor }]}>
+          <MonoText style={[styles.monoBold, styles.modeBlockText, { color: modeColors.color }]}>
+            {formatModeLabel(room.roomMode)}
+          </MonoText>
+        </View>
+        <View style={styles.roomTopMeta}>
+          <MonoText style={[styles.mono, styles.roomSignalText]}>
+            {String(room.listeners?.length || 0).padStart(2, '0')} LISTENERS
+          </MonoText>
+          <MonoText style={[styles.mono, styles.roomSignalText]}>
+            {room.source ? room.source.toUpperCase() : 'MIXED'} // {room.vibe ? room.vibe.toUpperCase() : 'OPEN'}
+          </MonoText>
+        </View>
+      </View>
+
+      <MonoText style={[styles.display, styles.roomTitle]} numberOfLines={1}>
+        {room.name.toUpperCase()}
+      </MonoText>
+      <MonoText style={[styles.mono, styles.roomMeta]} numberOfLines={1}>
+        HOST // {room.hostUsername.toUpperCase()}
+        {room.genre ? ` // ${room.genre.toUpperCase()}` : ''}
+      </MonoText>
+
+      <View style={styles.roomTrackRail}>
+        <View style={styles.roomTrackCopy}>
+          <MonoText style={[styles.mono, styles.roomTrackLabel]}>
+            {room.currentTrack ? 'CURRENT PATCH' : 'QUEUE STATUS'}
+          </MonoText>
+          <MonoText style={[styles.display, styles.roomTrackTitle]} numberOfLines={1}>
+            {room.currentTrack ? room.currentTrack.title.toUpperCase() : 'STANDBY'}
+          </MonoText>
+          <MonoText style={[styles.mono, styles.roomTrackArtist]} numberOfLines={1}>
+            {room.currentTrack ? room.currentTrack.artist.toUpperCase() : 'NO TRACK PATCHED'}
+          </MonoText>
+        </View>
+        <Pressable
+          onPress={() => onOpenRoom?.(room.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Join ${room.name}`}
+          style={({ pressed }) => [styles.joinButton, pressed && styles.pressed]}
+        >
+          <MonoText style={[styles.monoBold, styles.joinButtonText]}>JOIN</MonoText>
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+}
 
 export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
-  const { accent } = useTheme();
   const [rooms, setRooms] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [mode, setMode] = useState<ModeFilter>('all');
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -216,266 +217,538 @@ export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
       setRooms(sessions);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to scan frequencies');
+      setRooms([]);
+      setError('ROOM BUS OFFLINE // LOCAL RADAR FALLBACK');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchRooms();
-    const interval = setInterval(fetchRooms, 10000);
+    void fetchRooms();
+    const interval = setInterval(() => {
+      void fetchRooms();
+    }, 10000);
     return () => clearInterval(interval);
   }, [fetchRooms]);
 
-  const onRefresh = useCallback(async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchRooms();
     setRefreshing(false);
   }, [fetchRooms]);
 
-  // Filter rooms by search
   const filteredRooms = useMemo(() => {
-    if (!search.trim()) return rooms;
-    const q = search.toLowerCase();
-    return rooms.filter((r) =>
-      r.name.toLowerCase().includes(q) ||
-      r.genre?.toLowerCase().includes(q) ||
-      r.hostUsername?.toLowerCase().includes(q)
+    let next = rooms;
+    if (mode !== 'all') {
+      next = next.filter((room) => room.roomMode === mode);
+    }
+    if (!search.trim()) {
+      return next;
+    }
+    const query = search.toLowerCase();
+    return next.filter((room) =>
+      room.name.toLowerCase().includes(query) ||
+      room.hostUsername.toLowerCase().includes(query) ||
+      room.genre?.toLowerCase().includes(query) ||
+      room.vibe?.toLowerCase().includes(query),
     );
-  }, [rooms, search]);
+  }, [mode, rooms, search]);
+
+  const liveCount = rooms.length;
+  const openCount = rooms.filter((room) => room.isPublic).length;
+  const listenerCount = rooms.reduce((sum, room) => sum + (room.listeners?.length || 0), 0);
 
   return (
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
-        <FlatList
-          data={filteredRooms}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={accent}
-            />
-          }
-          contentContainerStyle={styles.content}
-          ListHeaderComponent={
-            <>
-              {/* Title */}
-              <Text style={styles.title}>Live Sonar</Text>
-              <Text style={styles.subtitle}>SCANNING LOCAL FREQUENCIES</Text>
+        <View style={styles.screen}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <TacticalGridBackground opacity={0.58} />
+          </View>
 
-              {/* Sonar Radar */}
-              <View style={styles.sonarContainer}>
-                <SonarRadar rooms={rooms} onRoomPress={onOpenRoom} />
-              </View>
+          <FlatList
+            data={filteredRooms}
+            keyExtractor={(item) => item.id}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={tacticalTokens.colors.ice}
+              />
+            }
+            contentContainerStyle={styles.content}
+            ListHeaderComponent={
+              <>
+                <View style={styles.header}>
+                  <MonoText style={[styles.mono, styles.eyebrow]}>SYS.FREQ // ROOM BUS</MonoText>
+                  <MonoText style={[styles.display, styles.title]}>LIVE SONAR</MonoText>
+                  <MonoText style={[styles.mono, styles.subtitle]}>
+                    Scan public rooms, lock onto active sessions, and patch directly into live traffic.
+                  </MonoText>
+                </View>
 
-              {/* Filter knobs row */}
-              <View style={styles.filterRow}>
-                <View style={styles.filterKnob}>
-                  <Text style={styles.knobLabel}>LP FILTER</Text>
-                  <View style={styles.knobDial}>
-                    <View style={styles.knobIndicator} />
+                <View style={styles.summaryRow}>
+                  <SummaryChip label="LIVE" value={String(liveCount).padStart(2, '0')} accent={tacticalTokens.colors.ice} />
+                  <SummaryChip label="OPEN" value={String(openCount).padStart(2, '0')} accent={tacticalTokens.colors.acid} />
+                  <SummaryChip label="LISTENERS" value={String(listenerCount).padStart(2, '0')} accent={tacticalTokens.colors.orange} />
+                </View>
+
+                <View style={styles.panel}>
+                  <View style={styles.panelHeader}>
+                    <MonoText style={[styles.mono, styles.panelEyebrow]}>SCAN RADAR</MonoText>
+                    <MonoText style={[styles.monoBold, styles.panelMetric]}>
+                      {String(filteredRooms.length).padStart(2, '0')} SIGNALS
+                    </MonoText>
+                  </View>
+                  <SonarRadar rooms={filteredRooms} onOpenRoom={onOpenRoom} />
+                </View>
+
+                <View style={styles.searchPanel}>
+                  <View style={styles.searchRow}>
+                    <Ionicons name="search-outline" size={16} color={tacticalTokens.colors.textMuted} />
+                    <TextInput
+                      value={search}
+                      onChangeText={setSearch}
+                      placeholder="PING ROOM, HOST, GENRE, OR VIBE"
+                      placeholderTextColor={tacticalTokens.colors.textMuted}
+                      style={styles.searchInput}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="search"
+                    />
+                    {search ? (
+                      <Pressable onPress={() => setSearch('')} style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
+                        <Ionicons name="close" size={14} color={tacticalTokens.colors.white} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.modeRow}>
+                    {(['all', 'campfire', 'spotlight', 'openFloor'] as ModeFilter[]).map((filterValue) => {
+                      const active = mode === filterValue;
+                      const filterLabel = filterValue === 'all' ? 'ALL' : formatModeLabel(filterValue);
+                      return (
+                        <Pressable
+                          key={filterValue}
+                          onPress={() => setMode(filterValue)}
+                          style={({ pressed }) => [
+                            styles.modeFilter,
+                            active && styles.modeFilterActive,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <MonoText style={[styles.monoBold, styles.modeFilterText, active && styles.modeFilterTextActive]}>
+                            {filterLabel}
+                          </MonoText>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 </View>
-                <View style={styles.filterKnob}>
-                  <Text style={styles.knobLabel}>HP FILTER</Text>
-                  <View style={styles.knobDial}>
-                    <View style={styles.knobIndicator} />
+
+                <View style={styles.sectionRow}>
+                  <MonoText style={[styles.mono, styles.sectionLabel]}>LIVE SIGNALS</MonoText>
+                  {loading ? (
+                    <ActivityIndicator size="small" color={tacticalTokens.colors.ice} />
+                  ) : null}
+                </View>
+
+                {error ? (
+                  <View style={styles.errorRail}>
+                    <ErrorState variant="banner" message={error} onRetry={fetchRooms} />
                   </View>
+                ) : null}
+              </>
+            }
+            renderItem={({ item }) => (
+              <View style={styles.cardWrap}>
+                <RoomSignalCard room={item} onOpenRoom={onOpenRoom} />
+              </View>
+            )}
+            ListEmptyComponent={
+              !loading ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="radio-outline" size={42} color={tacticalTokens.colors.textMuted} />
+                  <MonoText style={[styles.display, styles.emptyTitle]}>NO ACTIVE ROUTE</MonoText>
+                  <MonoText style={[styles.mono, styles.emptyCopy]}>
+                    {search || mode !== 'all'
+                      ? 'NO ROOMS MATCH THE CURRENT FILTER. TRY A WIDER SCAN.'
+                      : 'NO PUBLIC ROOMS ARE BROADCASTING RIGHT NOW.'}
+                  </MonoText>
                 </View>
-              </View>
-
-              {/* Search bar */}
-              <View style={styles.searchBar}>
-                <Ionicons name="radio-outline" size={16} color={palette.slate} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Ping a vibe (e.g. Rainy 2AM)..."
-                  placeholderTextColor={palette.slate}
-                  value={search}
-                  onChangeText={setSearch}
-                  returnKeyType="search"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  accessibilityLabel="Search rooms and frequencies"
-                  accessibilityHint="Enter keywords to find sessions"
-                />
-                {search.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear search" accessibilityHint="Double tap to clear the search field">
-                    <Ionicons name="close-circle" size={16} color={palette.slate} />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Section label */}
-              <Text style={styles.sectionLabel}>LIVE SIGNALS</Text>
-
-              {error && <ErrorState message={error} onRetry={fetchRooms} />}
-
-              {loading && (
-                <View style={styles.loadingCenter}>
-                  <ActivityIndicator color={accent} size="large" />
-                </View>
-              )}
-            </>
-          }
-          renderItem={({ item, index }) => (
-            <ADSRFadeIn index={index} staggerMs={50}>
-              <View style={styles.roomCardWrapper}>
-                <RoomCard
-                  roomName={item.name}
-                  hostUsername={item.hostUsername}
-                  roomMode={(item.roomMode || 'campfire') as RoomMode}
-                  isLive={item.isLive ?? true}
-                  listenerCount={item.listeners?.length || 0}
-                  genre={item.genre}
-                  currentTrack={
-                    item.currentTrack
-                      ? {
-                          title: item.currentTrack.title,
-                          artist: item.currentTrack.artist,
-                          albumArt: item.currentTrack.albumArt,
-                        }
-                      : undefined
-                  }
-                  onJoin={() => onOpenRoom?.(item.id)}
-                  onPress={() => onOpenRoom?.(item.id)}
-                />
-              </View>
-            </ADSRFadeIn>
-          )}
-          ListEmptyComponent={
-            !loading ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="radio-outline" size={40} color={palette.slate} />
-                <Text style={styles.emptyText}>No signals detected.</Text>
-                <Text style={styles.emptySubtext}>
-                  {search ? 'Try a different frequency.' : 'No live rooms right now. Start one.'}
-                </Text>
-              </View>
-            ) : null
-          }
-          ListFooterComponent={<View style={{ height: 120 }} />}
-        />
+              ) : null
+            }
+            ListFooterComponent={<View style={{ height: 120 }} />}
+          />
+        </View>
       </VoidSurface>
     </SafeScreen>
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing['3xl'],
+  screen: { flex: 1 },
+  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
+  pressed: { opacity: 0.82 },
+  mono: { fontFamily: tacticalTokens.fonts.mono },
+  monoBold: { fontFamily: tacticalTokens.fonts.monoBold },
+  display: { fontFamily: tacticalTokens.fonts.display },
+  header: {},
+  eyebrow: {
+    fontSize: 10,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 2,
   },
   title: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: fontSize['4xl'],
-    color: palette.frost,
-    marginBottom: 4,
+    marginTop: 2,
+    fontSize: 32,
+    color: tacticalTokens.colors.white,
   },
   subtitle: {
-    fontFamily: fontFamily.mono,
+    marginTop: 4,
+    fontSize: 12,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 20,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 16,
+  },
+  summaryChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(9, 9, 9, 0.94)',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  summaryValue: {
+    fontSize: 16,
+  },
+  summaryLabel: {
+    marginTop: 2,
     fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.wider,
-    marginBottom: spacing.lg,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
   },
-  sonarContainer: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
+  panel: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(8, 8, 8, 0.94)',
+    padding: 12,
   },
-
-  // Filter knobs
-  filterRow: {
+  panelHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  panelEyebrow: {
+    fontSize: 10,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.8,
+  },
+  panelMetric: {
+    fontSize: 10,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.6,
+  },
+  radarFrame: {
+    alignItems: 'center',
+  },
+  radarField: {
+    width: RADAR_SIZE,
+    height: RADAR_SIZE,
+    backgroundColor: '#050505',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    overflow: 'hidden',
+  },
+  radarRing: {
+    position: 'absolute',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+  },
+  radarOuter: {
+    width: RADAR_SIZE * 0.86,
+    height: RADAR_SIZE * 0.86,
+    left: RADAR_SIZE * 0.07,
+    top: RADAR_SIZE * 0.07,
+  },
+  radarMiddle: {
+    width: RADAR_SIZE * 0.58,
+    height: RADAR_SIZE * 0.58,
+    left: RADAR_SIZE * 0.21,
+    top: RADAR_SIZE * 0.21,
+  },
+  radarInner: {
+    width: RADAR_SIZE * 0.3,
+    height: RADAR_SIZE * 0.3,
+    left: RADAR_SIZE * 0.35,
+    top: RADAR_SIZE * 0.35,
+  },
+  radarCrossHorizontal: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '50%',
+    height: 1,
+    backgroundColor: tacticalTokens.colors.borderGhost,
+  },
+  radarCrossVertical: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 1,
+    backgroundColor: tacticalTokens.colors.borderGhost,
+  },
+  radarSweep: {
+    position: 'absolute',
+    width: RADAR_SIZE,
+    height: RADAR_SIZE,
+    alignItems: 'center',
+  },
+  radarSweepLine: {
+    width: 1,
+    height: RADAR_SIZE / 2,
+    backgroundColor: tacticalTokens.colors.ice,
+    opacity: 0.5,
+  },
+  radarDot: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderWidth: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 40,
-    marginBottom: spacing.lg,
+    backgroundColor: '#050505',
   },
-  filterKnob: {
+  radarDotCore: {
+    width: 8,
+    height: 8,
+  },
+  radarCenter: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    backgroundColor: tacticalTokens.colors.orange,
+    left: RADAR_SIZE / 2 - 4,
+    top: RADAR_SIZE / 2 - 4,
+  },
+  radarEmptyOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
   },
-  knobLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-    marginBottom: 8,
+  radarEmptyTitle: {
+    fontSize: 24,
+    color: tacticalTokens.colors.white,
   },
-  knobDial: {
-    width: 40,
-    height: 40,
-    borderWidth: 2,
-    borderColor: colors.skeletonHighlight,
-    backgroundColor: palette.steel,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 4,
+  radarEmptyCopy: {
+    marginTop: 8,
+    fontSize: 12,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 20,
+    textAlign: 'center',
   },
-  knobIndicator: {
-    width: 2,
-    height: 10,
-    backgroundColor: palette.orange,
+  searchPanel: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(8, 8, 8, 0.94)',
+    padding: 12,
   },
-
-  // Search
-  searchBar: {
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.steel,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    gap: 8,
-    marginBottom: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.divider,
   },
   searchInput: {
     flex: 1,
-    fontFamily: fontFamily.mono,
-    fontSize: 13,
-    color: palette.frost,
+    color: tacticalTokens.colors.white,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: 12,
+    letterSpacing: 1.1,
+    padding: 0,
   },
-
-  // Section
+  clearButton: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  modeFilter: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  modeFilterActive: {
+    borderColor: tacticalTokens.colors.white,
+    backgroundColor: tacticalTokens.colors.white,
+  },
+  modeFilterText: {
+    fontSize: 10,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.4,
+  },
+  modeFilterTextActive: {
+    color: tacticalTokens.colors.void,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 8,
+  },
   sectionLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: 11,
-    color: palette.slate,
-    letterSpacing: ls.wider,
-    marginBottom: 12,
+    fontSize: 10,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 2.2,
   },
-
-  // Room cards
-  roomCardWrapper: {
+  errorRail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: '#1A120D',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 10,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.2,
+  },
+  cardWrap: {
     marginBottom: 10,
   },
-
-  // Loading
-  loadingCenter: {
-    paddingVertical: 40,
-    alignItems: 'center',
+  roomCard: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(9, 9, 9, 0.94)',
+    padding: 12,
   },
-
-  // Empty
+  roomCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  modeBlock: {
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  modeBlockText: {
+    fontSize: 10,
+    letterSpacing: 1.5,
+  },
+  roomTopMeta: {
+    alignItems: 'flex-end',
+  },
+  roomSignalText: {
+    fontSize: 10,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
+  },
+  roomTitle: {
+    marginTop: 12,
+    fontSize: 24,
+    color: tacticalTokens.colors.white,
+  },
+  roomMeta: {
+    marginTop: 4,
+    fontSize: 10,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.2,
+  },
+  roomTrackRail: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  roomTrackCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  roomTrackLabel: {
+    fontSize: 10,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.3,
+  },
+  roomTrackTitle: {
+    marginTop: 2,
+    fontSize: 16,
+    color: tacticalTokens.colors.white,
+  },
+  roomTrackArtist: {
+    marginTop: 2,
+    fontSize: 10,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.1,
+  },
+  joinButton: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: '#04161A',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  joinButtonText: {
+    fontSize: 10,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.6,
+  },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(7, 7, 7, 0.84)',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+    marginTop: 8,
   },
-  emptyText: {
-    fontFamily: fontFamily.display,
-    fontSize: 16,
-    color: palette.silver,
+  emptyTitle: {
     marginTop: 12,
+    fontSize: 24,
+    color: tacticalTokens.colors.white,
   },
-  emptySubtext: {
-    fontFamily: fontFamily.body,
-    fontSize: 13,
-    color: palette.slate,
+  emptyCopy: {
     marginTop: 4,
+    fontSize: 12,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 20,
+    textAlign: 'center',
   },
 });
 

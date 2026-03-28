@@ -11,14 +11,15 @@
 import React, { useState, useCallback, useRef } from 'react';
 import {
   View, StyleSheet, FlatList, TextInput, TouchableOpacity,
-  ScrollView, ActivityIndicator, Keyboard, Alert,
+  ScrollView, ActivityIndicator, Keyboard,
 } from 'react-native';
-import { Text, SafeScreen, ErrorState, ADSRFadeIn } from '../components/ui';
+import { Text, SafeScreen, ErrorState, ADSRFadeIn, showToast } from '../components/ui';
 import { TrackCardSkeleton } from '../components/ui/Skeleton';
 import { TrackResultCard } from '../components/search/TrackResultCard';
 import { RoomResultCard } from '../components/search/RoomResultCard';
 import { PersonResultCard } from '../components/search/PersonResultCard';
 import { AddToRoomSheet } from '../components/search/AddToRoomSheet';
+import TacticalActionPrompt from '../features/session-v2/components/TacticalActionPrompt';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
 import { useActiveSession } from '../contexts/ActiveSessionContext';
 import { useRecentSearches } from '../hooks/useRecentSearches';
@@ -134,6 +135,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
   // Add to room sheet
   const [sheetTrack, setSheetTrack] = useState<Track | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [pendingFavoriteRemoval, setPendingFavoriteRemoval] = useState<Track | null>(null);
 
   // Debounce ref
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -157,7 +159,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
 
     // Fire all three in parallel
     Promise.all([
-      searchApi.tracks(trimmed).catch(() => ({ tracks: [] as Track[] })),
+      searchApi.tracks(trimmed).catch(() => ({ tracks: [] as Track[], fallbackUsed: false })),
       searchApi.sessions(trimmed).catch(() => ({ sessions: [] as Session[] })),
       searchApi.users(trimmed).catch(() => ({ users: [] as MockUser[] })),
     ]).then(([trackRes, sessionRes, userRes]) => {
@@ -213,18 +215,7 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
   }, []);
 
   const handleFavoriteLongPress = useCallback((track: Track) => {
-    Alert.alert(
-      'Remove Favorite',
-      `Remove "${track.title}" from saved tracks?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => removeFavorite(track.id),
-        },
-      ]
-    );
+    setPendingFavoriteRemoval(track);
   }, [removeFavorite]);
 
   // ─── Idle State ────────────────────────────────────────
@@ -485,6 +476,35 @@ export function SearchScreen({ onOpenRoom, onBrowseRooms, onCreateRoom }: Search
           onBrowseRooms={onBrowseRooms}
           onCreateRoom={onCreateRoom}
         />
+
+        {pendingFavoriteRemoval && (
+          <TacticalActionPrompt
+            visible
+            eyebrow="SYS.FREQ // DATA LOG"
+            title="REMOVE SAVED TRACK"
+            description={`Remove "${pendingFavoriteRemoval.title}" from saved tracks?`}
+            onClose={() => setPendingFavoriteRemoval(null)}
+            actions={[
+              {
+                label: 'Keep Track',
+                description: 'Leave this saved track in your archive.',
+                icon: 'arrow-undo-outline',
+                onPress: () => setPendingFavoriteRemoval(null),
+              },
+              {
+                label: 'Remove Track',
+                description: 'Delete this saved track from the favorites rail.',
+                icon: 'trash-outline',
+                tone: 'danger',
+                onPress: () => {
+                  removeFavorite(pendingFavoriteRemoval.id);
+                  showToast('Removed from saved tracks.', 'success', '!');
+                  setPendingFavoriteRemoval(null);
+                },
+              },
+            ]}
+          />
+        )}
       </View>
     </SafeScreen>
   );

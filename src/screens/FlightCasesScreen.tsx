@@ -1,201 +1,214 @@
-/**
- * Flight Cases Screen — "Signal Matrix" (Gemini V7)
- *
- * Structure:
- *   Signal Matrix                         ← Title (bold)
- *   PHYSICAL PATCH BAY ROUTING            ← Subtitle (monospace)
- *   ┌─────────────────────────────────┐
- *   │  OUTPUTS          INPUTS        │
- *   │  (○) SPOTIFY      (○) LIVE ROOM │   ← Patch bay jack connectors
- *   │  (○) TAPE 01      (○) BOUNCE    │
- *   │  CLICK JACKS TO PATCH SIGNALS   │
- *   └─────────────────────────────────┘
- *   DATA CARTRIDGES                       ← Section label
- *   [archive card] [archive card]         ← Saved sessions / liked tracks
- */
-
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, LayoutAnimation, Platform, UIManager,
-  ActivityIndicator, Alert,
+  ActivityIndicator,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeScreen, Text, ADSRFadeIn, TrackListItem } from '../components/ui';
+import { SafeScreen, showToast } from '../components/ui';
 import { ArchiveSessionModal } from '../components/ArchiveSessionModal';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { sessionApi } from '../services/api';
-import { spacing } from '../theme/spacing';
-import { VoidSurface, ModuleFaceplate, LEDReadout } from '../design/components';
-import { palette } from '../design/tokens/materials';
-import { colors } from '../design/tokens/colors';
-import { fontFamily, fontSize, letterSpacing as ls } from '../design/tokens/typography';
-import type { Session, Track, FavoriteTrack, RoomMode } from '../types';
-
-// Enable layout animation on Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
-// ─── Props ──────────────────────────────────────────────────
+import { VoidSurface } from '../design/components';
+import type { FavoriteTrack, Session } from '../types';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import {
+  formatModeLabel,
+  getModeBlockColors,
+  tacticalTokens,
+} from '../features/session-v2/theme/tacticalTokens';
+import { tapLight } from '../utils/haptics';
 
 interface FlightCasesScreenProps {
   onOpenRoom?: (sessionId: string) => void;
   onOpenProfile?: () => void;
 }
 
-// ─── Patch Bay Jack ─────────────────────────────────────────
-
-function PatchJack({ label, connected = false }: { label: string; connected?: boolean }) {
-  return (
-    <View style={jackStyles.container}>
-      <View style={[jackStyles.jack, connected && jackStyles.jackConnected]}>
-        <View style={[jackStyles.jackHole, connected && jackStyles.jackHoleConnected]} />
-      </View>
-      <Text style={jackStyles.label}>{label}</Text>
-    </View>
-  );
-}
-
-const jackStyles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  jack: {
-    width: 52,
-    height: 52,
-    backgroundColor: palette.midnight,
-    borderWidth: 2,
-    borderColor: palette.chromeBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  jackConnected: {
-    borderColor: palette.ice,
-  },
-  jackHole: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: palette.slate,
-    backgroundColor: 'transparent',
-  },
-  jackHoleConnected: {
-    borderColor: palette.ice,
-    backgroundColor: colors.accentSecondarySubtle,
-  },
-  label: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-  },
-});
-
-// ─── Session History (from API) ─────────────────────────────
-// Archived sessions (isLive=false) become "Data Cartridges"
-
-// ─── Collapsible Section ────────────────────────────────────
-
-function CollapsibleSection({
-  title, count, children, defaultOpen = false,
+function MonoText({
+  children,
+  style,
+  numberOfLines,
 }: {
-  title: string; count: number; children: React.ReactNode; defaultOpen?: boolean;
+  children: React.ReactNode;
+  style?: any;
+  numberOfLines?: number;
 }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  const toggle = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsOpen((prev) => !prev);
-  };
-
   return (
-    <View style={sectionStyles.container}>
-      <TouchableOpacity
-        style={sectionStyles.header}
-        onPress={toggle}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={title}
-        accessibilityState={{ expanded: isOpen }}
-        accessibilityHint={`Double tap to ${isOpen ? 'collapse' : 'expand'} ${title}`}
-      >
-        <Text style={sectionStyles.title}>{title}</Text>
-        <LEDReadout value={String(count)} size="sm" variant="ice" />
-        <Ionicons
-          name={isOpen ? 'chevron-up' : 'chevron-down'}
-          size={14}
-          color={palette.slate}
-        />
-      </TouchableOpacity>
-      {isOpen && <View style={sectionStyles.body}>{children}</View>}
+    <Text style={style} numberOfLines={numberOfLines}>
+      {children}
+    </Text>
+  );
+}
+
+function SummaryChip({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent: string;
+}) {
+  return (
+    <View style={styles.summaryChip}>
+      <MonoText style={[styles.summaryValue, { color: accent }]}>
+        {String(value).padStart(2, '0')}
+      </MonoText>
+      <MonoText style={styles.summaryLabel}>{label}</MonoText>
     </View>
   );
 }
 
-const sectionStyles = StyleSheet.create({
-  container: {
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.midnight,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  title: {
-    flex: 1,
-    fontFamily: fontFamily.mono,
-    fontSize: 11,
-    color: palette.silver,
-    letterSpacing: ls.wide,
-  },
-  countBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    backgroundColor: '#1E1E1E',
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-  },
-  countText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.slate,
-  },
-  body: {
-    backgroundColor: palette.steel,
-    padding: 12,
-  },
-});
+function SectionHeader({
+  label,
+  accent,
+}: {
+  label: string;
+  accent: string;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={[styles.sectionBar, { backgroundColor: accent }]} />
+      <MonoText style={[styles.sectionLabel, { color: accent }]}>{label}</MonoText>
+    </View>
+  );
+}
 
-// ─── Main Screen ────────────────────────────────────────────
+function formatTimeAgo(dateStr?: string): string {
+  if (!dateStr) return 'NO STAMP';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'JUST NOW';
+  if (minutes < 60) return `${minutes}M AGO`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}H AGO`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}D AGO`;
+  return `${Math.floor(days / 7)}W AGO`;
+}
 
-export function FlightCasesScreen({ onOpenRoom, onOpenProfile }: FlightCasesScreenProps) {
-  const { favorites } = useFavoritesContext();
-  const { accent, isVoltageSag } = useTheme();
+function formatDuration(seconds?: number): string {
+  if (!seconds) return 'RAW';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function FavoriteLogCard({
+  favorite,
+  onRemove,
+}: {
+  favorite: FavoriteTrack;
+  onRemove: (trackId: string, title: string) => void;
+}) {
+  const track = favorite.track;
+
+  return (
+    <View style={styles.logCard}>
+      {track.albumArt ? (
+        <Image source={{ uri: track.albumArt }} style={styles.logArt} />
+      ) : (
+        <View style={[styles.logArt, styles.logArtGhost]}>
+          <Ionicons name="disc-outline" size={18} color={tacticalTokens.colors.textMuted} />
+        </View>
+      )}
+
+      <View style={styles.logMeta}>
+        <MonoText style={styles.logEyebrow}>DATA LOG</MonoText>
+        <MonoText style={styles.logTitle} numberOfLines={1}>{track.title.toUpperCase()}</MonoText>
+        <MonoText style={styles.logSub} numberOfLines={1}>
+          {track.artist.toUpperCase()} // {formatDuration(track.duration)} // SAVED {formatTimeAgo(favorite.savedAt)}
+        </MonoText>
+      </View>
+
+      <Pressable
+        onPress={() => {
+          tapLight();
+          onRemove(track.id, track.title);
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={`Remove ${track.title} from archive logs`}
+        style={({ pressed }) => [styles.logAction, pressed && styles.pressed]}
+      >
+        <Ionicons name="heart" size={18} color={tacticalTokens.colors.hotPink} />
+      </Pressable>
+    </View>
+  );
+}
+
+function FlightCaseCard({
+  session,
+  onPress,
+}: {
+  session: Session;
+  onPress: () => void;
+}) {
+  const modeColors = getModeBlockColors(session.roomMode);
+  const trackCount = session.tracksPlayedCount ?? (session.queue.length + (session.currentTrack ? 1 : 0));
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Open flight case ${session.name}`}
+      style={({ pressed }) => [styles.caseCard, pressed && styles.pressed]}
+    >
+      <View style={styles.caseIndexRail}>
+        <MonoText style={styles.caseIndex}>{session.joinCode?.toUpperCase() || 'CASE'}</MonoText>
+      </View>
+
+      <View style={styles.caseBody}>
+        <View style={styles.caseTopRow}>
+          <View style={styles.caseTitleWrap}>
+            <MonoText style={styles.caseEyebrow}>FLIGHT CASE</MonoText>
+            <MonoText style={styles.caseTitle} numberOfLines={1}>{session.name.toUpperCase()}</MonoText>
+          </View>
+          <View
+            style={[
+              styles.caseModeChip,
+              { backgroundColor: modeColors.backgroundColor, borderColor: modeColors.borderColor },
+            ]}
+          >
+            <MonoText style={[styles.caseModeText, { color: modeColors.color }]}>
+              {formatModeLabel(session.roomMode)}
+            </MonoText>
+          </View>
+        </View>
+
+        <View style={styles.caseMetaRow}>
+          <MonoText style={styles.caseMetaText}>
+            {String(trackCount).padStart(2, '0')} TRACKS // {formatTimeAgo(session.endedAt || session.createdAt)}
+          </MonoText>
+          <Ionicons name="open-outline" size={16} color={tacticalTokens.colors.textMuted} />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+export function FlightCasesScreen({ onOpenProfile }: FlightCasesScreenProps) {
+  const { favorites, removeFavorite, isLoaded } = useFavoritesContext();
   const [refreshing, setRefreshing] = useState(false);
-  const [sessionHistory, setSessionHistory] = useState<Session[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
-  const [loreSession, setLoreSession] = useState<Session | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [sessionHistory, setSessionHistory] = useState<Session[]>([]);
+  const [archivePreview, setArchivePreview] = useState<Session | null>(null);
 
   const fetchHistory = useCallback(async () => {
     try {
       const { sessions } = await sessionApi.myRooms();
-      // Archived sessions (not live) = Data Cartridges
-      // Live sessions are shown on HomeScreen, so filter them out here
-      const archived = sessions.filter((s) => !s.isLive);
-      setSessionHistory(archived);
-    } catch {
-      // Silently fail — history is non-critical
+      setSessionHistory(sessions.filter((session) => !session.isLive));
+      setHistoryError(null);
+    } catch (err: any) {
+      setHistoryError((err?.message || 'ARCHIVE BUS OFFLINE').toUpperCase());
     } finally {
       setHistoryLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -203,293 +216,423 @@ export function FlightCasesScreen({ onOpenRoom, onOpenProfile }: FlightCasesScre
     fetchHistory();
   }, [fetchHistory]);
 
-  const onRefresh = useCallback(async () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    await fetchHistory();
-    setRefreshing(false);
+    void fetchHistory();
   }, [fetchHistory]);
 
-  const favTracks: Track[] = favorites.map((f: FavoriteTrack) => f.track);
+  const stats = useMemo(() => {
+    const archivedTracks = sessionHistory.reduce((sum, session) => {
+      return sum + (session.tracksPlayedCount ?? (session.queue.length + (session.currentTrack ? 1 : 0)));
+    }, 0);
+
+    return {
+      logs: favorites.length,
+      cases: sessionHistory.length,
+      tracks: archivedTracks,
+    };
+  }, [favorites.length, sessionHistory]);
+
+  const sortedFavorites = useMemo(
+    () => [...favorites].sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime()),
+    [favorites],
+  );
+
+  const handleRemoveFavorite = useCallback((trackId: string, title: string) => {
+    removeFavorite(trackId);
+    showToast(`${title} removed from data logs.`, 'success', '!');
+  }, [removeFavorite]);
 
   return (
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={accent}
-            />
-          }
-        >
-          {/* ═══ Header ════════════════════════════════════ */}
-          <ADSRFadeIn index={0}>
-            <View style={styles.headerRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={styles.tacticalHeaderBar} />
-                <Text style={styles.title}>ARCHIVES</Text>
+        <View style={styles.screen}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <TacticalGridBackground opacity={0.58} />
+          </View>
+
+          <ScrollView
+            contentContainerStyle={styles.content}
+            refreshControl={(
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={tacticalTokens.colors.acid}
+              />
+            )}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.header}>
+              <View style={styles.headerTextWrap}>
+                <MonoText style={styles.eyebrow}>SYS.FREQ // ARCHIVE BUS</MonoText>
+                <MonoText style={styles.title}>FLIGHT CASES</MonoText>
+                <MonoText style={styles.subtitle}>
+                  Saved data logs and archived room cases routed into one tactical archive surface.
+                </MonoText>
               </View>
-              <TouchableOpacity
-                onPress={onOpenProfile}
-                activeOpacity={0.7}
-                style={styles.sysBtn}
-              >
-                <Text style={styles.sysBtnText}>[ SYS ]</Text>
-              </TouchableOpacity>
-            </View>
-          </ADSRFadeIn>
 
-          {/* ═══ DATA LOGS ═════════════════════════════════ */}
-          <ADSRFadeIn index={1}>
-            <View style={styles.tacticalSectionHeader}>
-              <Text style={styles.tacticalSectionLabelWhite}>DATA LOGS</Text>
+              {onOpenProfile ? (
+                <Pressable
+                  onPress={onOpenProfile}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open profile"
+                  style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
+                >
+                  <Ionicons name="person-outline" size={18} color={tacticalTokens.colors.white} />
+                </Pressable>
+              ) : null}
             </View>
 
-            <View style={{ gap: 8 }}>
-              {favTracks.length > 0 ? (
-                favTracks.slice(0, 3).map((track, i) => (
-                  <View key={track.id || i} style={styles.dataLogCard}>
-                    <View style={styles.dataLogLeft}>
-                      <Text style={styles.dataLogTitle} numberOfLines={1}>{track.title}</Text>
-                      <Text style={styles.dataLogSub} numberOfLines={1}>
-                        {track.duration ? `${Math.floor(track.duration / 60)}:${String(track.duration % 60).padStart(2, '0')}` : 'RAW'} · {track.artist}
-                      </Text>
-                    </View>
-                    <Text style={styles.dataLogDate}>ARCHIVED</Text>
-                  </View>
-                ))
-              ) : (
-                <>
-                  <View style={styles.dataLogCard}>
-                    <View style={styles.dataLogLeft}>
-                      <Text style={styles.dataLogTitle}>RAW AUDIO STREAM</Text>
-                      <Text style={styles.dataLogSub}>102 BPM · 29V</Text>
-                    </View>
-                    <Text style={styles.dataLogDate}>04.22.25</Text>
-                  </View>
-                  <View style={styles.dataLogCard}>
-                    <View style={styles.dataLogLeft}>
-                      <Text style={styles.dataLogTitle}>VOCAL COMP WIP</Text>
-                      <Text style={styles.dataLogSub}>-- BPM · 8V</Text>
-                    </View>
-                    <Text style={styles.dataLogDate}>04.20.25</Text>
-                  </View>
-                </>
-              )}
-            </View>
-          </ADSRFadeIn>
-
-          {/* ═══ FLIGHT CASES (Session History) ════════ */}
-          <ADSRFadeIn index={2}>
-            <View style={[styles.tacticalSectionHeader, { marginTop: 32 }]}>
-              <Text style={styles.tacticalSectionLabelDim}>FLIGHT CASES</Text>
+            <View style={styles.summaryRow}>
+              <SummaryChip label="LOGS" value={stats.logs} accent={tacticalTokens.colors.hotPink} />
+              <SummaryChip label="CASES" value={stats.cases} accent={tacticalTokens.colors.ice} />
+              <SummaryChip label="TRACKS" value={stats.tracks} accent={tacticalTokens.colors.acid} />
             </View>
 
-            {historyLoading ? (
-              <View style={styles.loadingCenter}>
-                <ActivityIndicator color={accent} size="small" />
+            <SectionHeader label="DATA LOGS" accent={tacticalTokens.colors.hotPink} />
+            {!isLoaded ? (
+              <View style={styles.loadingCard}>
+                <ActivityIndicator size="small" color={tacticalTokens.colors.hotPink} />
               </View>
-            ) : sessionHistory.length > 0 ? (
-              <View style={{ gap: 8 }}>
-                {sessionHistory.map((session) => (
-                  <TouchableOpacity
-                    key={session.id}
-                    style={styles.flightCaseCard}
-                    onPress={() => setLoreSession(session)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.fcIconBox}>
-                      <Ionicons name="folder-outline" size={16} color="#666" />
-                    </View>
-                    <View style={styles.fcContent}>
-                      <Text style={styles.fcName} numberOfLines={1}>{session.name}</Text>
-                      <Text style={styles.fcMeta}>
-                        {session.tracksPlayedCount ?? (session.queue.length + (session.currentTrack ? 1 : 0))} TRKS // ARCHIVED
-                      </Text>
-                    </View>
-                    <View style={styles.fcBadge}>
-                      <Ionicons name="download-outline" size={16} color="#666" />
-                    </View>
-                  </TouchableOpacity>
+            ) : sortedFavorites.length > 0 ? (
+              <View style={styles.stack}>
+                {sortedFavorites.map((favorite) => (
+                  <FavoriteLogCard
+                    key={favorite.track.id}
+                    favorite={favorite}
+                    onRemove={handleRemoveFavorite}
+                  />
                 ))}
               </View>
             ) : (
-              <View style={styles.emptyCartridges}>
-                <Ionicons name="disc-outline" size={28} color={palette.slate} />
-                <Text style={styles.emptyText}>No flight cases yet.</Text>
-                <Text style={styles.emptySubtext}>
-                  Session archives will appear here after completed sessions.
-                </Text>
+              <View style={styles.emptyCard}>
+                <Ionicons name="heart-outline" size={36} color={tacticalTokens.colors.textMuted} />
+                <MonoText style={styles.emptyTitle}>NO DATA LOGS</MonoText>
+                <MonoText style={styles.emptyText}>
+                  Favorited tracks will be archived here as reusable signal references.
+                </MonoText>
               </View>
             )}
-          </ADSRFadeIn>
 
-          <View style={{ height: 120 }} />
-        </ScrollView>
-        <ArchiveSessionModal session={loreSession} onClose={() => setLoreSession(null)} />
+            <SectionHeader label="FLIGHT CASES" accent={tacticalTokens.colors.ice} />
+            {historyLoading ? (
+              <View style={styles.loadingCard}>
+                <ActivityIndicator size="small" color={tacticalTokens.colors.ice} />
+              </View>
+            ) : sessionHistory.length > 0 ? (
+              <View style={styles.stack}>
+                {sessionHistory.map((session) => (
+                  <FlightCaseCard
+                    key={session.id}
+                    session={session}
+                    onPress={() => setArchivePreview(session)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <Ionicons name="folder-open-outline" size={36} color={tacticalTokens.colors.textMuted} />
+                <MonoText style={styles.emptyTitle}>NO FLIGHT CASES</MonoText>
+                <MonoText style={styles.emptyText}>
+                  Finished sessions will archive here once the room goes dark.
+                </MonoText>
+              </View>
+            )}
+
+            {historyError ? (
+              <View style={styles.errorRail}>
+                <Ionicons name="warning-outline" size={16} color={tacticalTokens.colors.orange} />
+                <MonoText style={styles.errorText}>{historyError}</MonoText>
+              </View>
+            ) : null}
+
+            <View style={{ height: tacticalTokens.spacing.xxxl * 2 }} />
+          </ScrollView>
+        </View>
+
+        <ArchiveSessionModal
+          session={archivePreview}
+          onClose={() => setArchivePreview(null)}
+        />
       </VoidSurface>
     </SafeScreen>
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing['3xl'],
+  screen: {
+    flex: 1,
   },
-  headerRow: {
+  content: {
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingTop: tacticalTokens.spacing.xl,
+    paddingBottom: tacticalTokens.spacing.xxxl,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: tacticalTokens.spacing.md,
+  },
+  headerTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  eyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 2,
+  },
+  title: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.hero,
+    color: tacticalTokens.colors.white,
+  },
+  subtitle: {
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 20,
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: tacticalTokens.spacing.sm,
+    marginTop: tacticalTokens.spacing.lg,
+    marginBottom: tacticalTokens.spacing.lg,
+  },
+  summaryChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(8, 8, 8, 0.94)',
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.sm,
+  },
+  summaryValue: {
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.title,
+  },
+  summaryLabel: {
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tacticalTokens.spacing.sm,
+    marginBottom: tacticalTokens.spacing.sm,
+    marginTop: tacticalTokens.spacing.md,
+  },
+  sectionBar: {
+    width: 4,
+    height: 18,
+  },
+  sectionLabel: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.small,
+    letterSpacing: 1.8,
+  },
+  stack: {
+    gap: tacticalTokens.spacing.sm,
+  },
+  logCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tacticalTokens.spacing.md,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(9, 9, 9, 0.92)',
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.md,
+  },
+  logArt: {
+    width: 56,
+    height: 56,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+  },
+  logArtGhost: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  logEyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.4,
+  },
+  logTitle: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.label,
+    color: tacticalTokens.colors.white,
+  },
+  logSub: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.1,
+  },
+  logAction: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+  },
+  caseCard: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(9, 9, 9, 0.92)',
+    overflow: 'hidden',
+  },
+  caseIndexRail: {
+    width: 64,
+    borderRightWidth: 1,
+    borderRightColor: tacticalTokens.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tacticalTokens.colors.matte,
+    paddingVertical: tacticalTokens.spacing.md,
+  },
+  caseIndex: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.4,
+    transform: [{ rotate: '-90deg' }],
+    width: 90,
+    textAlign: 'center',
+  },
+  caseBody: {
+    flex: 1,
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.md,
+  },
+  caseTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: tacticalTokens.spacing.sm,
+  },
+  caseTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  caseEyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.4,
+  },
+  caseTitle: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.label,
+    color: tacticalTokens.colors.white,
+  },
+  caseModeChip: {
+    borderWidth: 1,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: 4,
+  },
+  caseModeText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    letterSpacing: 1.3,
+  },
+  caseMetaRow: {
+    marginTop: tacticalTokens.spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.xl,
+    gap: tacticalTokens.spacing.sm,
   },
-  title: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 24,
-    color: '#FFFFFF',
-    letterSpacing: 2,
-  },
-  sysBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#333',
-    backgroundColor: '#111',
-  },
-  sysBtnText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: '#666',
-  },
-
-  // Tactical Section Headers
-  tacticalSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  tacticalHeaderBar: {
-    width: 4,
-    height: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  tacticalSectionLabelWhite: {
-    fontFamily: fontFamily.mono,
-    fontSize: 12,
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-    fontWeight: '700',
-    borderLeftWidth: 4,
-    borderLeftColor: '#FFFFFF',
-    paddingLeft: 8,
-  },
-  tacticalSectionLabelDim: {
-    fontFamily: fontFamily.mono,
-    fontSize: 12,
-    color: '#666666',
-    textTransform: 'uppercase',
-    fontWeight: '700',
-    borderLeftWidth: 4,
-    borderLeftColor: '#666666',
-    paddingLeft: 8,
-  },
-
-  // ─── DATA LOGS ────────────────────────────────────────
-  dataLogCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-    backgroundColor: '#0A0A0A',
-  },
-  dataLogLeft: {
+  caseMetaText: {
     flex: 1,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.1,
   },
-  dataLogTitle: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  dataLogSub: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: '#666666',
-  },
-  dataLogDate: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: '#666666',
-  },
-
-  // ─── FLIGHT CASES ─────────────────────────────────────
-  flightCaseCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
+  loadingCard: {
     borderWidth: 1,
-    borderColor: '#333',
-    backgroundColor: '#0A0A0A',
-  },
-  fcIconBox: {
-    width: 36,
-    height: 36,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(9, 9, 9, 0.92)',
+    paddingVertical: tacticalTokens.spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
-  fcContent: {
-    flex: 1,
-  },
-  fcName: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  fcMeta: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: '#666666',
-  },
-  fcBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-
-  // Empty states
-  emptyCartridges: {
-    alignItems: 'center',
-    paddingVertical: 32,
+  emptyCard: {
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
+    borderColor: tacticalTokens.colors.borderGhost,
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(7, 7, 7, 0.84)',
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingVertical: tacticalTokens.spacing.xxxl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    marginTop: tacticalTokens.spacing.md,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.title,
+    color: tacticalTokens.colors.white,
   },
   emptyText: {
-    fontFamily: fontFamily.display,
-    fontSize: 15,
-    color: palette.silver,
-    marginTop: 10,
-  },
-  emptySubtext: {
-    fontFamily: fontFamily.body,
-    fontSize: 12,
-    color: palette.slate,
-    marginTop: 4,
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 22,
     textAlign: 'center',
-    paddingHorizontal: 20,
   },
-  loadingCenter: {
-    paddingVertical: 32,
+  errorRail: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: tacticalTokens.spacing.sm,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: '#1A120D',
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.sm,
+    marginTop: tacticalTokens.spacing.md,
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1,
+  },
+  pressed: {
+    opacity: 0.82,
   },
 });
 

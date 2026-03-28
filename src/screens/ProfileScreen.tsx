@@ -1,192 +1,92 @@
-/**
- * Profile Screen — Hardware Settings Panel (Gemini V7)
- *
- * Structure (slide-over modal):
- *   [person icon]                    [×]  ← Avatar + close button
- *   Caleb R.                              ← Username
- *   ─────────────────────────────────────
- *   ⓘ READ THE MANUAL          [toggle]  ← Tooltips toggle
- *     Toggle tooltips to understand...
- *   ─────────────────────────────────────
- *   🔊 MONITOR OUT              (jack)   ← Anonymous lurk mode
- *     Patch in Dummy Cable to lurk...
- *   ─────────────────────────────────────
- *   ⚡ SOCIAL BATTERY                     ← Slider: LOW → UNITY → HOT
- *   ─────────────────────────────────────
- *   🔇 NOISE GATE                        ← Slider: OPEN → GATE → PANIC
- *   ─────────────────────────────────────
- *   ▶ WALK-ON TRANSIENT                   ← Dropdown: sound selection
- *   ─────────────────────────────────────
- *   PATCH CABLES (service connections)
- *   DISCONNECT / DELETE ACCOUNT
- */
-
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, RefreshControl, Linking,
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { Text, Button, SafeScreen } from '../components/ui';
+import { SafeScreen, showToast } from '../components/ui';
+import { VoidSurface } from '../design/components';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
+import { SonicAuraCard } from '../components/profile/SonicAuraCard';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
-import {
-  authApi,
-  type DisconnectableProvider,
-  type ProviderStatusMap,
-} from '../services/api';
+import { useManualMode } from '../hooks/useManualMode';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import { TacticalActionPrompt } from '../features/session-v2/components/TacticalActionPrompt';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
+import { authApi, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
 import { formatAuthDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
 import { config } from '../config';
-import { spacing } from '../theme/spacing';
-import { VoidSurface, ModuleFaceplate, ChromeButton } from '../design/components';
-import { palette } from '../design/tokens/materials';
-import { colors } from '../design/tokens/colors';
-import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
-import { SonicAuraCard } from '../components/profile/SonicAuraCard';
+import type { User } from '../types';
+import { notifyError, notifySuccess, tapHeavy, tapLight, tapMedium } from '../utils/haptics';
 
-// ─── Helpers ──────────────────────────────────────────────────
+type PromptState =
+  | null
+  | { kind: 'logout' }
+  | { kind: 'delete' }
+  | { kind: 'deleteConfirm' }
+  | { kind: 'disconnect'; provider: DisconnectableProvider; name: string };
 
-function formatListenTime(minutes: number | undefined): string {
-  if (!minutes || minutes <= 0) return '0m';
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m`;
-  return `${h}h ${m}m`;
+type NoiseGate = 'off' | 'low' | 'medium' | 'high';
+type SocialBattery = 'low' | 'unity' | 'hot';
+
+const WALK_ON_OPTIONS = ['808 KICK', 'VINYL CRACKLE', 'SYNTH STAB', 'DOOR CHIME', 'NONE'] as const;
+
+const PROVIDERS: Array<{ label: string; serviceKey: string; provider?: DisconnectableProvider; key: string }> = [
+  { key: 'spotify', label: 'SPOTIFY', serviceKey: 'spotify', provider: 'spotify' },
+  { key: 'apple', label: 'APPLE MUSIC', serviceKey: 'apple-music' },
+  { key: 'tidal', label: 'TIDAL', serviceKey: 'tidal', provider: 'tidal' },
+  { key: 'soundcloud', label: 'SOUNDCLOUD', serviceKey: 'soundcloud', provider: 'soundcloud' },
+  { key: 'youtube', label: 'YOUTUBE MUSIC', serviceKey: 'youtube-music' },
+  { key: 'lastfm', label: 'LAST.FM', serviceKey: 'lastfm', provider: 'lastfm' },
+];
+
+const mono = tacticalTokens.fonts.mono;
+const monoBold = tacticalTokens.fonts.monoBold;
+const display = tacticalTokens.fonts.display;
+
+const textStyles = StyleSheet.create({
+  mono: { fontFamily: mono },
+  monoBold: { fontFamily: monoBold },
+  display: { fontFamily: display },
+});
+
+function MonoText(props: { children: React.ReactNode; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
+  return <Text {...props} />;
 }
 
-// ─── Hardware Setting Card ──────────────────────────────────
-
-function HardwareCard({ children, label }: { children: React.ReactNode; label?: string }) {
-  return <ModuleFaceplate label={label} style={{ marginBottom: 12 }}>{children}</ModuleFaceplate>;
-}
-
-// ─── Service Jack Row ────────────────────────────────────────
-
-function ServiceJack({
-  name,
-  connected,
-  username,
-  serviceKey,
-  onConnect,
-  onDisconnect,
-  comingSoon = false,
-  actionDisabled = false,
-  statusText,
-}: {
-  name: string; connected: boolean; username?: string;
-  serviceKey: string;
-  onConnect?: () => void;
-  onDisconnect?: () => void;
-  comingSoon?: boolean;
-  actionDisabled?: boolean;
-  statusText?: string;
-}) {
-  const actionLabel = comingSoon ? 'COMING SOON' : (connected ? 'UNPATCH' : 'PATCH');
-  const disabled = comingSoon || actionDisabled;
-  const actionPress = disabled ? undefined : (connected ? onDisconnect : onConnect);
-  const resolvedStatus = statusText || (comingSoon ? 'Not implemented' : connected ? (username ? `@${username}` : 'Patched') : 'Unpatched');
-
+function getInitials(user: User | null) {
+  const source = user?.username || user?.email || 'FC';
   return (
-    <View style={sjStyles.row}>
-      <View style={sjStyles.left}>
-        <View style={[sjStyles.jack, connected && sjStyles.jackActive]}>
-          <ServiceIcon service={serviceKey} size={18} connected={connected} />
-        </View>
-        <View>
-          <Text style={sjStyles.name}>{name}</Text>
-          <Text style={[sjStyles.status, actionDisabled && !connected && sjStyles.statusWarning]}>
-            {resolvedStatus}
-          </Text>
-        </View>
-      </View>
-      <ChromeButton
-        onPress={actionPress}
-        disabled={disabled}
-        size="sm"
-        accessibilityLabel={`${actionLabel} ${name}`}
-        accessibilityHint={
-          comingSoon
-            ? `${name} integration is not implemented yet`
-            : disabled
-              ? `${name} cannot be connected until backend provider configuration is fixed`
-              : `Double tap to ${connected ? 'disconnect' : 'connect'} your ${name} account`
-        }
-      >
-        {actionLabel}
-      </ChromeButton>
-    </View>
+    source
+      .split(/[\s._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'FC'
   );
 }
 
-const sjStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.chromeBorder,
-  },
-  left: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  jack: {
-    width: 32,
-    height: 32,
-    borderRadius: 0,
-    backgroundColor: palette.steel,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  jackActive: {
-    borderColor: palette.ice,
-    backgroundColor: colors.accentSecondarySubtle,
-  },
-  name: {
-    fontFamily: fontFamily.body,
-    fontSize: 13,
-    color: palette.frost,
-  },
-  status: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    letterSpacing: ls.normal,
-  },
-  statusWarning: {
-    color: palette.red,
-  },
-  patchBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 0,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    backgroundColor: palette.steel,
-  },
-  patchBtnText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.orange,
-    letterSpacing: ls.normal,
-  },
-});
-
-// ─── Main Screen ─────────────────────────────────────────────
-
-interface ProfileScreenProps {
-  onOpenRoom?: (sessionId: string) => void;
+function formatListenTime(minutes?: number) {
+  if (!minutes || minutes <= 0) return '00M';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hours ? `${hours}H ${String(mins).padStart(2, '0')}M` : `${String(mins).padStart(2, '0')}M`;
 }
 
-export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
-  const navigation = useNavigation<any>();
+export function ProfileScreen() {
+  const navigation = useNavigation<{ navigate: (screen: string) => void; goBack: () => void }>();
+  const diagnostics = getAuthDiagnostics();
   const {
     user,
     logout,
@@ -197,842 +97,554 @@ export function ProfileScreen({ onOpenRoom }: ProfileScreenProps) {
     connectLastfm,
     disconnectService,
   } = useAuth();
-  const { accent, isVoltageSag } = useTheme();
-  const authDiagnostics = getAuthDiagnostics();
-  const [refreshing, setRefreshing] = useState(false);
-  const [providerStatus, setProviderStatus] = useState<Partial<ProviderStatusMap>>({});
-  const [readManual, setReadManual] = useState(false);
-  const [monitorOut, setMonitorOut] = useState(
-    (user as any)?.preferences?.isIncognito ?? false
-  );
-  // Hydrate from server preferences (user.preferences comes from /auth/me)
-  const prefs = (user as any)?.preferences;
-  const [socialBattery, setSocialBattery] = useState<'low' | 'unity' | 'hot'>(
-    prefs?.socialBattery || 'unity'
-  );
-  const noiseGateMap: Record<string, 'open' | 'gate' | 'panic'> = { off: 'open', medium: 'gate', high: 'panic' };
-  const [noiseGate, setNoiseGate] = useState<'open' | 'gate' | 'panic'>(
-    noiseGateMap[prefs?.noiseGate || user?.noiseGate || 'medium'] || 'gate'
-  );
-  const [walkOnTransient, setWalkOnTransient] = useState(
-    prefs?.walkOnTransient === 'none' ? 'None'
-      : prefs?.walkOnTransient ? prefs.walkOnTransient
-      : '808 Kick'
-  );
+  const { readManual, setReadManual } = useManualMode();
 
-  const refreshProviderStatus = useCallback(async () => {
-    try {
-      const { providers } = await authApi.providerStatus();
-      setProviderStatus(providers);
-    } catch (error) {
-      console.warn('[Profile] Failed to load provider status:', error);
-    }
+  const [profileUser, setProfileUser] = useState<User | null>(user);
+  const [providerStatus, setProviderStatus] = useState<Partial<ProviderStatusMap>>({});
+  const [loading, setLoading] = useState(!user);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState<PromptState>(null);
+  const [monitorOut, setMonitorOut] = useState(false);
+  const [socialBattery, setSocialBattery] = useState<SocialBattery>('unity');
+  const [noiseGate, setNoiseGate] = useState<NoiseGate>('medium');
+  const [walkOnTransient, setWalkOnTransient] = useState<(typeof WALK_ON_OPTIONS)[number]>('808 KICK');
+
+  const hydrate = useCallback((nextUser: User | null) => {
+    setProfileUser(nextUser);
+    const prefs = (nextUser as User & { preferences?: Record<string, unknown> })?.preferences;
+    setMonitorOut(Boolean(prefs?.isIncognito));
+    setSocialBattery((prefs?.socialBattery || 'unity') as SocialBattery);
+    setNoiseGate((prefs?.noiseGate || nextUser?.noiseGate || 'medium') as NoiseGate);
+    setWalkOnTransient(
+      (prefs?.walkOnTransient ? (prefs.walkOnTransient === 'none' ? 'NONE' : String(prefs.walkOnTransient).toUpperCase()) : '808 KICK') as (typeof WALK_ON_OPTIONS)[number],
+    );
   }, []);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
+  const refreshProfile = useCallback(async (toastOnFail = false) => {
     try {
-      const { user: freshUser } = await authApi.me();
-      await refreshProviderStatus();
-      // Re-hydrate local state from server preferences
-      const p = (freshUser as any)?.preferences;
-      if (p) {
-        const ngMap: Record<string, 'open' | 'gate' | 'panic'> = { off: 'open', medium: 'gate', high: 'panic' };
-        if (p.noiseGate) setNoiseGate(ngMap[p.noiseGate] || 'gate');
-        if (p.socialBattery) setSocialBattery(p.socialBattery);
-        if (p.walkOnTransient) setWalkOnTransient(p.walkOnTransient === 'none' ? 'None' : p.walkOnTransient);
-        if (p.isIncognito !== undefined) setMonitorOut(!!p.isIncognito);
+      const [{ user: freshUser }, { providers }] = await Promise.all([authApi.me(), authApi.providerStatus()]);
+      hydrate(freshUser);
+      setProviderStatus(providers);
+      setLoadError(null);
+    } catch {
+      setLoadError('PROFILE BUS OFFLINE');
+      if (toastOnFail) {
+        notifyError();
+        showToast('Profile bus unavailable.', 'error', '!');
       }
-    } catch { /* swallow */ } finally {
+    } finally {
+      setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshProviderStatus]);
+  }, [hydrate]);
 
   useEffect(() => {
-    if (!user) return;
-    refreshProviderStatus();
-  }, [user, refreshProviderStatus]);
+    hydrate(user);
+  }, [user, hydrate]);
 
-  // Deterministic avatar hue from username
-  const avatarHue = useMemo(() => {
-    const name = user?.username || '?';
-    return name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
-  }, [user?.username]);
+  useEffect(() => {
+    void refreshProfile(false);
+  }, [refreshProfile]);
 
-  const handleLogout = useCallback(() => {
-    Alert.alert(
-      'Disconnect',
-      'Unplug from this signal chain?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Disconnect', style: 'destructive', onPress: logout },
-      ]
-    );
-  }, [logout]);
-
-  const handleDeleteAccount = useCallback(() => {
-    Alert.alert(
-      'Delete Account',
-      'This will permanently erase your account and all associated data. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Forever',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Are you sure?',
-              'All sessions, favorites, and listening history will be permanently deleted.',
-              [
-                { text: 'Go Back', style: 'cancel' },
-                { text: 'Yes, Delete', style: 'destructive', onPress: deleteAccount },
-              ]
-            );
-          },
-        },
-      ]
-    );
-  }, [deleteAccount]);
-
-  const showProviderConfigAlert = useCallback((provider: DisconnectableProvider, service: string) => {
-    const status = providerStatus[provider];
-    Alert.alert(
-      `${service} Unavailable`,
-      `${status?.reason || 'Backend provider configuration is incomplete.'}\n\nFinish the backend env setup, then retry this connection.`
-    );
-  }, [providerStatus]);
-
-  const isMobileProviderConfigMissing = useCallback((provider: DisconnectableProvider) => {
-    switch (provider) {
-      case 'spotify':
-        return !config.SPOTIFY_CLIENT_ID;
-      case 'soundcloud':
-        return !config.SOUNDCLOUD_CLIENT_ID;
-      case 'tidal':
-        return !config.TIDAL_CLIENT_ID;
-      case 'lastfm':
-        return !config.LASTFM_API_KEY;
-      default:
-        return false;
-    }
-  }, []);
-
-  const isProviderUnavailable = useCallback((provider: DisconnectableProvider) => {
-    const status = providerStatus[provider];
-    return !!status && !status.backendConfigured;
-  }, [providerStatus]);
-
-  const getProviderStatusText = useCallback((provider: DisconnectableProvider) => {
-    if (isMobileProviderConfigMissing(provider)) {
-      return 'Mobile config missing';
-    }
-    if (isProviderUnavailable(provider)) {
-      return 'Backend config missing';
-    }
-    return undefined;
-  }, [isMobileProviderConfigMissing, isProviderUnavailable]);
-
-  const handleConnectService = (service: string) => {
-    const providerMap: Partial<Record<string, DisconnectableProvider>> = {
-      Spotify: 'spotify',
-      SoundCloud: 'soundcloud',
-      Tidal: 'tidal',
-      'Last.fm': 'lastfm',
-    };
-    const provider = providerMap[service];
-
-    if (provider && isProviderUnavailable(provider)) {
-      showProviderConfigAlert(provider, service);
-      return;
-    }
-
-    if (service === 'Spotify') {
-      if (!config.SPOTIFY_CLIENT_ID) {
-        Alert.alert(
-          'Spotify Not Configured',
-          'Set EXPO_PUBLIC_SPOTIFY_CLIENT_ID in your .env file.\n\nCreate a free Spotify Developer App at developer.spotify.com to get your Client ID.'
-        );
-        return;
-      }
-      if (authDiagnostics.isExpoGo) {
-        Alert.alert(
-          'Spotify Redirect Warning',
-          `Current runtime is Expo Go.\n\nSpotify redirect URI:\n${authDiagnostics.spotifyRedirectUri}\n\nIf Spotify dashboard is registered to frequenc:// instead of this runtime redirect, sign-in will fail with an invalid page.`
-        );
-      }
-      connectSpotify();
-      return;
-    }
-    if (service === 'SoundCloud') {
-      if (!config.SOUNDCLOUD_CLIENT_ID) {
-        Alert.alert(
-          'SoundCloud Not Configured',
-          'Set EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID in your mobile .env file.\n\nUse the public client ID from your SoundCloud developer app.'
-        );
-        return;
-      }
-      connectSoundcloud();
-      return;
-    }
-    if (service === 'Tidal') {
-      if (!config.TIDAL_CLIENT_ID) {
-        Alert.alert(
-          'Tidal Not Configured',
-          'Set EXPO_PUBLIC_TIDAL_CLIENT_ID in your mobile .env file.\n\nUse the public client ID from your Tidal developer app.'
-        );
-        return;
-      }
-      if (authDiagnostics.isExpoGo) {
-        Alert.alert(
-          'Tidal Redirect Warning',
-          `Current runtime is Expo Go.\n\nTidal redirect URI:\n${authDiagnostics.tidalRedirectUri}\n\nIf Tidal dashboard is registered to frequenc:// instead of this runtime redirect, sign-in will fail with an invalid page.`
-        );
-      }
-      connectTidal();
-      return;
-    }
-    if (service === 'Last.fm') {
-      if (!config.LASTFM_API_KEY) {
-        Alert.alert(
-          'Last.fm Not Configured',
-          'Set EXPO_PUBLIC_LASTFM_API_KEY in your .env file.\n\nGet a free API key at last.fm/api/account/create'
-        );
-        return;
-      }
-      connectLastfm();
-      return;
-    }
-    if (service === 'Apple Music' || service === 'YouTube Music') {
-      Alert.alert('Coming Soon', `${service} patch cable is not implemented yet.`);
-      return;
-    }
-    Alert.alert('Coming Soon', `${service} patch cable is coming in a future update.`);
-  };
-
-  const handleDisconnectService = useCallback((provider: 'spotify' | 'soundcloud' | 'tidal' | 'lastfm', name: string) => {
-    Alert.alert(
-      `Unpatch ${name}?`,
-      `This will disconnect your ${name} account from Frequen-C.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'UNPATCH',
-          style: 'destructive',
-          onPress: () => {
-            disconnectService(provider).catch(() => {
-              Alert.alert('Disconnect Failed', `Could not disconnect ${name}. Please try again.`);
-            });
-          },
-        },
-      ]
-    );
-  }, [disconnectService]);
-
-  const handleCopyAuthDiagnostics = useCallback(async () => {
+  const handleCopyDiagnostics = useCallback(async () => {
     try {
-      await Clipboard.setStringAsync(formatAuthDiagnosticsText());
-      Alert.alert('Copied', 'Auth diagnostics copied to clipboard.');
+      const text = formatAuthDiagnosticsText();
+      await Clipboard.setStringAsync(text);
+      notifySuccess();
+      showToast('Diagnostics copied.', 'success', '!');
     } catch {
-      Alert.alert('Copy Failed', 'Could not copy auth diagnostics.');
+      notifyError();
+      showToast('Copy failed.', 'error', '!');
     }
   }, []);
 
-  const cycleSocialBattery = () => {
-    const levels: Array<'low' | 'unity' | 'hot'> = ['low', 'unity', 'hot'];
-    const idx = levels.indexOf(socialBattery);
-    const next = levels[(idx + 1) % levels.length];
-    setSocialBattery(next);
-    authApi.setPreferences({ socialBattery: next }).catch(console.error);
-  };
+  const mobileConfigMissing = useCallback((provider: DisconnectableProvider) => {
+    switch (provider) {
+      case 'spotify': return !config.SPOTIFY_CLIENT_ID;
+      case 'soundcloud': return !config.SOUNDCLOUD_CLIENT_ID;
+      case 'tidal': return !config.TIDAL_CLIENT_ID;
+      case 'lastfm': return !config.LASTFM_API_KEY;
+      default: return false;
+    }
+  }, []);
 
-  const cycleNoiseGate = () => {
-    const levels: Array<'open' | 'gate' | 'panic'> = ['open', 'gate', 'panic'];
-    const idx = levels.indexOf(noiseGate);
-    const next = levels[(idx + 1) % levels.length];
-    setNoiseGate(next);
-    // Map to API values
-    const apiMap = { open: 'off' as const, gate: 'medium' as const, panic: 'high' as const };
-    authApi.setNoiseGate(apiMap[next]).catch(console.error);
-  };
+  const providerUnavailable = useCallback(
+    (provider: DisconnectableProvider) => Boolean(providerStatus[provider] && !providerStatus[provider]?.backendConfigured),
+    [providerStatus],
+  );
 
-  const cycleWalkOn = () => {
-    const sounds = ['808 Kick', 'Vinyl Crackle', 'Synth Stab', 'Door Chime', 'None'];
-    const idx = sounds.indexOf(walkOnTransient);
-    const next = sounds[(idx + 1) % sounds.length];
-    setWalkOnTransient(next);
-    authApi.setPreferences({ walkOnTransient: next === 'None' ? 'none' : next }).catch(console.error);
-  };
+  const persistPreference = useCallback(async (task: () => Promise<unknown>) => {
+    try {
+      await task();
+    } catch {
+      notifyError();
+      showToast('Preference update failed.', 'error', '!');
+      void refreshProfile(false);
+    }
+  }, [refreshProfile]);
+
+  const handleConnect = useCallback(async (provider: DisconnectableProvider, label: string) => {
+    if (mobileConfigMissing(provider)) {
+      notifyError();
+      showToast(`${label} mobile config is missing.`, 'warning', '!');
+      return;
+    }
+    if (providerUnavailable(provider)) {
+      notifyError();
+      showToast(`${label} backend config is incomplete.`, 'warning', '!');
+      return;
+    }
+    if ((provider === 'spotify' || provider === 'tidal') && diagnostics.isExpoGo) {
+      showToast(`${label} may fail in Expo Go if the redirect is mismatched.`, 'warning', '!');
+    }
+    tapMedium();
+    try {
+      if (provider === 'spotify') await connectSpotify();
+      if (provider === 'soundcloud') await connectSoundcloud();
+      if (provider === 'tidal') await connectTidal();
+      if (provider === 'lastfm') await connectLastfm();
+    } catch {
+      notifyError();
+      showToast(`${label} patch failed.`, 'error', '!');
+    }
+  }, [
+    connectLastfm,
+    connectSoundcloud,
+    connectSpotify,
+    connectTidal,
+    diagnostics.isExpoGo,
+    mobileConfigMissing,
+    providerUnavailable,
+  ]);
+
+  const confirmDisconnect = useCallback(async (provider: DisconnectableProvider, name: string) => {
+    try {
+      await disconnectService(provider);
+      notifySuccess();
+      showToast(`${name} unpatched.`, 'success', '!');
+      setPrompt(null);
+      void refreshProfile(false);
+    } catch {
+      notifyError();
+      showToast(`Unable to disconnect ${name}.`, 'error', '!');
+    }
+  }, [disconnectService, refreshProfile]);
+
+  const appVersion = Constants.expoConfig?.version || 'DEV';
+  const initials = useMemo(() => getInitials(profileUser), [profileUser]);
+
+  if (loading && !profileUser) {
+    return (
+      <SafeScreen>
+        <VoidSurface style={styles.centerState}>
+          <ActivityIndicator size="large" color={tacticalTokens.colors.ice} />
+        </VoidSurface>
+      </SafeScreen>
+    );
+  }
+
+  if (!profileUser) {
+    return (
+      <SafeScreen>
+        <VoidSurface style={styles.centerState}>
+          <View style={styles.errorState}>
+            <MonoText style={[textStyles.display, styles.errorTitle]}>NO PROFILE ROUTE</MonoText>
+            <MonoText style={[textStyles.mono, styles.errorCopy]}>{loadError || 'PROFILE BUS UNAVAILABLE'}</MonoText>
+            <Pressable onPress={() => { setLoading(true); void refreshProfile(true); }} style={({ pressed }) => [styles.errorAction, pressed && styles.pressed]}>
+              <MonoText style={[textStyles.monoBold, styles.errorActionText]}>RETRY</MonoText>
+            </Pressable>
+          </View>
+        </VoidSurface>
+      </SafeScreen>
+    );
+  }
 
   return (
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />
-          }
-        >
-          {/* ═══ Header — Brutalist Title + Close ═══════════════════ */}
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1, paddingRight: 16 }}>
-              <Text style={styles.systemHeader}>SYSTEM PREFERENCES</Text>
-              <Text style={styles.systemSubheader}>
-                {user?.username ? `${user.username.toUpperCase()} / ACTIVE SIGNAL` : 'ANONYMOUS / UNPATCHED'}
-                {user?.email ? `\n${user.email.toUpperCase()}` : ''}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Close profile"
-              accessibilityHint="Double tap to close this panel"
-            >
-              <Ionicons name="close" size={20} color={palette.silver} />
-            </TouchableOpacity>
+        <View style={styles.screen}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <TacticalGridBackground opacity={0.58} />
           </View>
-
-          {/* ═══ SONIC AURA (AI) ═════════════════════════ */}
-          <SonicAuraCard
-            roomsHosted={user?.sessionsHosted ?? 0}
-            duelWinRate={user?.duelWinRate ?? 0}
-            topArtists={user?.topArtists ?? []}
-          />
-
-          {/* ═══ READ THE MANUAL ══════════════════════════ */}
-          <HardwareCard label="READ THE MANUAL">
-            <View style={styles.settingRow}>
-              <Ionicons name="information-circle-outline" size={16} color={isVoltageSag ? palette.amber : palette.ice} />
-              <View style={{ flex: 1 }} />
-              <TouchableOpacity
-                style={[styles.toggle, readManual && { backgroundColor: accent + '33', borderColor: accent }]}
-                onPress={() => setReadManual(!readManual)}
-                accessibilityRole="switch"
-                accessibilityLabel="Read the manual toggle"
-                accessibilityState={{ checked: readManual }}
-              >
-                <View style={[styles.toggleKnob, readManual && { backgroundColor: accent, alignSelf: 'flex-end' }]} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.settingDesc}>
-              Toggle tooltips to understand hardware features.
-            </Text>
-          </HardwareCard>
-
-          {/* ═══ MONITOR OUT ══════════════════════════════ */}
-          <HardwareCard label="MONITOR OUT">
-            <View style={styles.settingRow}>
-              <Ionicons name="headset-outline" size={16} color={palette.silver} />
-              <View style={{ flex: 1 }} />
-              <TouchableOpacity
-                style={styles.monitorJack}
-                onPress={() => {
-                  const next = !monitorOut;
-                  setMonitorOut(next);
-                  authApi.setPreferences({ isIncognito: next }).catch(console.error);
-                }}
-                accessibilityRole="switch"
-                accessibilityLabel="Monitor out toggle"
-                accessibilityState={{ checked: monitorOut }}
-                accessibilityHint="Toggle dummy cable to lurk anonymously"
-              >
-                <View style={[
-                  styles.monitorJackHole,
-                  monitorOut && { borderColor: accent, backgroundColor: accent + '33' },
-                ]} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.settingDesc}>
-              Patch in Dummy Cable to lurk anonymously.
-            </Text>
-          </HardwareCard>
-
-          {/* ═══ SOCIAL BATTERY ════════════════════════════ */}
-          <HardwareCard label="SOCIAL BATTERY">
-            <View style={[styles.settingLeft, { marginBottom: 0 }]}>
-              <Ionicons name="flash-outline" size={16} color={accent} />
-            </View>
-            <TouchableOpacity onPress={cycleSocialBattery} activeOpacity={0.7} accessibilityRole="adjustable" accessibilityLabel="Social battery level" accessibilityHint={`Current level: ${socialBattery.toUpperCase()}. Double tap to cycle through levels`}>
-              <View style={styles.sliderTrack}>
-                <View style={[
-                  styles.sliderFill,
-                  {
-                    width: socialBattery === 'low' ? '15%' : socialBattery === 'unity' ? '50%' : '85%',
-                    backgroundColor: socialBattery === 'hot' ? palette.red : socialBattery === 'unity' ? accent : palette.chromeBorder,
-                  },
-                ]} />
-                <View style={[
-                  styles.sliderThumb,
-                  {
-                    left: socialBattery === 'low' ? '15%' : socialBattery === 'unity' ? '50%' : '85%',
-                    backgroundColor: socialBattery === 'hot' ? palette.red : socialBattery === 'unity' ? accent : palette.silver,
-                  },
-                ]} />
-              </View>
-              <View style={styles.sliderLabels}>
-                <Text style={[styles.sliderLabel, socialBattery === 'low' && styles.sliderLabelActive]}>
-                  LOW
-                </Text>
-                <Text style={[styles.sliderLabel, styles.sliderLabelCenter, socialBattery === 'unity' && styles.sliderLabelActive]}>
-                  UNITY
-                </Text>
-                <Text style={[styles.sliderLabel, socialBattery === 'hot' && styles.sliderLabelActive]}>
-                  HOT
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </HardwareCard>
-
-          {/* ═══ NOISE GATE ═══════════════════════════════ */}
-          <HardwareCard label="NOISE GATE">
-            <View style={[styles.settingLeft, { marginBottom: 0 }]}>
-              <Ionicons name="volume-mute-outline" size={16} color={palette.silver} />
-            </View>
-            <TouchableOpacity onPress={cycleNoiseGate} activeOpacity={0.7} accessibilityRole="adjustable" accessibilityLabel="Noise gate level" accessibilityHint={`Current level: ${noiseGate.toUpperCase()}. Double tap to cycle through levels`}>
-              <View style={styles.sliderTrack}>
-                <View style={[
-                  styles.sliderFill,
-                  {
-                    width: noiseGate === 'open' ? '15%' : noiseGate === 'gate' ? '50%' : '85%',
-                    backgroundColor: noiseGate === 'panic' ? palette.red : noiseGate === 'gate' ? accent : palette.chromeBorder,
-                  },
-                ]} />
-                <View style={[
-                  styles.sliderThumb,
-                  {
-                    left: noiseGate === 'open' ? '15%' : noiseGate === 'gate' ? '50%' : '85%',
-                    backgroundColor: noiseGate === 'panic' ? palette.red : noiseGate === 'gate' ? accent : palette.silver,
-                  },
-                ]} />
-              </View>
-              <View style={styles.sliderLabels}>
-                <Text style={[styles.sliderLabel, noiseGate === 'open' && styles.sliderLabelActive]}>
-                  OPEN
-                </Text>
-                <Text style={[styles.sliderLabel, styles.sliderLabelCenter, noiseGate === 'gate' && styles.sliderLabelActive]}>
-                  GATE
-                </Text>
-                <Text style={[styles.sliderLabel, noiseGate === 'panic' && styles.sliderLabelActive]}>
-                  PANIC
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </HardwareCard>
-
-          {/* ═══ WALK-ON TRANSIENT ════════════════════════ */}
-          <HardwareCard label="WALK-ON TRANSIENT">
-            <View style={styles.settingRow}>
-              <Ionicons name="play-outline" size={16} color={palette.silver} />
-            </View>
-            <TouchableOpacity style={styles.dropdown} onPress={cycleWalkOn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Walk-on transient selector" accessibilityHint={`Current selection: ${walkOnTransient}. Double tap to cycle through sounds`}>
-              <Text style={styles.dropdownText}>{walkOnTransient}</Text>
-              <Ionicons name="chevron-down" size={14} color={palette.slate} />
-            </TouchableOpacity>
-          </HardwareCard>
-
-          {/* ═══ PATCH CABLES (Services) ══════════════════ */}
-          <ModuleFaceplate label="PATCH CABLES" style={{ marginBottom: 4 }}>
-            <View style={{ paddingHorizontal: 4 }}>
-              <ServiceJack
-                name="Spotify"
-                connected={!!user?.connectedServices?.spotify?.connected}
-                username={user?.connectedServices?.spotify?.username}
-                serviceKey="spotify"
-                onConnect={() => handleConnectService('Spotify')}
-                onDisconnect={() => handleDisconnectService('spotify', 'Spotify')}
-                actionDisabled={
-                  !user?.connectedServices?.spotify?.connected &&
-                  (isMobileProviderConfigMissing('spotify') || isProviderUnavailable('spotify'))
-                }
-                statusText={!user?.connectedServices?.spotify?.connected ? getProviderStatusText('spotify') : undefined}
-              />
-              <ServiceJack
-                name="Apple Music"
-                connected={!!user?.connectedServices?.appleMusic?.connected}
-                serviceKey="apple-music"
-                onConnect={() => handleConnectService('Apple Music')}
-                comingSoon
-              />
-              <ServiceJack
-                name="Tidal"
-                connected={!!user?.connectedServices?.tidal?.connected}
-                serviceKey="tidal"
-                onConnect={() => handleConnectService('Tidal')}
-                onDisconnect={() => handleDisconnectService('tidal', 'Tidal')}
-                actionDisabled={
-                  !user?.connectedServices?.tidal?.connected &&
-                  (isMobileProviderConfigMissing('tidal') || isProviderUnavailable('tidal'))
-                }
-                statusText={!user?.connectedServices?.tidal?.connected ? getProviderStatusText('tidal') : undefined}
-              />
-              <ServiceJack
-                name="SoundCloud"
-                connected={!!user?.connectedServices?.soundcloud?.connected}
-                username={user?.connectedServices?.soundcloud?.username}
-                serviceKey="soundcloud"
-                onConnect={() => handleConnectService('SoundCloud')}
-                onDisconnect={() => handleDisconnectService('soundcloud', 'SoundCloud')}
-                actionDisabled={
-                  !user?.connectedServices?.soundcloud?.connected &&
-                  (isMobileProviderConfigMissing('soundcloud') || isProviderUnavailable('soundcloud'))
-                }
-                statusText={!user?.connectedServices?.soundcloud?.connected ? getProviderStatusText('soundcloud') : undefined}
-              />
-              <ServiceJack
-                name="YouTube Music"
-                connected={!!user?.connectedServices?.youtube?.connected}
-                serviceKey="youtube-music"
-                onConnect={() => handleConnectService('YouTube Music')}
-                comingSoon
-              />
-              <ServiceJack
-                name="Last.fm"
-                connected={!!user?.connectedServices?.lastfm?.connected}
-                username={user?.connectedServices?.lastfm?.username}
-                serviceKey="lastfm"
-                onConnect={() => handleConnectService('Last.fm')}
-                onDisconnect={() => handleDisconnectService('lastfm', 'Last.fm')}
-                actionDisabled={
-                  !user?.connectedServices?.lastfm?.connected &&
-                  (isMobileProviderConfigMissing('lastfm') || isProviderUnavailable('lastfm'))
-                }
-                statusText={!user?.connectedServices?.lastfm?.connected ? getProviderStatusText('lastfm') : undefined}
-              />
-            </View>
-          </ModuleFaceplate>
-
-          {/* ═══ LEGAL ═══════════════════════════════════ */}
-          <ModuleFaceplate label="CONFIGURATION">
-            <View style={{ paddingHorizontal: 4 }}>
-              <View style={styles.legalRow}>
-                <Text style={styles.legalText}>Auth Runtime</Text>
-                <Text style={styles.legalValue}>
-                  {authDiagnostics.isExpoGo ? 'Expo Go' : authDiagnostics.appOwnership}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.legalRow}
-                onPress={handleCopyAuthDiagnostics}
-              >
-                <Text style={styles.legalText}>Copy Auth Diagnostics</Text>
-                <Ionicons name="copy-outline" size={12} color={palette.slate} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.legalRow}
-                onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() =>
-                  Alert.alert('Error', 'Could not open Privacy Policy')
-                )}
-              >
-                <Text style={styles.legalText}>Privacy Policy</Text>
-                <Ionicons name="open-outline" size={12} color={palette.slate} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.legalRow}
-                onPress={() => Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() =>
-                  Alert.alert('Error', 'Could not open Terms of Service')
-                )}
-              >
-                <Text style={styles.legalText}>Terms of Service</Text>
-                <Ionicons name="open-outline" size={12} color={palette.slate} />
-              </TouchableOpacity>
-              <View style={[styles.legalRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.legalText}>About</Text>
-                <Text style={styles.legalValue}>v1.0.0-alpha</Text>
-              </View>
-            </View>
-          </ModuleFaceplate>
-
-          {/* ═══ DISCONNECT ══════════════════════════════ */}
-          <ChromeButton
-            onPress={handleLogout}
-            size="md"
-            style={styles.disconnectBtn}
-            accessibilityLabel="Disconnect account"
-            accessibilityHint="Double tap to log out and disconnect from this signal chain"
-          >DISCONNECT</ChromeButton>
-
-          {/* ═══ DELETE ACCOUNT ═══════════════════════════ */}
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={handleDeleteAccount}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Delete account"
-            accessibilityHint="Double tap to permanently delete your account. This action cannot be undone."
+          <ScrollView
+            contentContainerStyle={styles.content}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void refreshProfile(true); }} tintColor={tacticalTokens.colors.ice} />}
           >
-            <Text style={styles.deleteText}>DELETE ACCOUNT</Text>
-          </TouchableOpacity>
+            <View style={styles.header}>
+              <View style={{ flex: 1 }}>
+                <MonoText style={[textStyles.mono, styles.eyebrow]}>SYS.FREQ // PROFILE BUS</MonoText>
+                <MonoText style={[textStyles.display, styles.title]}>SYSTEM PREFERENCES</MonoText>
+                <MonoText style={[textStyles.mono, styles.subtitle]}>Personal routing, provider patch cables, and local room behavior.</MonoText>
+              </View>
+              <Pressable onPress={() => navigation.goBack()} style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
+                <Ionicons name="close" size={18} color={tacticalTokens.colors.white} />
+              </Pressable>
+            </View>
 
-          {/* Build tag */}
-          <Text style={styles.buildTag}>FREQUEN-C · DESN 374-040</Text>
+            <View style={styles.panel}>
+              <View style={styles.identityRow}>
+                <View style={styles.avatar}><MonoText style={[textStyles.display, styles.avatarText]}>{initials}</MonoText></View>
+                <View style={{ flex: 1 }}>
+                  <MonoText style={[textStyles.display, styles.name]}>{(profileUser?.username || 'GUEST').toUpperCase()}</MonoText>
+                  <MonoText style={[textStyles.mono, styles.email]}>{(profileUser?.email || 'NO EMAIL ROUTE').toUpperCase()}</MonoText>
+                  <MonoText style={[textStyles.mono, styles.meta]}>PROFILE ACTIVE // {new Date(profileUser?.createdAt || Date.now()).toLocaleDateString()}</MonoText>
+                </View>
+              </View>
+              <View style={styles.statRow}>
+                {[
+                  ['HOSTED', String(profileUser?.sessionsHosted ?? 0).padStart(2, '0'), tacticalTokens.colors.ice],
+                  ['TRACKS', String(profileUser?.tracksAdded ?? 0).padStart(2, '0'), tacticalTokens.colors.acid],
+                  ['LISTEN', formatListenTime(profileUser?.totalListeningTime), tacticalTokens.colors.white],
+                  ['CV', `${String(profileUser?.voltageBalance ?? 0).padStart(3, '0')}V`, tacticalTokens.colors.orange],
+                ].map(([label, value, color]) => (
+                  <View key={label} style={styles.statChip}>
+                    <MonoText style={[textStyles.display, styles.statValue, { color }]}>{value}</MonoText>
+                    <MonoText style={[textStyles.mono, styles.statLabel]}>{label}</MonoText>
+                  </View>
+                ))}
+              </View>
+            </View>
 
-          <View style={{ height: 60 }} />
-        </ScrollView>
+            <SonicAuraCard roomsHosted={profileUser?.sessionsHosted ?? 0} duelWinRate={profileUser?.duelWinRate ?? 0} topArtists={profileUser?.topArtists ?? []} />
+
+            <MonoText style={[textStyles.mono, styles.sectionLabel]}>LOCAL ROUTING</MonoText>
+            <View style={styles.panel}>
+              <View style={styles.row}>
+                <View style={styles.rowCopy}>
+                  <MonoText style={[textStyles.display, styles.rowTitle]}>READ THE MANUAL</MonoText>
+                  <MonoText style={[textStyles.mono, styles.rowDescription]}>Keep guided onboarding rails active across auth, entry, join, and room-creation surfaces.</MonoText>
+                  <View style={styles.rowMetaRow}>
+                    <View style={[styles.manualStatusChip, readManual && styles.manualStatusChipActive]}>
+                      <MonoText style={[textStyles.monoBold, styles.manualStatusText, readManual && styles.manualStatusTextActive]}>
+                        {readManual ? 'ACTIVE' : 'OFF'}
+                      </MonoText>
+                    </View>
+                    <Pressable
+                      onPress={() => navigation.navigate('WelcomeBoot')}
+                      style={({ pressed }) => [styles.manualPreviewChip, pressed && styles.pressed]}
+                    >
+                      <MonoText style={[textStyles.monoBold, styles.manualPreviewText]}>
+                        PREVIEW WELCOME
+                      </MonoText>
+                    </Pressable>
+                    <MonoText style={[textStyles.mono, styles.manualStatusCopy]}>
+                      {readManual ? 'GUIDED HELPERS ARE LIVE' : 'ENTRY FLOW RUNS WITHOUT HINT RAILS'}
+                    </MonoText>
+                  </View>
+                </View>
+                <Pressable onPress={() => { tapLight(); setReadManual(!readManual); }} style={({ pressed }) => [styles.toggle, readManual && styles.toggleActive, pressed && styles.pressed]}>
+                  <View style={[styles.toggleKnob, readManual && styles.toggleKnobActive]} />
+                </Pressable>
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowCopy}>
+                  <MonoText style={[textStyles.display, styles.rowTitle]}>MONITOR OUT</MonoText>
+                  <MonoText style={[textStyles.mono, styles.rowDescription]}>Run incognito mode and mute public presence noise.</MonoText>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    tapLight();
+                    const next = !monitorOut;
+                    setMonitorOut(next);
+                    void persistPreference(() => authApi.setPreferences({ isIncognito: next }));
+                  }}
+                  style={({ pressed }) => [styles.toggle, monitorOut && styles.toggleActive, pressed && styles.pressed]}
+                >
+                  <View style={[styles.toggleKnob, monitorOut && styles.toggleKnobActive]} />
+                </Pressable>
+              </View>
+
+              {[
+                {
+                  title: 'SOCIAL BATTERY',
+                  description: 'Set how aggressively the app nudges collaborative behavior.',
+                  value: socialBattery,
+                  set: (next: SocialBattery) => {
+                    tapLight();
+                    setSocialBattery(next);
+                    void persistPreference(() => authApi.setPreferences({ socialBattery: next }));
+                  },
+                  options: [
+                    ['LOW', 'low'],
+                    ['UNITY', 'unity'],
+                    ['HOT', 'hot'],
+                  ] as const,
+                },
+                {
+                  title: 'NOISE GATE',
+                  description: 'Control how tightly ambient activity is filtered in your profile.',
+                  value: noiseGate,
+                  set: (next: NoiseGate) => {
+                    tapLight();
+                    setNoiseGate(next);
+                    void persistPreference(() => authApi.setNoiseGate(next));
+                  },
+                  options: [
+                    ['OFF', 'off'],
+                    ['LOW', 'low'],
+                    ['MED', 'medium'],
+                    ['HIGH', 'high'],
+                  ] as const,
+                },
+              ].map((group) => (
+                <View key={group.title} style={styles.rowStack}>
+                  <MonoText style={[textStyles.display, styles.rowTitle]}>{group.title}</MonoText>
+                  <MonoText style={[textStyles.mono, styles.rowDescription]}>{group.description}</MonoText>
+                  <View style={styles.segmentRow}>
+                    {group.options.map(([label, value]) => {
+                      const active = group.value === value;
+                      return (
+                        <Pressable key={label} onPress={() => group.set(value as never)} style={({ pressed }) => [styles.segment, active && styles.segmentActive, pressed && styles.pressed]}>
+                          <MonoText style={[textStyles.monoBold, styles.segmentText, active && styles.segmentTextActive]}>{label}</MonoText>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+
+              <View style={styles.rowLast}>
+                <MonoText style={[textStyles.display, styles.rowTitle]}>WALK-ON TRANSIENT</MonoText>
+                <MonoText style={[textStyles.mono, styles.rowDescription]}>Cycle the entrance sting armed for room joins.</MonoText>
+                <Pressable
+                  onPress={() => {
+                    tapLight();
+                    const next = WALK_ON_OPTIONS[(WALK_ON_OPTIONS.indexOf(walkOnTransient) + 1) % WALK_ON_OPTIONS.length];
+                    setWalkOnTransient(next);
+                    void persistPreference(() => authApi.setPreferences({ walkOnTransient: next === 'NONE' ? 'none' : next }));
+                  }}
+                  style={({ pressed }) => [styles.valueRail, pressed && styles.pressed]}
+                >
+                  <MonoText style={[textStyles.monoBold, styles.valueText]}>{walkOnTransient}</MonoText>
+                  <Ionicons name="chevron-forward" size={14} color={tacticalTokens.colors.textMuted} />
+                </Pressable>
+              </View>
+            </View>
+
+            <MonoText style={[textStyles.mono, styles.sectionLabel]}>PATCH CABLES</MonoText>
+            <View style={styles.panel}>
+              {PROVIDERS.map((entry, index) => {
+                const connected =
+                  entry.provider === 'spotify' ? Boolean(profileUser?.connectedServices?.spotify?.connected)
+                    : entry.provider === 'soundcloud' ? Boolean(profileUser?.connectedServices?.soundcloud?.connected)
+                      : entry.provider === 'tidal' ? Boolean(profileUser?.connectedServices?.tidal?.connected)
+                        : entry.provider === 'lastfm' ? Boolean(profileUser?.connectedServices?.lastfm?.connected)
+                          : false;
+                const username =
+                  entry.provider === 'spotify' ? profileUser?.connectedServices?.spotify?.username
+                    : entry.provider === 'soundcloud' ? profileUser?.connectedServices?.soundcloud?.username
+                      : entry.provider === 'tidal' ? profileUser?.connectedServices?.tidal?.username
+                        : entry.provider === 'lastfm' ? profileUser?.connectedServices?.lastfm?.username
+                          : undefined;
+                const comingSoon = !entry.provider;
+                const blocked = entry.provider ? mobileConfigMissing(entry.provider) || providerUnavailable(entry.provider) : false;
+                const status = comingSoon
+                  ? 'SOON'
+                  : connected
+                    ? username ? `PATCHED // @${username.toUpperCase()}` : 'PATCHED'
+                    : mobileConfigMissing(entry.provider!) ? 'MOBILE CONFIG MISSING'
+                    : providerUnavailable(entry.provider!) ? 'BACKEND CONFIG MISSING'
+                    : 'READY TO PATCH';
+
+                return (
+                  <View key={entry.key} style={index !== PROVIDERS.length - 1 ? styles.divider : undefined}>
+                    <View style={styles.providerRow}>
+                      <View style={styles.providerMeta}>
+                        <View style={styles.providerIcon}><ServiceIcon service={entry.serviceKey} size={18} connected={connected} /></View>
+                        <View style={{ flex: 1 }}>
+                          <MonoText style={[textStyles.display, styles.providerTitle]}>{entry.label}</MonoText>
+                          <MonoText style={[textStyles.mono, styles.providerStatus]}>{status}</MonoText>
+                        </View>
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          if (comingSoon) {
+                            showToast(`${entry.label} is not routed yet.`, 'info', '!');
+                            return;
+                          }
+                          if (connected && entry.provider) {
+                            tapMedium();
+                            setPrompt({ kind: 'disconnect', provider: entry.provider, name: entry.label });
+                            return;
+                          }
+                          if (entry.provider) void handleConnect(entry.provider, entry.label);
+                        }}
+                        style={({ pressed }) => [
+                          styles.providerAction,
+                          connected ? styles.providerActionDanger : blocked ? styles.providerActionMuted : styles.providerActionDefault,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <MonoText style={[textStyles.monoBold, styles.providerActionText]}>
+                          {comingSoon ? 'SOON' : connected ? 'UNPATCH' : 'PATCH'}
+                        </MonoText>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
+            <MonoText style={[textStyles.mono, styles.sectionLabel]}>CONFIG BUS</MonoText>
+            <View style={styles.panel}>
+              {([
+                ['COPY AUTH DIAGNOSTICS', diagnostics.isExpoGo ? 'EXPO GO RUNTIME' : diagnostics.appOwnership.toUpperCase(), () => void handleCopyDiagnostics(), 'copy-outline'] as const,
+                ['PRIVACY POLICY', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
+                ['TERMS OF SERVICE', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
+              ]).map(([title, detail, onPress, icon], index) => (
+                <Pressable key={title} onPress={onPress} style={({ pressed }) => [styles.infoRow, index !== 2 && styles.divider, pressed && styles.pressed]}>
+                  <View style={{ flex: 1 }}>
+                    <MonoText style={[textStyles.display, styles.infoTitle]}>{title}</MonoText>
+                    <MonoText style={[textStyles.mono, styles.infoDetail]}>{detail}</MonoText>
+                  </View>
+                  <Ionicons name={icon} size={16} color={tacticalTokens.colors.textMuted} />
+                </Pressable>
+              ))}
+              <View style={styles.infoRow}>
+                <View>
+                  <MonoText style={[textStyles.display, styles.infoTitle]}>BUILD</MonoText>
+                  <MonoText style={[textStyles.mono, styles.infoDetail]}>FREQUEN-C // {String(appVersion).toUpperCase()}</MonoText>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.actionStack}>
+              <Pressable onPress={() => { tapMedium(); setPrompt({ kind: 'logout' }); }} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
+                <MonoText style={[textStyles.monoBold, styles.primaryActionText]}>DISCONNECT</MonoText>
+              </Pressable>
+              <Pressable onPress={() => { tapHeavy(); setPrompt({ kind: 'delete' }); }} style={({ pressed }) => [styles.dangerAction, pressed && styles.pressed]}>
+                <MonoText style={[textStyles.monoBold, styles.dangerActionText]}>DELETE ACCOUNT</MonoText>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </View>
       </VoidSurface>
+
+      <TacticalActionPrompt
+        visible={Boolean(prompt)}
+        eyebrow={prompt?.kind === 'disconnect' ? 'SYS.FREQ // PATCH BAY' : prompt?.kind?.startsWith('delete') ? 'SYS.FREQ // ACCOUNT CORE' : 'SYS.FREQ // SESSION CORE'}
+        title={prompt?.kind === 'disconnect' ? `UNPATCH ${prompt.name}` : prompt?.kind === 'delete' ? 'DELETE ACCOUNT' : prompt?.kind === 'deleteConfirm' ? 'FINAL DELETE' : 'DISCONNECT CORE'}
+        description={
+          prompt?.kind === 'disconnect'
+            ? `Remove the ${prompt.name} link from your provider bus.`
+            : prompt?.kind === 'delete'
+              ? 'This starts permanent account deletion and clears your profile routing.'
+              : prompt?.kind === 'deleteConfirm'
+                ? 'This cannot be undone. Sessions, favorites, and history will be erased.'
+                : 'Log out of the current profile and return to the auth entry flow.'
+        }
+        onClose={() => setPrompt(null)}
+        actions={
+          prompt?.kind === 'disconnect'
+            ? [
+                { label: 'KEEP PATCHED', description: 'Leave this provider connected.', icon: 'return-up-back-outline', onPress: () => setPrompt(null) },
+                { label: 'UNPATCH PROVIDER', description: 'Disconnect this service from your account.', icon: 'unlink-outline', tone: 'danger', onPress: () => { void confirmDisconnect(prompt.provider, prompt.name); } },
+              ]
+            : prompt?.kind === 'delete'
+              ? [
+                  { label: 'KEEP ACCOUNT', description: 'Abort deletion and leave the profile intact.', icon: 'return-up-back-outline', onPress: () => setPrompt(null) },
+                  { label: 'CONTINUE', description: 'Move to the irreversible account deletion step.', icon: 'warning-outline', tone: 'danger', onPress: () => setPrompt({ kind: 'deleteConfirm' }) },
+                ]
+              : prompt?.kind === 'deleteConfirm'
+                ? [
+                    { label: 'ABORT DELETE', description: 'Cancel this destructive action.', icon: 'return-up-back-outline', onPress: () => setPrompt(null) },
+                    { label: 'DELETE ACCOUNT', description: 'Permanently erase the current account.', icon: 'trash-outline', tone: 'danger', onPress: () => { void deleteAccount(); } },
+                  ]
+                : [
+                    { label: 'STAY PATCHED', description: 'Keep the current user session active.', icon: 'return-up-back-outline', onPress: () => setPrompt(null) },
+                    { label: 'LOG OUT', description: 'Disconnect this account from the current device.', icon: 'log-out-outline', tone: 'danger', onPress: () => { void logout(); } },
+                  ]
+        }
+      />
     </SafeScreen>
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing['2xl'],
-    paddingBottom: spacing['3xl'],
-  },
-
-  // Header
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 0,
-    backgroundColor: palette.midnight,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
+  screen: { flex: 1 },
+  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
+  pressed: { opacity: 0.82 },
+  header: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  eyebrow: { fontSize: 10, color: tacticalTokens.colors.ice, letterSpacing: 2 },
+  title: { marginTop: 2, fontSize: 32, color: tacticalTokens.colors.white },
+  subtitle: { marginTop: 4, fontSize: 12, color: tacticalTokens.colors.textSoft, letterSpacing: 1, lineHeight: 20 },
+  closeButton: { width: 44, height: 44, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, alignItems: 'center', justifyContent: 'center' },
+  sectionLabel: { marginTop: 20, marginBottom: 8, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 2.2 },
+  panel: { borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: 'rgba(8, 8, 8, 0.94)', paddingHorizontal: 12 },
+  divider: { borderBottomWidth: 1, borderBottomColor: tacticalTokens.colors.borderSoft },
+  identityRow: { flexDirection: 'row', gap: 12, paddingVertical: 16 },
+  avatar: { width: 72, height: 72, borderWidth: 1, borderColor: tacticalTokens.colors.ice, backgroundColor: '#071116', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 24, color: tacticalTokens.colors.white },
+  name: { fontSize: 28, color: tacticalTokens.colors.white },
+  email: { marginTop: 2, fontSize: 12, color: tacticalTokens.colors.ice, letterSpacing: 1.2 },
+  meta: { marginTop: 4, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.3 },
+  statRow: { flexDirection: 'row', gap: 8, paddingBottom: 16 },
+  statChip: { flex: 1, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, paddingHorizontal: 8, paddingVertical: 8 },
+  statValue: { fontSize: 16 },
+  statLabel: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
+  row: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: tacticalTokens.colors.borderSoft },
+  rowLast: { paddingVertical: 12 },
+  rowStack: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: tacticalTokens.colors.borderSoft },
+  rowCopy: { flex: 1, minWidth: 0 },
+  rowTitle: { fontSize: 16, color: tacticalTokens.colors.white },
+  rowDescription: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textSoft, lineHeight: 18, letterSpacing: 1 },
+  rowMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  manualStatusChip: { minHeight: 24, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: tacticalTokens.colors.borderGhost, backgroundColor: tacticalTokens.colors.matte },
+  manualStatusChipActive: { borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A' },
+  manualStatusText: { fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
+  manualStatusTextActive: { color: tacticalTokens.colors.ice },
+  manualPreviewChip: {
+    minHeight: 24,
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 0,
-    backgroundColor: palette.midnight,
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: tacticalTokens.colors.guide,
+    backgroundColor: '#18120C',
   },
-  systemHeader: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 24,
-    color: palette.frost,
-    letterSpacing: 2,
-    marginBottom: 4,
-  },
-  systemSubheader: {
-    fontFamily: fontFamily.mono,
+  manualPreviewText: {
     fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.wider,
-    marginBottom: spacing.md,
-    lineHeight: 14,
+    color: tacticalTokens.colors.guide,
+    letterSpacing: 1.2,
   },
-
-  // Settings
-  settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  settingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  settingLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: 11,
-    color: palette.frost,
-    letterSpacing: ls.wide,
-  },
-  settingDesc: {
-    fontFamily: fontFamily.body,
-    fontSize: 12,
-    color: palette.slate,
-    lineHeight: 18,
-  },
-
-  // Toggle switch
-  toggle: {
-    width: 48,
-    height: 28,
-    borderRadius: 0,
-    backgroundColor: palette.steel,
-    padding: 2,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-  },
-  toggleActive: {
-    // Replaced inline
-  },
-  toggleKnob: {
-    width: 22,
-    height: 22,
-    borderRadius: 0,
-    backgroundColor: palette.slate,
-  },
-  toggleKnobActive: {
-    // Replaced inline
-  },
-
-  // Monitor jack
-  monitorJack: {
-    width: 40,
-    height: 40,
-    borderRadius: 0,
-    backgroundColor: palette.midnight,
-    borderWidth: 2,
-    borderColor: palette.chromeBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  monitorJackHole: {
-    width: 14,
-    height: 14,
-    borderRadius: 0,
-    borderWidth: 2,
-    borderColor: palette.slate,
-    backgroundColor: 'transparent',
-  },
-
-  // Slider
-  sliderTrack: {
-    height: 4,
-    backgroundColor: palette.steel,
-    borderRadius: 0,
-    marginTop: 12,
-    marginBottom: 8,
-    position: 'relative',
-  },
-  sliderFill: {
-    height: 4,
-    backgroundColor: palette.chromeBorder,
-    borderRadius: 0,
-  },
-  sliderThumb: {
-    position: 'absolute',
-    top: -6,
-    width: 16,
-    height: 16,
-    borderRadius: 0,
-    backgroundColor: palette.silver,
-    marginLeft: -8,
-  },
-  sliderLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sliderLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.normal,
-  },
-  sliderLabelCenter: {
-    fontFamily: fontFamily.mono,
-    fontWeight: fontWeight.bold,
-  },
-  sliderLabelActive: {
-    color: palette.frost,
-    fontWeight: fontWeight.bold,
-  },
-
-  // Dropdown
-  dropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: palette.steel,
-    borderRadius: 0,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginTop: 4,
-  },
-  dropdownText: {
-    fontFamily: fontFamily.display,
-    fontSize: 14,
-    color: palette.frost,
-  },
-
-  // Section labels
-  sectionLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: 11,
-    color: palette.slate,
-    letterSpacing: ls.wider,
-    marginTop: spacing.lg,
-    marginBottom: 10,
-  },
-
-  // Services panel
-  servicesPanel: {
-    backgroundColor: palette.midnight,
-    borderRadius: 0,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    marginBottom: 4,
-  },
-
-  // Legal panel
-  legalPanel: {
-    backgroundColor: palette.midnight,
-    borderRadius: 0,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-  },
-  legalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.chromeBorder,
-  },
-  legalText: {
-    fontFamily: fontFamily.body,
-    fontSize: 13,
-    color: palette.frost,
-  },
-  legalValue: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.normal,
-  },
-
-  // Action buttons
-  disconnectBtn: {
-    alignSelf: 'center',
-    marginTop: spacing.xl,
-  },
-  deleteBtn: {
-    alignSelf: 'center',
-    marginTop: spacing.md,
-    paddingVertical: 8,
-    paddingHorizontal: 24,
-    opacity: 0.6,
-  },
-  deleteText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 11,
-    color: palette.red,
-    letterSpacing: ls.normal,
-  },
-  buildTag: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-    opacity: 0.3,
-    letterSpacing: ls.wider,
-  },
+  manualStatusCopy: { fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.1 },
+  toggle: { width: 48, height: 28, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, justifyContent: 'center', paddingHorizontal: 2 },
+  toggleActive: { borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A' },
+  toggleKnob: { width: 20, height: 20, backgroundColor: tacticalTokens.colors.textMuted },
+  toggleKnobActive: { alignSelf: 'flex-end', backgroundColor: tacticalTokens.colors.ice },
+  segmentRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  segment: { flex: 1, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },
+  segmentActive: { borderColor: tacticalTokens.colors.white, backgroundColor: tacticalTokens.colors.white },
+  segmentText: { fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.4 },
+  segmentTextActive: { color: tacticalTokens.colors.void },
+  valueRail: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, paddingHorizontal: 12, paddingVertical: 12 },
+  valueText: { fontSize: 12, color: tacticalTokens.colors.ice, letterSpacing: 1.2 },
+  providerRow: { flexDirection: 'row', gap: 12, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+  providerMeta: { flexDirection: 'row', gap: 12, alignItems: 'center', flex: 1 },
+  providerIcon: { width: 40, height: 40, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, alignItems: 'center', justifyContent: 'center' },
+  providerTitle: { fontSize: 16, color: tacticalTokens.colors.white },
+  providerStatus: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
+  providerAction: { minWidth: 92, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
+  providerActionDefault: { borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A' },
+  providerActionDanger: { borderColor: tacticalTokens.colors.orange, backgroundColor: '#1A120D' },
+  providerActionMuted: { borderColor: tacticalTokens.colors.borderGhost, backgroundColor: tacticalTokens.colors.matte },
+  providerActionText: { fontSize: 10, color: tacticalTokens.colors.white, letterSpacing: 1.5 },
+  infoRow: { flexDirection: 'row', gap: 12, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+  infoTitle: { fontSize: 16, color: tacticalTokens.colors.white },
+  infoDetail: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
+  actionStack: { gap: 8, marginTop: 20 },
+  primaryAction: { borderWidth: 1, borderColor: tacticalTokens.colors.white, backgroundColor: tacticalTokens.colors.white, alignItems: 'center', paddingVertical: 12 },
+  primaryActionText: { fontSize: 12, color: tacticalTokens.colors.void, letterSpacing: 1.8 },
+  dangerAction: { borderWidth: 1, borderColor: tacticalTokens.colors.orange, backgroundColor: '#1A120D', alignItems: 'center', paddingVertical: 12 },
+  dangerActionText: { fontSize: 12, color: tacticalTokens.colors.orange, letterSpacing: 1.8 },
+  errorState: { borderWidth: 1, borderColor: tacticalTokens.colors.borderGhost, borderStyle: 'dashed', paddingHorizontal: 24, paddingVertical: 28, alignItems: 'center', gap: 10 },
+  errorTitle: { fontSize: 24, color: tacticalTokens.colors.white },
+  errorCopy: { fontSize: 12, color: tacticalTokens.colors.textSoft, letterSpacing: 1, textAlign: 'center' },
+  errorAction: { marginTop: 6, borderWidth: 1, borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A', paddingHorizontal: 16, paddingVertical: 10 },
+  errorActionText: { fontSize: 10, color: tacticalTokens.colors.ice, letterSpacing: 1.5 },
 });
 
 export default ProfileScreen;

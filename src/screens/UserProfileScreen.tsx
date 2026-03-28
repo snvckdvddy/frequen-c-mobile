@@ -1,28 +1,21 @@
-/**
- * UserProfileScreen — View another user's profile.
- *
- * Shows:
- *   - Avatar, username, member since
- *   - Stats: sessions hosted, tracks added, listening time, friends
- *   - Friendship action button (Add / Pending / Friends / Blocked)
- *   - Currently listening badge (if in a live session)
- *   - Recent activity feed
- */
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl,
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen } from '../components/ui';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
-import { userApi, friendApi, UserProfile, ActivityEvent, FriendshipStatus } from '../services/api';
-import { VoidSurface, ModuleFaceplate } from '../design/components';
-import { palette } from '../design/tokens/materials';
-import { colors } from '../design/tokens/colors';
-import { fontFamily, fontSize, letterSpacing as ls } from '../design/tokens/typography';
-import { spacing } from '../theme/spacing';
+import { SafeScreen, showToast } from '../components/ui';
+import { VoidSurface } from '../design/components';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import { TacticalActionPrompt } from '../features/session-v2/components/TacticalActionPrompt';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
+import { friendApi, userApi, type ActivityEvent, type FriendshipStatus, type UserProfile } from '../services/api';
+import { notifyError, notifySuccess, tapLight, tapMedium } from '../utils/haptics';
 
 interface UserProfileScreenProps {
   userId: string;
@@ -30,17 +23,64 @@ interface UserProfileScreenProps {
   onOpenRoom?: (sessionId: string) => void;
 }
 
-export function UserProfileScreen({ userId, onBack, onOpenRoom }: UserProfileScreenProps) {
-  const { user: currentUser } = useAuth();
-  const { accent, isVoltageSag } = useTheme();
+type PromptState = null | 'remove' | 'block';
 
+function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+  return <Text {...props} />;
+}
+
+function formatListeningTime(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  return hours < 1 ? `${Math.floor(seconds / 60)}M` : `${hours}H`;
+}
+
+function formatTimeAgo(isoDate: string) {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'NOW';
+  if (minutes < 60) return `${minutes}M`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}H`;
+  return `${Math.floor(hours / 24)}D`;
+}
+
+function describeEvent(event: ActivityEvent) {
+  switch (event.eventType) {
+    case 'session_created':
+      return `CREATED ROOM${event.metadata.sessionName ? ` // ${String(event.metadata.sessionName).toUpperCase()}` : ''}`;
+    case 'track_added':
+      return `ADDED ${event.track?.title?.toUpperCase() || 'TRACK'}${event.track?.artist ? ` // ${event.track.artist.toUpperCase()}` : ''}`;
+    case 'friend_accepted':
+      return `CONNECTED WITH ${event.targetUser?.username?.toUpperCase() || 'USER'}`;
+    case 'duel_won':
+      return 'WON CROSSFADE DUEL';
+    case 'power_move':
+      return `EXEC ${String(event.metadata.moveType || 'POWER MOVE').toUpperCase()}`;
+    default:
+      return event.eventType.replace(/_/g, ' ').toUpperCase();
+  }
+}
+
+function friendLabel(status: FriendshipStatus) {
+  switch (status) {
+    case 'friends': return 'FRIENDS ✓';
+    case 'pending_sent': return 'PENDING';
+    case 'pending_received': return 'ACCEPT';
+    case 'blocked': return 'BLOCKED';
+    default: return 'ADD FRIEND';
+  }
+}
+
+export function UserProfileScreen({ userId, onBack, onOpenRoom }: UserProfileScreenProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState<PromptState>(null);
 
-  const fetchProfile = useCallback(async () => {
+  const load = useCallback(async (toastOnFail = false) => {
     try {
       const [profileRes, activityRes] = await Promise.all([
         userApi.getProfile(userId),
@@ -48,8 +88,13 @@ export function UserProfileScreen({ userId, onBack, onOpenRoom }: UserProfileScr
       ]);
       setProfile(profileRes.user);
       setActivity(activityRes.events);
-    } catch (err) {
-      console.error('Failed to fetch profile:', err);
+      setLoadError(null);
+    } catch {
+      setLoadError('PROFILE BUS OFFLINE');
+      if (toastOnFail) {
+        notifyError();
+        showToast('Unable to route profile signal.', 'error', '!');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -57,398 +102,270 @@ export function UserProfileScreen({ userId, onBack, onOpenRoom }: UserProfileScr
   }, [userId]);
 
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchProfile();
-  };
-
-  // ─── Friendship Actions ─────────────────────────────────────
+    void load(false);
+  }, [load]);
 
   const handleFriendAction = useCallback(async () => {
     if (!profile || actionLoading) return;
     setActionLoading(true);
-
     try {
       switch (profile.friendshipStatus) {
         case 'none':
+          tapMedium();
           await friendApi.sendRequest(userId);
           setProfile({ ...profile, friendshipStatus: 'pending_sent' });
+          notifySuccess();
+          showToast('Connection request sent.', 'success', '!');
           break;
         case 'pending_received':
+          tapMedium();
           await friendApi.accept(userId);
           setProfile({ ...profile, friendshipStatus: 'friends', friendCount: profile.friendCount + 1 });
+          notifySuccess();
+          showToast('Friend link accepted.', 'success', '!');
           break;
         case 'pending_sent':
-          // Cancel not supported — show info
-          Alert.alert('Request Pending', 'Your friend request is still pending.');
+          tapLight();
+          showToast('Request still pending.', 'info', '!');
           break;
         case 'friends':
-          Alert.alert(
-            'Remove Friend',
-            `Remove ${profile.username} from your friends?`,
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Remove', style: 'destructive',
-                onPress: async () => {
-                  await friendApi.remove(userId);
-                  setProfile({ ...profile, friendshipStatus: 'none', friendCount: profile.friendCount - 1 });
-                },
-              },
-            ],
-          );
+          tapLight();
+          setPrompt('remove');
           break;
       }
-    } catch (err) {
-      console.error('Friend action failed:', err);
+    } catch {
+      notifyError();
+      showToast('Friend action failed.', 'error', '!');
     } finally {
       setActionLoading(false);
     }
-  }, [profile, userId, actionLoading]);
+  }, [actionLoading, profile, userId]);
 
-  // ─── Helpers ────────────────────────────────────────────────
-
-  const formatListeningTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    if (hours < 1) return `${Math.floor(seconds / 60)}m`;
-    return `${hours}h`;
-  };
-
-  const friendButtonLabel = (status: FriendshipStatus): string => {
-    switch (status) {
-      case 'none': return 'ADD FRIEND';
-      case 'pending_sent': return 'PENDING';
-      case 'pending_received': return 'ACCEPT';
-      case 'friends': return 'FRIENDS ✓';
-      case 'blocked': return 'BLOCKED';
-      default: return 'ADD FRIEND';
+  const confirmRemove = useCallback(async () => {
+    if (!profile) return;
+    try {
+      await friendApi.remove(userId);
+      setProfile({ ...profile, friendshipStatus: 'none', friendCount: Math.max(0, profile.friendCount - 1) });
+      setPrompt(null);
+      notifySuccess();
+      showToast('Friend removed from patch bay.', 'success', '!');
+    } catch {
+      notifyError();
+      showToast('Unable to remove friend.', 'error', '!');
     }
-  };
+  }, [profile, userId]);
 
-  const friendButtonColor = (status: FriendshipStatus): string => {
-    switch (status) {
-      case 'friends': return palette.green;
-      case 'pending_sent': return palette.slate;
-      case 'pending_received': return accent;
-      case 'blocked': return palette.red;
-      default: return accent;
+  const confirmBlock = useCallback(async () => {
+    if (!profile) return;
+    try {
+      await friendApi.block(userId);
+      setProfile({ ...profile, friendshipStatus: 'blocked' });
+      setPrompt(null);
+      notifySuccess();
+      showToast('User blocked.', 'success', '!');
+    } catch {
+      notifyError();
+      showToast('Unable to block user.', 'error', '!');
     }
-  };
+  }, [profile, userId]);
 
-  // ─── Event description ─────────────────────────────────────
+  const liveRoom = useMemo(() => profile?.liveSession, [profile]);
 
-  const describeEvent = (event: ActivityEvent): string => {
-    switch (event.eventType) {
-      case 'session_created': return `Created a room${event.metadata.sessionName ? `: ${event.metadata.sessionName}` : ''}`;
-      case 'track_added': return `Added ${event.track?.title || 'a track'}${event.track?.artist ? ` by ${event.track.artist}` : ''}`;
-      case 'friend_accepted': return `Connected with ${event.targetUser?.username || 'someone'}`;
-      case 'duel_won': return 'Won a Crossfader Duel';
-      case 'power_move': return `Used ${event.metadata.moveType || 'a power move'}`;
-      default: return event.eventType.replace(/_/g, ' ');
-    }
-  };
-
-  // ─── Render ─────────────────────────────────────────────────
-
-  if (loading || !profile) {
+  if (loading) {
     return (
       <SafeScreen>
-        <VoidSurface style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text variant="body" color={palette.slate}>Loading profile...</Text>
+        <VoidSurface style={styles.centerState}>
+          <ActivityIndicator size="large" color={tacticalTokens.colors.ice} />
         </VoidSurface>
       </SafeScreen>
     );
   }
 
-  const isOwnProfile = currentUser?.id === userId;
+  if (!profile) {
+    return (
+      <SafeScreen>
+        <VoidSurface style={styles.centerState}>
+          <View style={styles.emptyState}>
+            <MonoText style={[styles.display, styles.emptyTitle]}>NO PROFILE ROUTE</MonoText>
+            <MonoText style={[styles.mono, styles.emptyCopy]}>{loadError || 'PROFILE BUS OFFLINE'}</MonoText>
+            <Pressable onPress={() => { setLoading(true); void load(true); }} style={({ pressed }) => [styles.retryAction, pressed && styles.pressed]}>
+              <MonoText style={[styles.monoBold, styles.retryActionText]}>RETRY</MonoText>
+            </Pressable>
+          </View>
+        </VoidSurface>
+      </SafeScreen>
+    );
+  }
 
   return (
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
-        {/* ─── Header ────────────────────────────────── */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color={palette.silver} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>PROFILE</Text>
-          <View style={{ width: 36 }} />
-        </View>
-
-        <ScrollView
-          contentContainerStyle={styles.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={accent} />}
-        >
-          {/* ─── Avatar + Name ───────────────────────── */}
-          <View style={styles.avatarSection}>
-            <View style={[styles.avatar, { borderColor: accent }]}>
-              <Ionicons name="person" size={40} color={palette.silver} />
-            </View>
-            <Text style={styles.username}>{profile.username}</Text>
-            <Text style={styles.memberSince}>
-              Member since {new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-            </Text>
-
-            {/* Live session badge */}
-            {profile.liveSession && (
-              <TouchableOpacity
-                style={styles.liveBadge}
-                onPress={() => onOpenRoom?.(profile.liveSession!.id)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>LIVE IN: {profile.liveSession.name}</Text>
-              </TouchableOpacity>
-            )}
+        <View style={styles.screen}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <TacticalGridBackground opacity={0.58} />
           </View>
 
-          {/* ─── Friend Action ───────────────────────── */}
-          {!isOwnProfile && (
-            <TouchableOpacity
-              style={[styles.friendBtn, { borderColor: friendButtonColor(profile.friendshipStatus) }]}
-              onPress={handleFriendAction}
-              disabled={actionLoading || profile.friendshipStatus === 'blocked'}
-              activeOpacity={0.6}
-            >
-              <Ionicons
-                name={profile.friendshipStatus === 'friends' ? 'checkmark-circle' : 'person-add'}
-                size={16}
-                color={friendButtonColor(profile.friendshipStatus)}
-              />
-              <Text style={[styles.friendBtnText, { color: friendButtonColor(profile.friendshipStatus) }]}>
-                {friendButtonLabel(profile.friendshipStatus)}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* ─── Stats Grid ──────────────────────────── */}
-          <ModuleFaceplate label="SIGNAL STATS" screws>
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: accent }]}>{profile.sessionsHosted}</Text>
-                <Text style={styles.statLabel}>ROOMS</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: accent }]}>{profile.tracksAdded}</Text>
-                <Text style={styles.statLabel}>TRACKS</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: accent }]}>{formatListeningTime(profile.totalListeningTime)}</Text>
-                <Text style={styles.statLabel}>LISTENING</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: accent }]}>{profile.friendCount}</Text>
-                <Text style={styles.statLabel}>FRIENDS</Text>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true); }} tintColor={tacticalTokens.colors.ice} />}
+          >
+            <View style={styles.header}>
+              <Pressable onPress={onBack} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+                <Ionicons name="chevron-back" size={20} color={tacticalTokens.colors.white} />
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <MonoText style={[styles.mono, styles.eyebrow]}>SYS.FREQ // PROFILE BUS</MonoText>
+                <MonoText style={[styles.display, styles.title]}>LISTENER PROFILE</MonoText>
+                <MonoText style={[styles.mono, styles.subtitle]}>Public stats, activity logs, and friend routing.</MonoText>
               </View>
             </View>
-          </ModuleFaceplate>
 
-          {/* ─── Recent Activity ─────────────────────── */}
-          {activity.length > 0 && (
-            <ModuleFaceplate label="RECENT ACTIVITY">
-              {activity.map((event) => (
-                <View key={event.id} style={styles.activityRow}>
-                  <Ionicons name="radio-outline" size={14} color={palette.slate} />
-                  <Text style={styles.activityText}>{describeEvent(event)}</Text>
-                  <Text style={styles.activityTime}>
-                    {formatTimeAgo(event.createdAt)}
-                  </Text>
+            <View style={styles.panel}>
+              <View style={styles.identityRow}>
+                <View style={styles.avatar}>
+                  <MonoText style={[styles.display, styles.avatarText]}>{profile.username.slice(0, 2).toUpperCase()}</MonoText>
                 </View>
-              ))}
-            </ModuleFaceplate>
-          )}
+                <View style={{ flex: 1 }}>
+                  <MonoText style={[styles.display, styles.name]}>{profile.username.toUpperCase()}</MonoText>
+                  <MonoText style={[styles.mono, styles.meta]}>MEMBER SINCE // {new Date(profile.createdAt).toLocaleDateString()}</MonoText>
+                  {liveRoom ? (
+                    <Pressable onPress={() => onOpenRoom?.(liveRoom.id)} style={({ pressed }) => [styles.liveBadge, pressed && styles.pressed]}>
+                      <MonoText style={[styles.monoBold, styles.liveText]}>LIVE // {liveRoom.name.toUpperCase()}</MonoText>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
 
-          {/* ─── Block Action (for non-friends) ──────── */}
-          {!isOwnProfile && profile.friendshipStatus !== 'blocked' && (
-            <TouchableOpacity
-              style={styles.blockBtn}
-              onPress={() => {
-                Alert.alert(
-                  'Block User',
-                  `Block ${profile.username}? They won't be able to see your activity or send you requests.`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Block', style: 'destructive',
-                      onPress: async () => {
-                        await friendApi.block(userId);
-                        setProfile({ ...profile, friendshipStatus: 'blocked' });
-                      },
-                    },
-                  ],
-                );
-              }}
-            >
-              <Ionicons name="ban" size={14} color={palette.red} />
-              <Text style={styles.blockText}>Block User</Text>
-            </TouchableOpacity>
-          )}
-        </ScrollView>
+              <View style={styles.statRow}>
+                {[
+                  ['ROOMS', String(profile.sessionsHosted).padStart(2, '0')],
+                  ['TRACKS', String(profile.tracksAdded).padStart(2, '0')],
+                  ['LISTEN', formatListeningTime(profile.totalListeningTime)],
+                  ['FRIENDS', String(profile.friendCount).padStart(2, '0')],
+                ].map(([label, value]) => (
+                  <View key={label} style={styles.statChip}>
+                    <MonoText style={[styles.display, styles.statValue]}>{value}</MonoText>
+                    <MonoText style={[styles.mono, styles.statLabel]}>{label}</MonoText>
+                  </View>
+                ))}
+              </View>
+
+              {profile.friendshipStatus !== 'blocked' ? (
+                <Pressable
+                  onPress={() => void handleFriendAction()}
+                  disabled={actionLoading}
+                  style={({ pressed }) => [styles.friendAction, actionLoading && styles.disabledAction, pressed && styles.pressed]}
+                >
+                  <MonoText style={[styles.monoBold, styles.friendActionText]}>{friendLabel(profile.friendshipStatus)}</MonoText>
+                </Pressable>
+              ) : (
+                <View style={styles.blockedRail}>
+                  <MonoText style={[styles.monoBold, styles.blockedText]}>BLOCKED</MonoText>
+                </View>
+              )}
+            </View>
+
+            <MonoText style={[styles.mono, styles.sectionLabel]}>RECENT ACTIVITY</MonoText>
+            <View style={styles.panel}>
+              {activity.length ? activity.map((event, index) => (
+                <View key={event.id} style={index !== activity.length - 1 ? styles.activityDivider : undefined}>
+                  <View style={styles.activityRow}>
+                    <View style={styles.activityGlyph}>
+                      <Ionicons name="radio-outline" size={14} color={tacticalTokens.colors.ice} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <MonoText style={[styles.display, styles.activityTitle]}>{describeEvent(event)}</MonoText>
+                      <MonoText style={[styles.mono, styles.activityTime]}>{formatTimeAgo(event.createdAt)}</MonoText>
+                    </View>
+                  </View>
+                </View>
+              )) : (
+                <View style={styles.emptyState}>
+                  <Ionicons name="pulse-outline" size={38} color={tacticalTokens.colors.textMuted} />
+                  <MonoText style={[styles.display, styles.emptyTitle]}>NO LOGS</MonoText>
+                  <MonoText style={[styles.mono, styles.emptyCopy]}>No recent signal activity was returned for this profile.</MonoText>
+                </View>
+              )}
+            </View>
+
+            {profile.friendshipStatus !== 'blocked' ? (
+              <Pressable onPress={() => { tapLight(); setPrompt('block'); }} style={({ pressed }) => [styles.blockAction, pressed && styles.pressed]}>
+                <MonoText style={[styles.monoBold, styles.blockActionText]}>BLOCK USER</MonoText>
+              </Pressable>
+            ) : null}
+          </ScrollView>
+        </View>
       </VoidSurface>
+
+      <TacticalActionPrompt
+        visible={Boolean(prompt)}
+        eyebrow="SYS.FREQ // CONNECTION CONTROL"
+        title={prompt === 'remove' ? 'REMOVE FRIEND' : 'BLOCK USER'}
+        description={
+          prompt === 'remove'
+            ? `Drop ${profile.username.toUpperCase()} from your friend bus?`
+            : `Block ${profile.username.toUpperCase()} and suppress their profile activity?`
+        }
+        onClose={() => setPrompt(null)}
+        actions={
+          prompt === 'remove'
+            ? [
+                { label: 'KEEP LINK', description: 'Leave this friend connection active.', icon: 'return-up-back-outline', onPress: () => setPrompt(null) },
+                { label: 'REMOVE FRIEND', description: 'Delete this friend connection from your roster.', icon: 'trash-outline', tone: 'danger', onPress: () => { void confirmRemove(); } },
+              ]
+            : [
+                { label: 'KEEP USER', description: 'Leave this profile accessible.', icon: 'return-up-back-outline', onPress: () => setPrompt(null) },
+                { label: 'BLOCK USER', description: 'Suppress this user from your friend bus.', icon: 'ban-outline', tone: 'danger', onPress: () => { void confirmBlock(); } },
+              ]
+        }
+      />
     </SafeScreen>
   );
 }
 
-// ─── Helpers ─────────────────────────────────────────────────
-
-function formatTimeAgo(isoDate: string): string {
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'now';
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
-}
-
-// ─── Styles ──────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontFamily: fontFamily.mono,
-    fontSize: 12,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-  },
-  content: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingBottom: 40,
-    gap: 20,
-  },
-  // Avatar section
-  avatarSection: {
-    alignItems: 'center',
-    gap: 6,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderWidth: 2,
-    backgroundColor: colors.surfaceCard,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  username: {
-    fontSize: fontSize['2xl'],
-    fontFamily: fontFamily.displayBold,
-    color: palette.frost,
-    letterSpacing: ls.normal,
-  },
-  memberSince: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-  },
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: palette.green,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(76, 175, 80, 0.08)',
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    backgroundColor: palette.green,
-  },
-  liveText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.green,
-    letterSpacing: ls.wide,
-  },
-  // Friend button
-  friendBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-  },
-  friendBtnText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 12,
-    letterSpacing: ls.wide,
-    fontWeight: '600',
-  },
-  // Stats grid
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 16,
-  },
-  statItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  statValue: {
-    fontSize: fontSize.xl,
-    fontFamily: fontFamily.displayBold,
-  },
-  statLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-  },
-  // Activity
-  activityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
-  },
-  activityText: {
-    flex: 1,
-    fontFamily: fontFamily.body,
-    fontSize: 13,
-    color: palette.silver,
-  },
-  activityTime: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.slate,
-  },
-  // Block
-  blockBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    marginTop: 20,
-  },
-  blockText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 11,
-    color: palette.red,
-    letterSpacing: ls.wide,
-  },
+  screen: { flex: 1 },
+  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
+  pressed: { opacity: 0.82 },
+  mono: { fontFamily: tacticalTokens.fonts.mono },
+  monoBold: { fontFamily: tacticalTokens.fonts.monoBold },
+  display: { fontFamily: tacticalTokens.fonts.display },
+  header: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  backButton: { width: 44, height: 44, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { fontSize: 10, color: tacticalTokens.colors.ice, letterSpacing: 2 },
+  title: { marginTop: 2, fontSize: 32, color: tacticalTokens.colors.white },
+  subtitle: { marginTop: 4, fontSize: 12, color: tacticalTokens.colors.textSoft, letterSpacing: 1, lineHeight: 20 },
+  sectionLabel: { marginTop: 20, marginBottom: 8, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 2.2 },
+  panel: { borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: 'rgba(8, 8, 8, 0.94)', paddingHorizontal: 12 },
+  identityRow: { flexDirection: 'row', gap: 12, paddingVertical: 16 },
+  avatar: { width: 72, height: 72, borderWidth: 1, borderColor: tacticalTokens.colors.ice, backgroundColor: '#071116', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 24, color: tacticalTokens.colors.white },
+  name: { fontSize: 28, color: tacticalTokens.colors.white },
+  meta: { marginTop: 4, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.3 },
+  liveBadge: { marginTop: 8, alignSelf: 'flex-start', borderWidth: 1, borderColor: tacticalTokens.colors.acid, backgroundColor: '#071207', paddingHorizontal: 10, paddingVertical: 6 },
+  liveText: { fontSize: 10, color: tacticalTokens.colors.acid, letterSpacing: 1.4 },
+  statRow: { flexDirection: 'row', gap: 8, paddingBottom: 16 },
+  statChip: { flex: 1, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, paddingHorizontal: 8, paddingVertical: 8 },
+  statValue: { fontSize: 16, color: tacticalTokens.colors.white },
+  statLabel: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
+  friendAction: { borderWidth: 1, borderColor: tacticalTokens.colors.white, backgroundColor: tacticalTokens.colors.white, alignItems: 'center', paddingVertical: 12, marginBottom: 16 },
+  friendActionText: { fontSize: 12, color: tacticalTokens.colors.void, letterSpacing: 1.8 },
+  blockedRail: { borderWidth: 1, borderColor: tacticalTokens.colors.orange, backgroundColor: '#1A120D', alignItems: 'center', paddingVertical: 12, marginBottom: 16 },
+  blockedText: { fontSize: 12, color: tacticalTokens.colors.orange, letterSpacing: 1.8 },
+  activityDivider: { borderBottomWidth: 1, borderBottomColor: tacticalTokens.colors.borderSoft },
+  activityRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', paddingVertical: 12 },
+  activityGlyph: { width: 32, height: 32, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, alignItems: 'center', justifyContent: 'center' },
+  activityTitle: { fontSize: 16, color: tacticalTokens.colors.white },
+  activityTime: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32 },
+  emptyTitle: { marginTop: 12, fontSize: 24, color: tacticalTokens.colors.white },
+  emptyCopy: { marginTop: 4, fontSize: 12, color: tacticalTokens.colors.textSoft, letterSpacing: 1, textAlign: 'center', lineHeight: 20 },
+  retryAction: { marginTop: 8, borderWidth: 1, borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A', paddingHorizontal: 16, paddingVertical: 10 },
+  retryActionText: { fontSize: 10, color: tacticalTokens.colors.ice, letterSpacing: 1.5 },
+  blockAction: { marginTop: 16, borderWidth: 1, borderColor: tacticalTokens.colors.orange, backgroundColor: '#1A120D', alignItems: 'center', paddingVertical: 12 },
+  blockActionText: { fontSize: 12, color: tacticalTokens.colors.orange, letterSpacing: 1.8 },
+  disabledAction: { opacity: 0.62 },
 });
 
 export default UserProfileScreen;

@@ -1,24 +1,21 @@
-/**
- * Activity Feed Screen — "SIGNAL MONITOR"
- *
- * Shows friends' recent activity: tracks played, rooms joined,
- * reactions, CV earned, duel results, etc.
- * Cursor-paginated via activityApi.feed().
- */
-
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, StyleSheet, FlatList, RefreshControl, TouchableOpacity,
   ActivityIndicator,
+  FlatList,
+  Image,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen } from '../components/ui';
-import { activityApi, type ActivityEvent } from '../services/api';
-import { useTheme } from '../contexts/ThemeContext';
+import { SafeScreen } from '../components/ui';
 import { VoidSurface } from '../design/components';
-import { palette } from '../design/tokens/materials';
-import { fontFamily, letterSpacing as ls } from '../design/tokens/typography';
-import { spacing } from '../theme/spacing';
+import { activityApi, type ActivityEvent } from '../services/api';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
+import { tapLight } from '../utils/haptics';
 
 interface ActivityFeedScreenProps {
   onBack: () => void;
@@ -26,19 +23,32 @@ interface ActivityFeedScreenProps {
   onOpenProfile?: (userId: string) => void;
 }
 
-// Event type → icon + color
-const EVENT_META: Record<string, { icon: string; color: string }> = {
-  track_played: { icon: 'musical-notes', color: palette.ice },
-  room_joined: { icon: 'radio-outline', color: palette.green },
-  room_created: { icon: 'add-circle-outline', color: palette.orange },
-  reaction: { icon: 'heart', color: palette.red },
-  duel_won: { icon: 'trophy-outline', color: palette.amber },
-  cv_earned: { icon: 'flash', color: palette.green },
-  friend_added: { icon: 'people-outline', color: palette.ice },
-  forecast_correct: { icon: 'analytics-outline', color: palette.orange },
+const EVENT_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; label: string }> = {
+  track_played: { icon: 'musical-notes-outline', color: tacticalTokens.colors.ice, label: 'TRACK PLAYED' },
+  room_joined: { icon: 'radio-outline', color: tacticalTokens.colors.acid, label: 'ROOM JOINED' },
+  room_created: { icon: 'add-circle-outline', color: tacticalTokens.colors.orange, label: 'ROOM CREATED' },
+  reaction: { icon: 'heart-outline', color: tacticalTokens.colors.hotPink, label: 'REACTION' },
+  duel_won: { icon: 'trophy-outline', color: tacticalTokens.colors.orange, label: 'DUEL WON' },
+  cv_earned: { icon: 'flash-outline', color: tacticalTokens.colors.acid, label: 'CV EARNED' },
+  friend_added: { icon: 'people-outline', color: tacticalTokens.colors.ice, label: 'FRIEND LINK' },
+  forecast_correct: { icon: 'analytics-outline', color: tacticalTokens.colors.orange, label: 'FORECAST' },
 };
 
-const DEFAULT_META = { icon: 'ellipse-outline', color: palette.slate };
+function MonoText({
+  children,
+  style,
+  numberOfLines,
+}: {
+  children: React.ReactNode;
+  style?: any;
+  numberOfLines?: number;
+}) {
+  return (
+    <Text style={style} numberOfLines={numberOfLines}>
+      {children}
+    </Text>
+  );
+}
 
 function formatEventText(event: ActivityEvent): string {
   switch (event.eventType) {
@@ -66,256 +76,482 @@ function formatEventText(event: ActivityEvent): string {
 function formatTimeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return 'JUST NOW';
+  if (mins < 60) return `${mins}M AGO`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+  if (hrs < 24) return `${hrs}H AGO`;
   const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return `${Math.floor(days / 7)}w ago`;
+  if (days < 7) return `${days}D AGO`;
+  return `${Math.floor(days / 7)}W AGO`;
 }
 
-// Extracted separator to avoid inline re-creation
-const EventSeparator = () => <View style={styles.separator} />;
+function ActorTile({ username, avatarUrl }: { username: string; avatarUrl: string | null }) {
+  if (avatarUrl) {
+    return (
+      <View style={styles.actorFrame}>
+        <Image source={{ uri: avatarUrl }} style={styles.actorImage} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.actorFrame}>
+      <MonoText style={styles.actorFallback}>{username.slice(0, 2).toUpperCase()}</MonoText>
+    </View>
+  );
+}
 
 export function ActivityFeedScreen({ onBack, onOpenRoom, onOpenProfile }: ActivityFeedScreenProps) {
-  const { accent } = useTheme();
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const cursorRef = useRef<string | undefined>(undefined);
   const hasMoreRef = useRef(true);
 
   const fetchFeed = useCallback(async (before?: string) => {
     try {
       const res = await activityApi.feed(30, before);
-      const items = res.events ?? [];
+      const nextItems = res.events ?? [];
       if (before) {
-        setEvents((prev) => [...prev, ...items]);
+        setEvents((prev) => [...prev, ...nextItems]);
       } else {
-        setEvents(items);
+        setEvents(nextItems);
       }
-      hasMoreRef.current = res.hasMore ?? items.length >= 30;
-      if (items.length > 0) {
-        cursorRef.current = items[items.length - 1].createdAt;
+      hasMoreRef.current = res.hasMore ?? nextItems.length >= 30;
+      cursorRef.current = nextItems.length > 0 ? nextItems[nextItems.length - 1].createdAt : before;
+      setInlineError(null);
+    } catch (err: any) {
+      if (!before) {
+        setInlineError((err?.message || 'SIGNAL MONITOR OFFLINE').toUpperCase());
       }
-      setError(null);
-    } catch (err) {
-      if (!before) setError(err instanceof Error ? err.message : 'Failed to load activity');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchFeed();
   }, [fetchFeed]);
 
-  const onRefresh = useCallback(async () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     hasMoreRef.current = true;
     cursorRef.current = undefined;
-    await fetchFeed();
-    setRefreshing(false);
+    void fetchFeed();
   }, [fetchFeed]);
 
-  const onEndReached = useCallback(async () => {
-    if (loadingMore || !hasMoreRef.current) return;
+  const handleLoadMore = useCallback(() => {
+    if (loadingMore || !hasMoreRef.current || loading) return;
     setLoadingMore(true);
-    await fetchFeed(cursorRef.current);
-    setLoadingMore(false);
-  }, [loadingMore, fetchFeed]);
+    void fetchFeed(cursorRef.current);
+  }, [fetchFeed, loading, loadingMore]);
 
   const handleEventPress = useCallback((event: ActivityEvent) => {
+    tapLight();
     if (event.sessionId && onOpenRoom) {
       onOpenRoom(event.sessionId);
-    } else if (event.actor?.id && onOpenProfile) {
+      return;
+    }
+    if (event.actor?.id && onOpenProfile) {
       onOpenProfile(event.actor.id);
     }
-  }, [onOpenRoom, onOpenProfile]);
+  }, [onOpenProfile, onOpenRoom]);
 
-  const renderEvent = ({ item }: { item: ActivityEvent }) => {
-    const meta = EVENT_META[item.eventType] || DEFAULT_META;
+  const stats = useMemo(() => {
+    const roomEvents = events.filter((event) => event.sessionId).length;
+    const profileEvents = events.filter((event) => !event.sessionId && event.actor?.id).length;
+    return {
+      total: events.length,
+      rooms: roomEvents,
+      people: profileEvents,
+    };
+  }, [events]);
+
+  function renderEvent({ item }: { item: ActivityEvent }) {
+    const meta = EVENT_META[item.eventType] ?? {
+      icon: 'ellipse-outline',
+      color: tacticalTokens.colors.textMuted,
+      label: item.eventType.replace(/_/g, ' ').toUpperCase(),
+    };
+
     return (
-      <TouchableOpacity
-        style={styles.eventItem}
+      <Pressable
         onPress={() => handleEventPress(item)}
-        activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={`${item.actor.username} ${formatEventText(item)}`}
+        style={({ pressed }) => [styles.eventRow, pressed && styles.pressed]}
       >
-        <View style={[styles.eventIcon, { borderColor: meta.color }]}>
-          <Ionicons name={meta.icon as any} size={16} color={meta.color} />
+        <View style={styles.eventLeft}>
+          <View style={[styles.eventIconFrame, { borderColor: meta.color }]}>
+            <Ionicons name={meta.icon} size={16} color={meta.color} />
+          </View>
+          <View style={styles.eventRail} />
         </View>
-        <View style={styles.eventContent}>
-          <Text style={styles.eventText}>
-            <Text style={styles.eventUsername}>{item.actor.username}</Text>
-            {' '}{formatEventText(item)}
-          </Text>
-          <Text style={styles.eventTime}>{formatTimeAgo(item.createdAt)}</Text>
+
+        <View style={styles.eventBody}>
+          <View style={styles.eventTop}>
+            <ActorTile username={item.actor.username} avatarUrl={item.actor.avatarUrl} />
+            <View style={styles.eventCopy}>
+              <MonoText style={styles.eventLabel}>{meta.label}</MonoText>
+              <Text style={styles.eventText}>
+                <Text style={styles.eventActor}>{item.actor.username}</Text>
+                {' '}{formatEventText(item)}
+              </Text>
+            </View>
+            <MonoText style={styles.eventTime}>{formatTimeAgo(item.createdAt)}</MonoText>
+          </View>
+
+          {item.track ? (
+            <View style={styles.eventMetaRow}>
+              <MonoText style={styles.eventMetaText}>
+                TRACK // {item.track.title.toUpperCase()} {item.track.artist ? `// ${item.track.artist.toUpperCase()}` : ''}
+              </MonoText>
+            </View>
+          ) : null}
+
+          {item.sessionId ? (
+            <View style={styles.eventMetaRow}>
+              <MonoText style={styles.eventMetaText}>ROOM ROUTE ACTIVE</MonoText>
+            </View>
+          ) : null}
         </View>
-      </TouchableOpacity>
+      </Pressable>
     );
-  };
+  }
 
   return (
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="chevron-back" size={24} color={palette.frost} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>SIGNAL MONITOR</Text>
-          <View style={{ width: 32 }} />
-        </View>
+        <View style={styles.screen}>
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <TacticalGridBackground opacity={0.58} />
+          </View>
 
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={accent} />
-          </View>
-        ) : error ? (
-          <View style={styles.center}>
-            <Ionicons name="warning-outline" size={48} color={palette.orange} />
-            <Text style={styles.emptyText}>Connection lost</Text>
-            <Text style={styles.emptySubtext}>{error}</Text>
-            <TouchableOpacity onPress={onRefresh} style={styles.retryBtn} accessibilityRole="button" accessibilityLabel="Retry loading">
-              <Text style={[styles.retryText, { color: accent }]}>TAP TO RETRY</Text>
-            </TouchableOpacity>
-          </View>
-        ) : events.length === 0 ? (
-          <View style={styles.center}>
-            <Ionicons name="pulse-outline" size={48} color={palette.steel} />
-            <Text style={styles.emptyText}>No signals yet.</Text>
-            <Text style={styles.emptySubtext}>
-              Activity from your friends will appear here as they listen, create rooms, and react.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={events}
-            keyExtractor={(item, idx) => `${item.id ?? idx}`}
-            renderItem={renderEvent}
-            contentContainerStyle={styles.listContent}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />
-            }
-            onEndReached={onEndReached}
-            onEndReachedThreshold={0.3}
-            ItemSeparatorComponent={EventSeparator}
-            initialNumToRender={15}
-            windowSize={5}
-            removeClippedSubviews
-            ListFooterComponent={loadingMore ? (
-              <View style={styles.footer}>
-                <ActivityIndicator size="small" color={palette.slate} />
+          <View style={styles.header}>
+            <View style={styles.headerTopRow}>
+              <Pressable
+                onPress={onBack}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+              >
+                <Ionicons name="chevron-back" size={20} color={tacticalTokens.colors.white} />
+              </Pressable>
+              <View style={styles.headerTextWrap}>
+                <MonoText style={styles.eyebrow}>SYS.FREQ // SIGNAL MONITOR</MonoText>
+                <MonoText style={styles.title}>ACTIVITY BUS</MonoText>
+                <MonoText style={styles.subtitle}>Live relay of rooms joined, tracks played, reactions, and friend movement.</MonoText>
               </View>
-            ) : null}
-          />
-        )}
+            </View>
+
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryChip}>
+                <MonoText style={[styles.summaryValue, { color: tacticalTokens.colors.ice }]}>
+                  {String(stats.total).padStart(2, '0')}
+                </MonoText>
+                <MonoText style={styles.summaryLabel}>SIGNALS</MonoText>
+              </View>
+              <View style={styles.summaryChip}>
+                <MonoText style={[styles.summaryValue, { color: tacticalTokens.colors.acid }]}>
+                  {String(stats.rooms).padStart(2, '0')}
+                </MonoText>
+                <MonoText style={styles.summaryLabel}>ROOMS</MonoText>
+              </View>
+              <View style={styles.summaryChip}>
+                <MonoText style={[styles.summaryValue, { color: tacticalTokens.colors.orange }]}>
+                  {String(stats.people).padStart(2, '0')}
+                </MonoText>
+                <MonoText style={styles.summaryLabel}>PEOPLE</MonoText>
+              </View>
+            </View>
+          </View>
+
+          {loading ? (
+            <View style={styles.centerState}>
+              <ActivityIndicator size="large" color={tacticalTokens.colors.ice} />
+            </View>
+          ) : inlineError ? (
+            <View style={styles.centerState}>
+              <Ionicons name="warning-outline" size={42} color={tacticalTokens.colors.orange} />
+              <MonoText style={styles.emptyTitle}>CONNECTION LOST</MonoText>
+              <MonoText style={styles.emptyText}>{inlineError}</MonoText>
+              <Pressable
+                onPress={() => {
+                  tapLight();
+                  setLoading(true);
+                  void fetchFeed();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Retry activity feed"
+                style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+              >
+                <MonoText style={styles.retryText}>RETRY</MonoText>
+              </Pressable>
+            </View>
+          ) : (
+            <FlatList
+              data={events}
+              keyExtractor={(item, index) => `${item.id}-${index}`}
+              renderItem={renderEvent}
+              contentContainerStyle={styles.listContent}
+              refreshControl={(
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  tintColor={tacticalTokens.colors.ice}
+                />
+              )}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.35}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              ListEmptyComponent={(
+                <View style={styles.emptyState}>
+                  <Ionicons name="pulse-outline" size={42} color={tacticalTokens.colors.textMuted} />
+                  <MonoText style={styles.emptyTitle}>NO SIGNALS YET</MonoText>
+                  <MonoText style={styles.emptyText}>
+                    Friend activity will patch into this relay as rooms go live and tracks start moving.
+                  </MonoText>
+                </View>
+              )}
+              ListFooterComponent={loadingMore ? (
+                <View style={styles.footer}>
+                  <ActivityIndicator size="small" color={tacticalTokens.colors.textMuted} />
+                </View>
+              ) : null}
+            />
+          )}
+        </View>
       </VoidSurface>
     </SafeScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.screenPadding,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.chromeBorder,
-  },
-  backBtn: {
-    padding: 4,
-  },
-  headerTitle: {
+  screen: {
     flex: 1,
-    textAlign: 'center',
-    fontFamily: fontFamily.mono,
-    fontSize: 13,
-    color: palette.frost,
-    letterSpacing: ls.wider,
   },
-  listContent: {
-    paddingVertical: spacing.sm,
+  header: {
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingTop: tacticalTokens.spacing.xl,
+    paddingBottom: tacticalTokens.spacing.lg,
   },
-  eventItem: {
+  headerTopRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: spacing.screenPadding,
-    paddingVertical: 14,
+    gap: tacticalTokens.spacing.md,
   },
-  eventIcon: {
-    width: 32,
-    height: 32,
-    borderWidth: 1,
+  backButton: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    marginTop: 2,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
   },
-  eventContent: {
+  headerTextWrap: {
     flex: 1,
+    minWidth: 0,
+  },
+  eyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 2,
+  },
+  title: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.hero,
+    color: tacticalTokens.colors.white,
+  },
+  subtitle: {
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 20,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: tacticalTokens.spacing.sm,
+    marginTop: tacticalTokens.spacing.lg,
+  },
+  summaryChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(8, 8, 8, 0.94)',
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.sm,
+  },
+  summaryValue: {
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.title,
+  },
+  summaryLabel: {
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
+  },
+  listContent: {
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingBottom: tacticalTokens.spacing.xxxl,
+  },
+  eventRow: {
+    flexDirection: 'row',
+    gap: tacticalTokens.spacing.md,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(9, 9, 9, 0.92)',
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.md,
+  },
+  eventLeft: {
+    alignItems: 'center',
+  },
+  eventIconFrame: {
+    width: 38,
+    height: 38,
+    borderWidth: 1,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventRail: {
+    width: 1,
+    flex: 1,
+    backgroundColor: tacticalTokens.colors.borderGhost,
+    marginTop: tacticalTokens.spacing.xs,
+  },
+  eventBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  eventTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: tacticalTokens.spacing.sm,
+  },
+  actorFrame: {
+    width: 42,
+    height: 42,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  actorImage: {
+    width: '100%',
+    height: '100%',
+  },
+  actorFallback: {
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.white,
+  },
+  eventCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  eventLabel: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.4,
   },
   eventText: {
-    fontFamily: fontFamily.body,
-    fontSize: 13,
-    color: palette.silver,
-    lineHeight: 19,
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.body,
+    color: tacticalTokens.colors.textSoft,
+    lineHeight: 20,
   },
-  eventUsername: {
-    fontFamily: fontFamily.displayBold,
-    color: palette.frost,
+  eventActor: {
+    fontFamily: tacticalTokens.fonts.display,
+    color: tacticalTokens.colors.white,
   },
   eventTime: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.normal,
-    marginTop: 3,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
+  },
+  eventMetaRow: {
+    marginTop: tacticalTokens.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: tacticalTokens.colors.borderGhost,
+    paddingTop: tacticalTokens.spacing.sm,
+  },
+  eventMetaText: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
   },
   separator: {
-    height: 1,
-    backgroundColor: palette.chromeBorder,
-    marginHorizontal: spacing.screenPadding,
-    opacity: 0.5,
+    height: tacticalTokens.spacing.sm,
   },
-  center: {
+  centerState: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.xl,
+    justifyContent: 'center',
+    paddingHorizontal: tacticalTokens.spacing.xl,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(7, 7, 7, 0.84)',
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingVertical: tacticalTokens.spacing.xxxl,
+    marginTop: tacticalTokens.spacing.sm,
+  },
+  emptyTitle: {
+    marginTop: tacticalTokens.spacing.md,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.title,
+    color: tacticalTokens.colors.white,
   },
   emptyText: {
-    fontFamily: fontFamily.display,
-    fontSize: 16,
-    color: palette.silver,
-    marginTop: spacing.md,
-  },
-  emptySubtext: {
-    fontFamily: fontFamily.body,
-    fontSize: 12,
-    color: palette.slate,
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 22,
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
   },
-  retryBtn: {
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
+  retryButton: {
+    marginTop: tacticalTokens.spacing.lg,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.ice,
+    paddingHorizontal: tacticalTokens.spacing.lg,
+    paddingVertical: tacticalTokens.spacing.sm,
   },
   retryText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 11,
-    letterSpacing: ls.wider,
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.6,
   },
   footer: {
-    paddingVertical: spacing.md,
+    paddingVertical: tacticalTokens.spacing.lg,
     alignItems: 'center',
+  },
+  pressed: {
+    opacity: 0.82,
   },
 });
 

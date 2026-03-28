@@ -1,32 +1,25 @@
-/**
- * Create Session Screen — "Initialize Patch" (Gemini V7)
- *
- * Visual: Signal routing diagram
- *   SIGNAL OUT ─ ─ ─ → CV IN
- *   [SOURCE]           [VIBE]
- *
- * + Room name input
- * + Mode selector (CAMPFIRE / SPOTLIGHT / OPEN FLOOR)
- * + EXECUTE PATCH big orange button
- */
-
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeScreen, Text, ADSRTransition } from '../components/ui';
+import { ADSRTransition, SafeScreen, showToast } from '../components/ui';
+import { ManualPanel } from '../components/manual/ManualPanel';
 import { sessionApi } from '../services/api';
-import { spacing } from '../theme/spacing';
-import { VoidSurface, ModuleFaceplate, ChromeButton } from '../design/components';
-import { palette } from '../design/tokens/materials';
-import { colors } from '../design/tokens/colors';
-import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
-import type { RoomMode, RoomBehaviors } from '../types';
-import { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } from '../types';
-
-// ─── Sources & Vibes ────────────────────────────────────────
+import { VoidSurface } from '../design/components';
+import { useManualMode } from '../hooks/useManualMode';
+import type { RoomBehaviors, RoomMode } from '../types';
+import { BEHAVIOR_PRESETS, DEFAULT_BEHAVIORS } from '../types';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import { formatModeLabel, getModeBlockColors, tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
+import { notifyError, notifyWarning, tapLight, tapMedium } from '../utils/haptics';
 
 const SOURCES = ['SPOTIFY', 'SNDCLOUD', 'YOUTUBE', 'LOCAL'] as const;
 const VIBES = ['CHILL', 'HYPE', 'CHAOS', 'FOCUS', 'AMBIENT'] as const;
@@ -34,7 +27,7 @@ const VIBES = ['CHILL', 'HYPE', 'CHAOS', 'FOCUS', 'AMBIENT'] as const;
 const ROOM_PRESETS: { key: RoomMode; label: string; desc: string }[] = [
   { key: 'campfire', label: 'CAMPFIRE', desc: 'Equal turns. Round-robin queue.' },
   { key: 'spotlight', label: 'SPOTLIGHT', desc: 'Host curates. Approval required.' },
-  { key: 'openFloor', label: 'OPEN FLOOR', desc: 'Votes reorder the queue.' },
+  { key: 'openFloor', label: 'OPEN FLR', desc: 'Votes reorder the queue.' },
 ];
 
 const QUEUE_ORDERING_OPTIONS: { key: RoomBehaviors['queueOrdering']; label: string }[] = [
@@ -46,46 +39,117 @@ const QUEUE_ORDERING_OPTIONS: { key: RoomBehaviors['queueOrdering']; label: stri
 const SKIP_ACCESS_OPTIONS: { key: RoomBehaviors['skipAccess']; label: string }[] = [
   { key: 'anyone', label: 'ANYONE' },
   { key: 'hostOnly', label: 'HOST ONLY' },
-  { key: 'voteRequired', label: 'VOTE REQ.' },
+  { key: 'voteRequired', label: 'VOTE REQUIRED' },
 ];
 
-// ─── Component ──────────────────────────────────────────────
+const ADVANCED_TOGGLES: Array<{
+  key: keyof Pick<
+    RoomBehaviors,
+    'voteReordersQueue' | 'requiresApproval' | 'allowOverdrive' |
+    'allowPhaseCancel' | 'allowPhantomPower' | 'forecastEnabled' | 'duelEnabled'
+  >;
+  label: string;
+  description: string;
+}> = [
+  { key: 'voteReordersQueue', label: 'Votes Reorder Queue', description: 'Higher-voted tracks rise to the top.' },
+  { key: 'requiresApproval', label: 'Require Approval', description: 'Non-host additions need approval.' },
+  { key: 'allowOverdrive', label: 'Allow Overdrive', description: 'Force a track to the top for CV.' },
+  { key: 'allowPhaseCancel', label: 'Allow Phase Cancel', description: 'Block the next skip for CV.' },
+  { key: 'allowPhantomPower', label: 'Allow Phantom Power', description: 'Boost the active track with +48V.' },
+  { key: 'forecastEnabled', label: 'Frequency Forecast', description: 'Enable prediction rounds for CV.' },
+  { key: 'duelEnabled', label: 'Crossfader Duel', description: 'Enable head-to-head battles.' },
+];
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <Text style={styles.sectionLabel}>{children}</Text>;
+}
+
+type ManualHotspotKey = 'mode' | 'routing' | 'visibility';
+
+function ManualHotspot({
+  active,
+  onPress,
+  accent,
+  accessibilityLabel,
+}: {
+  active: boolean;
+  onPress: () => void;
+  accent: string;
+  accessibilityLabel: string;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      style={({ pressed }) => [
+        styles.manualHotspot,
+        { borderColor: accent },
+        active && styles.manualHotspotActive,
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={[styles.manualHotspotDot, { backgroundColor: accent }]} />
+    </Pressable>
+  );
+}
 
 export function CreateSessionScreen() {
   const navigation = useNavigation<any>();
+  const { readManual } = useManualMode();
   const [name, setName] = useState('');
-  const [genre, setGenre] = useState('Mixed');
+  const [genre, setGenre] = useState('MIXED');
   const [roomMode, setRoomMode] = useState<RoomMode>('campfire');
   const [behaviors, setBehaviors] = useState<RoomBehaviors>({
     ...DEFAULT_BEHAVIORS,
     ...BEHAVIOR_PRESETS.campfire,
   });
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [source, setSource] = useState<typeof SOURCES[number]>('SPOTIFY');
   const [vibe, setVibe] = useState<typeof VIBES[number]>('CHILL');
   const [isPublic, setIsPublic] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [activeManualHotspot, setActiveManualHotspot] = useState<ManualHotspotKey | null>(null);
 
-  /** Select a preset template — applies its defaults but keeps user overrides. */
+  const activeModeColors = useMemo(() => getModeBlockColors(roomMode), [roomMode]);
+
+  useEffect(() => {
+    if (!readManual) {
+      setActiveManualHotspot(null);
+    }
+  }, [readManual]);
+
+  function toggleManualHotspot(key: ManualHotspotKey) {
+    tapLight();
+    setActiveManualHotspot((prev) => (prev === key ? null : key));
+  }
+
   function selectPreset(preset: RoomMode) {
+    tapLight();
     setRoomMode(preset);
     setBehaviors({ ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[preset] });
   }
 
-  /** Toggle a single boolean behavior. */
-  function toggleBehavior(key: keyof RoomBehaviors) {
+  function toggleBehavior(key: keyof typeof behaviors) {
     setBehaviors((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
   async function handleCreate() {
-    if (!name.trim()) {
-      Alert.alert('Name your patch', 'Give your session a signal name.');
+    const finalName = name.trim();
+    if (!finalName) {
+      notifyWarning();
+      setInlineError('NAME YOUR PATCH BEFORE EXECUTION.');
+      showToast('Give the room a signal name first.', 'warning', '!');
       return;
     }
+
+    tapMedium();
     setLoading(true);
+    setInlineError(null);
     try {
       const { session } = await sessionApi.create({
-        name: name.trim(),
+        name: finalName,
         genre,
         roomMode,
         isPublic,
@@ -95,7 +159,9 @@ export function CreateSessionScreen() {
       });
       navigation.replace('SessionRoom', { sessionId: session.id });
     } catch (err: any) {
-      Alert.alert('Patch failed', err.message || 'Something went wrong.');
+      notifyError();
+      setInlineError((err?.message || 'PATCH EXECUTION FAILED.').toUpperCase());
+      showToast('Patch execution failed.', 'error', '!');
     } finally {
       setLoading(false);
     }
@@ -105,559 +171,673 @@ export function CreateSessionScreen() {
     <ADSRTransition preset="modalReveal" slideFrom="bottom" slideDistance={30}>
       <SafeScreen>
         <VoidSurface style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={styles.content}>
-            {/* Header */}
-            <View style={styles.header}>
-              <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={styles.closeBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Close dialog"
-                accessibilityHint="Double tap to close this session creation dialog"
-              >
-                <Ionicons name="close" size={20} color={palette.silver} />
-              </TouchableOpacity>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>Initialize Patch</Text>
-                <Text style={styles.subtitle}>Build your room signal flow first, then execute.</Text>
-              </View>
+          <View style={styles.screen}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <TacticalGridBackground opacity={0.58} />
             </View>
 
-            {/* Session Name */}
-            <Text style={styles.inputLabel}>SIGNAL NAME</Text>
-            <TextInput
-              style={styles.nameInput}
-              placeholder="Friday Night Vibes..."
-              placeholderTextColor={palette.slate}
-              value={name}
-              onChangeText={setName}
-              returnKeyType="done"
-              autoCapitalize="words"
-              accessibilityLabel="Session name input"
-              accessibilityHint="Enter a name for your session"
-            />
-
-            {/* Signal Routing Diagram */}
-            <View style={styles.routingDiagram}>
-              {/* SIGNAL OUT */}
-              <ModuleFaceplate label="SIGNAL OUT" style={styles.routingNodeCard}>
-                <View style={styles.routingJack}>
-                  <View style={styles.jackHole} />
+            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+              <View style={styles.header}>
+                <View style={styles.headerTextWrap}>
+                  <Text style={styles.eyebrow}>SYS.FREQ // INIT BUS</Text>
+                  <Text style={styles.title}>INITIALIZE PATCH</Text>
+                  <Text style={styles.subtitle}>
+                    Build the room route, choose the mode, then execute the patch.
+                  </Text>
                 </View>
-                <View style={styles.sourceRow}>
-                  {SOURCES.map((s) => (
-                    <TouchableOpacity
-                      key={s}
-                      style={[styles.sourceChip, source === s && styles.sourceChipActive]}
-                      onPress={() => setSource(s)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Source: ${s}`}
-                      accessibilityState={{ selected: source === s }}
-                    >
-                      <Text style={[styles.sourceText, source === s && styles.sourceTextActive]}>
-                        {s}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ModuleFaceplate>
-
-              {/* Cable bridge */}
-              <View style={styles.cableLine}>
-                <Ionicons name="arrow-down" size={14} color={palette.orange} />
-                <View style={styles.cableDashRow}>
-                  <View style={styles.cableDash} />
-                  <View style={styles.cableDash} />
-                  <View style={styles.cableDash} />
-                  <View style={styles.cableDash} />
-                </View>
+                <Pressable
+                  onPress={() => navigation.goBack()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close create room screen"
+                  style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+                >
+                  <Ionicons name="close" size={20} color={tacticalTokens.colors.white} />
+                </Pressable>
               </View>
 
-              {/* CV IN */}
-              <ModuleFaceplate label="CV IN" style={[styles.routingNodeCard, styles.routingNodeCardDest]}>
-                <View style={styles.routingJack}>
-                  <View style={[styles.jackHole, { borderColor: palette.orange }]} />
-                </View>
-                <View style={styles.sourceRow}>
-                  {VIBES.map((v) => (
-                    <TouchableOpacity
-                      key={v}
-                      style={[styles.sourceChip, vibe === v && styles.vibeChipActive]}
-                      onPress={() => setVibe(v)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Vibe: ${v}`}
-                      accessibilityState={{ selected: vibe === v }}
-                    >
-                      <Text style={[styles.sourceText, vibe === v && styles.vibeTextActive]}>
-                        {v}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ModuleFaceplate>
-            </View>
+              {readManual ? (
+                <ManualPanel
+                  contextLabel="INIT BUS"
+                  variant="compact"
+                  style={styles.manualRailInline}
+                  title="ROOM BUILD ORDER"
+                  subtitle="Build the room in order, then execute the patch once the labels and mode feel right."
+                  steps={[
+                    { tag: 'NAME', text: 'Start with a room name people can recognize quickly.' },
+                    { tag: 'MODE', text: 'Choose how control should feel: shared turns, host-led, or vote-driven.' },
+                    { tag: 'EXEC', text: 'EXECUTE PATCH creates the room and moves you directly into the session.' },
+                  ]}
+                  callouts={[
+                    { label: 'SAFE DEFAULT', value: 'Campfire is still the easiest first room for demos.' },
+                    { label: 'ADVANCED', value: 'You can ignore advanced behaviors on a first pass.' },
+                    { label: 'PRIVATE ROOM', value: 'Turn off visibility if you want host-invite only access.' },
+                  ]}
+                  footer="Create is the host path. If you only need to enter an existing room, use Join instead."
+                />
+              ) : null}
 
-            {/* Preset Templates */}
-            <Text style={styles.sectionLabel}>PRESET TEMPLATE</Text>
-            <View style={styles.modeRow}>
-              {ROOM_PRESETS.map((mode) => {
-                const isActive = roomMode === mode.key;
-                return (
-                  <TouchableOpacity
-                    key={mode.key}
-                    style={[styles.modePill, isActive && styles.modePillActive]}
-                    onPress={() => selectPreset(mode.key)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Room mode: ${mode.label}`}
-                    accessibilityState={{ selected: isActive }}
-                    accessibilityHint={mode.desc}
-                  >
-                    <Text style={[styles.modePillText, isActive && styles.modePillTextActive]}>
-                      {mode.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={styles.modeDesc}>
-              {ROOM_PRESETS.find((m) => m.key === roomMode)?.desc}
-            </Text>
-
-            {/* Advanced Toggles (expandable) */}
-            <TouchableOpacity
-              style={styles.advancedToggle}
-              onPress={() => setShowAdvanced(!showAdvanced)}
-              accessibilityRole="button"
-              accessibilityLabel="Customize behaviors"
-              accessibilityState={{ expanded: showAdvanced }}
-              accessibilityHint="Double tap to expand advanced behavior options"
-            >
-              <Text style={styles.advancedToggleText}>CUSTOMIZE BEHAVIORS</Text>
-              <Ionicons
-                name={showAdvanced ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color={palette.silver}
-              />
-            </TouchableOpacity>
-
-            {showAdvanced && (
-              <ModuleFaceplate label="ADVANCED" style={styles.advancedSection}>
-                {/* Queue Ordering */}
-                <Text style={styles.toggleSectionLabel}>QUEUE ORDERING</Text>
-                <View style={styles.modeRow}>
-                  {QUEUE_ORDERING_OPTIONS.map((opt) => {
-                    const isActive = behaviors.queueOrdering === opt.key;
-                    return (
-                      <TouchableOpacity
-                        key={opt.key}
-                        style={[styles.modePill, isActive && styles.modePillActive]}
-                        onPress={() => setBehaviors((b) => ({ ...b, queueOrdering: opt.key }))}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Queue ordering: ${opt.label}`}
-                        accessibilityState={{ selected: isActive }}
-                      >
-                        <Text style={[styles.modePillText, isActive && styles.modePillTextActive]}>
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+              <View style={styles.panel}>
+                <SectionLabel>SIGNAL NAME</SectionLabel>
+                <View style={styles.inputFrame}>
+                  <View style={styles.inputPrefix} />
+                  <TextInput
+                    style={styles.nameInput}
+                    placeholder="FRIDAY NIGHT PATCH"
+                    placeholderTextColor={tacticalTokens.colors.textMuted}
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                    returnKeyType="done"
+                    selectionColor={tacticalTokens.colors.ice}
+                  />
                 </View>
 
-                {/* Skip Access */}
-                <Text style={styles.toggleSectionLabel}>SKIP ACCESS</Text>
-                <View style={styles.modeRow}>
-                  {SKIP_ACCESS_OPTIONS.map((opt) => {
-                    const isActive = behaviors.skipAccess === opt.key;
-                    return (
-                      <TouchableOpacity
-                        key={opt.key}
-                        style={[styles.modePill, isActive && styles.modePillActive]}
-                        onPress={() => setBehaviors((b) => ({ ...b, skipAccess: opt.key }))}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Skip access: ${opt.label}`}
-                        accessibilityState={{ selected: isActive }}
-                      >
-                        <Text style={[styles.modePillText, isActive && styles.modePillTextActive]}>
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                <SectionLabel>GENRE / TAG</SectionLabel>
+                <View style={[styles.inputFrame, styles.compactInputFrame]}>
+                  <TextInput
+                    style={styles.metaInput}
+                    placeholder="MIXED"
+                    placeholderTextColor={tacticalTokens.colors.textMuted}
+                    value={genre}
+                    onChangeText={(text) => setGenre(text.toUpperCase())}
+                    autoCapitalize="characters"
+                    selectionColor={tacticalTokens.colors.ice}
+                  />
                 </View>
 
-                {/* Boolean Toggles */}
-                {([
-                  { key: 'voteReordersQueue' as const, label: 'Votes Reorder Queue', desc: 'Higher-voted tracks rise to the top.' },
-                  { key: 'requiresApproval' as const, label: 'Require Approval', desc: 'Non-host additions need host OK.' },
-                  { key: 'allowOverdrive' as const, label: 'Allow Overdrive', desc: 'Force a track to the top (25 CV).' },
-                  { key: 'allowPhaseCancel' as const, label: 'Allow Phase Cancel', desc: 'Block the next skip (15 CV).' },
-                  { key: 'allowPhantomPower' as const, label: 'Allow Phantom Power', desc: 'Boost a track +48V (5 CV).' },
-                  { key: 'forecastEnabled' as const, label: 'Frequency Forecast', desc: 'Predict the next track for CV.' },
-                  { key: 'duelEnabled' as const, label: 'Crossfader Duel', desc: 'Head-to-head track battles.' },
-                ]).map((toggle) => (
-                  <View key={toggle.key} style={styles.behaviorToggleRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.behaviorToggleLabel}>{toggle.label}</Text>
-                      <Text style={styles.behaviorToggleDesc}>{toggle.desc}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.toggle, behaviors[toggle.key] && styles.toggleActive]}
-                      onPress={() => toggleBehavior(toggle.key)}
-                      accessibilityRole="switch"
-                      accessibilityLabel={toggle.label}
-                      accessibilityState={{ checked: behaviors[toggle.key] }}
-                      accessibilityHint={toggle.desc}
-                    >
-                      <View style={[styles.toggleKnob, behaviors[toggle.key] && styles.toggleKnobActive]} />
-                    </TouchableOpacity>
+                {inlineError ? (
+                  <View style={styles.errorRail}>
+                    <Ionicons name="alert-circle-outline" size={16} color={tacticalTokens.colors.orange} />
+                    <Text style={styles.errorText}>{inlineError}</Text>
                   </View>
-                ))}
-              </ModuleFaceplate>
-            )}
-
-            {/* Public/Private toggle */}
-            <View style={styles.toggleRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.toggleLabel}>
-                  {isPublic ? 'Public Signal' : 'Private Signal'}
-                </Text>
-                <Text style={styles.toggleDesc}>
-                  {isPublic
-                    ? 'Visible on Live Sonar. Anyone can patch in.'
-                    : 'Invite-only. Share the join code to connect.'}
-                </Text>
+                ) : null}
               </View>
-              <TouchableOpacity
-                style={[styles.toggle, isPublic && styles.toggleActive]}
-                onPress={() => setIsPublic(!isPublic)}
-                accessibilityRole="switch"
-                accessibilityLabel="Public or private signal"
-                accessibilityState={{ checked: isPublic }}
-                accessibilityHint={isPublic ? "Signal is public. Double tap to make it private." : "Signal is private. Double tap to make it public."}
-              >
-                <View style={[styles.toggleKnob, isPublic && styles.toggleKnobActive]} />
-              </TouchableOpacity>
-            </View>
 
-            {/* EXECUTE PATCH — big orange CTA */}
-            <ChromeButton
-              variant="glowing"
-              size="lg"
-              onPress={handleCreate}
-              disabled={loading}
-              style={styles.executePatch}
-            >
-              {loading ? 'PATCHING...' : 'EXECUTE PATCH'}
-            </ChromeButton>
-          </ScrollView>
+              <View style={styles.panel}>
+                <View style={styles.sectionHeaderRow}>
+                  <SectionLabel>ROOM MODE</SectionLabel>
+                  {readManual ? (
+                    <ManualHotspot
+                      active={activeManualHotspot === 'mode'}
+                      onPress={() => toggleManualHotspot('mode')}
+                      accent={tacticalTokens.colors.guide}
+                      accessibilityLabel="Toggle room mode guide"
+                    />
+                  ) : null}
+                </View>
+                {readManual && activeManualHotspot === 'mode' ? (
+                  <View style={styles.manualHintRail}>
+                    <Text style={styles.manualHintTitle}>
+                      {roomMode === 'campfire'
+                        ? 'CAMPFIRE = SHARED TURNS'
+                        : roomMode === 'spotlight'
+                          ? 'SPOTLIGHT = HOST CURATION'
+                          : 'OPEN FLR = VOTE ENERGY'}
+                    </Text>
+                    <Text style={styles.manualHintText}>
+                      {roomMode === 'campfire'
+                        ? 'Best default for demos. Everyone adds normally and the room rotates fairly.'
+                        : roomMode === 'spotlight'
+                          ? 'Best when one person leads. Non-host additions can wait for approval.'
+                          : 'Best when you want visible competition. Votes move tracks up and down the queue.'}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={styles.modeStack}>
+                  {ROOM_PRESETS.map((preset) => {
+                    const isActive = roomMode === preset.key;
+                    const colors = getModeBlockColors(preset.key);
+                    return (
+                      <Pressable
+                        key={preset.key}
+                        onPress={() => selectPreset(preset.key)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Room mode ${preset.label}`}
+                        accessibilityHint={preset.desc}
+                        style={({ pressed }) => [
+                          styles.modeCard,
+                          isActive && [styles.modeCardActive, { borderColor: colors.borderColor }],
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <View style={styles.modeCardHeader}>
+                          <Text style={styles.modeCardTitle}>{preset.label}</Text>
+                          <View style={[styles.modeCardBadge, { backgroundColor: colors.backgroundColor, borderColor: colors.borderColor }]}>
+                            <Text style={[styles.modeCardBadgeText, { color: colors.color }]}>
+                              {formatModeLabel(preset.key)}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.modeCardDescription}>{preset.desc}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.panel}>
+                <View style={styles.sectionHeaderRow}>
+                  <SectionLabel>SOURCE / VIBE ROUTING</SectionLabel>
+                  {readManual ? (
+                    <ManualHotspot
+                      active={activeManualHotspot === 'routing'}
+                      onPress={() => toggleManualHotspot('routing')}
+                      accent={tacticalTokens.colors.guide}
+                      accessibilityLabel="Toggle source and vibe guide"
+                    />
+                  ) : null}
+                </View>
+                {readManual && activeManualHotspot === 'routing' ? (
+                  <View style={styles.manualHintRail}>
+                    <Text style={styles.manualHintTitle}>ROUTING LABELS</Text>
+                    <Text style={styles.manualHintText}>
+                      Source and vibe work like labels for the room. They tell people what kind of session they are stepping into before they join.
+                    </Text>
+                  </View>
+                ) : null}
+                <Text style={styles.helperText}>INPUT SOURCE</Text>
+                <View style={styles.chipWrap}>
+                  {SOURCES.map((item) => (
+                    <Pressable
+                      key={item}
+                      onPress={() => setSource(item)}
+                      style={({ pressed }) => [
+                        styles.routeChip,
+                        source === item && styles.routeChipActive,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={[styles.routeChipText, source === item && styles.routeChipTextActive]}>{item}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={[styles.helperText, { marginTop: tacticalTokens.spacing.md }]}>ROOM VIBE</Text>
+                <View style={styles.chipWrap}>
+                  {VIBES.map((item) => (
+                    <Pressable
+                      key={item}
+                      onPress={() => setVibe(item)}
+                      style={({ pressed }) => [
+                        styles.routeChip,
+                        vibe === item && styles.vibeChipActive,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={[styles.routeChipText, vibe === item && styles.vibeChipTextActive]}>{item}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.panel}>
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleTextWrap}>
+                    <View style={styles.sectionHeaderRow}>
+                      <SectionLabel>ROOM VISIBILITY</SectionLabel>
+                      {readManual ? (
+                        <ManualHotspot
+                          active={activeManualHotspot === 'visibility'}
+                          onPress={() => toggleManualHotspot('visibility')}
+                          accent={tacticalTokens.colors.guide}
+                          accessibilityLabel="Toggle room visibility guide"
+                        />
+                      ) : null}
+                    </View>
+                    {readManual && activeManualHotspot === 'visibility' ? (
+                      <View style={styles.manualHintRail}>
+                        <Text style={styles.manualHintTitle}>
+                          VISIBILITY ROUTE
+                        </Text>
+                        <Text style={styles.manualHintText}>
+                          Public rooms surface on Live Sonar and room discovery. Private rooms stay off the radar and rely on direct handoff through code or QR.
+                        </Text>
+                      </View>
+                    ) : null}
+                    <Text style={styles.toggleDescription}>
+                      {isPublic ? 'VISIBLE ON LIVE RADAR. ANYONE CAN PATCH IN.' : 'PRIVATE SIGNAL. SHARE THE ROOM CODE TO CONNECT.'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={isPublic}
+                    onValueChange={(value) => {
+                      tapLight();
+                      setIsPublic(value);
+                    }}
+                    trackColor={{ false: tacticalTokens.colors.border, true: tacticalTokens.colors.orange }}
+                    thumbColor={tacticalTokens.colors.white}
+                  />
+                </View>
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  tapLight();
+                  setShowAdvanced((prev) => !prev);
+                }}
+                style={({ pressed }) => [styles.advancedToggle, pressed && styles.pressed]}
+              >
+                <Text style={styles.advancedToggleText}>ADVANCED BEHAVIORS</Text>
+                <Ionicons
+                  name={showAdvanced ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={tacticalTokens.colors.textSoft}
+                />
+              </Pressable>
+
+              {showAdvanced ? (
+                <View style={styles.panel}>
+                  <SectionLabel>QUEUE ORDERING</SectionLabel>
+                  <View style={styles.chipWrap}>
+                    {QUEUE_ORDERING_OPTIONS.map((option) => (
+                      <Pressable
+                        key={option.key}
+                        onPress={() => setBehaviors((prev) => ({ ...prev, queueOrdering: option.key }))}
+                        style={({ pressed }) => [
+                          styles.routeChip,
+                          behaviors.queueOrdering === option.key && styles.routeChipActive,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text style={[styles.routeChipText, behaviors.queueOrdering === option.key && styles.routeChipTextActive]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <SectionLabel>SKIP ACCESS</SectionLabel>
+                  <View style={styles.chipWrap}>
+                    {SKIP_ACCESS_OPTIONS.map((option) => (
+                      <Pressable
+                        key={option.key}
+                        onPress={() => setBehaviors((prev) => ({ ...prev, skipAccess: option.key }))}
+                        style={({ pressed }) => [
+                          styles.routeChip,
+                          behaviors.skipAccess === option.key && styles.routeChipActive,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text style={[styles.routeChipText, behaviors.skipAccess === option.key && styles.routeChipTextActive]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <SectionLabel>FEATURE FLAGS</SectionLabel>
+                  {ADVANCED_TOGGLES.map((toggle) => (
+                    <View key={toggle.key} style={styles.behaviorRow}>
+                      <View style={styles.behaviorCopy}>
+                        <Text style={styles.behaviorLabel}>{toggle.label.toUpperCase()}</Text>
+                        <Text style={styles.behaviorDescription}>{toggle.description.toUpperCase()}</Text>
+                      </View>
+                      <Switch
+                        value={!!behaviors[toggle.key]}
+                        onValueChange={() => toggleBehavior(toggle.key)}
+                        trackColor={{ false: tacticalTokens.colors.border, true: activeModeColors.borderColor }}
+                        thumbColor={tacticalTokens.colors.white}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <Pressable
+                onPress={() => void handleCreate()}
+                accessibilityRole="button"
+                accessibilityLabel="Execute patch and create room"
+                disabled={loading}
+                style={({ pressed }) => [
+                  styles.executeButton,
+                  loading && styles.disabledAction,
+                  pressed && !loading && styles.pressed,
+                ]}
+              >
+                <Text style={styles.executeButtonText}>{loading ? 'PATCHING...' : 'EXECUTE PATCH'}</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
         </VoidSurface>
       </SafeScreen>
     </ADSRTransition>
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   content: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing['2xl'],
-    paddingBottom: spacing['3xl'],
+    paddingHorizontal: tacticalTokens.spacing.lg,
+    paddingTop: tacticalTokens.spacing.lg,
+    paddingBottom: tacticalTokens.spacing.xxl,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: spacing.xl,
+    justifyContent: 'space-between',
+    gap: tacticalTokens.spacing.sm,
+    marginBottom: tacticalTokens.spacing.lg,
   },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 0,
-    backgroundColor: '#111111',
-    borderWidth: 1,
-    borderColor: '#333333',
-    alignItems: 'center',
-    justifyContent: 'center',
+  headerTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  eyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 2,
   },
   title: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: fontSize['2xl'],
-    color: '#39FF14',
-    letterSpacing: ls.normal,
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.display,
+    color: tacticalTokens.colors.white,
   },
   subtitle: {
-    marginTop: 3,
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.base,
-    color: palette.slate,
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.micro,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 18,
   },
-
-  // Name input
-  inputLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.xs,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-    marginBottom: 6,
+  closeButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+  },
+  manualRailInline: {
+    marginTop: -tacticalTokens.spacing.sm,
+    marginBottom: tacticalTokens.spacing.sm,
+  },
+  panel: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(6, 6, 6, 0.92)',
+    padding: tacticalTokens.spacing.lg,
+    marginBottom: tacticalTokens.spacing.lg,
+  },
+  sectionLabel: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textDim,
+    letterSpacing: 1.8,
+    marginBottom: tacticalTokens.spacing.sm,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: tacticalTokens.spacing.sm,
+    paddingRight: tacticalTokens.spacing.xs,
+  },
+  manualHotspot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    backgroundColor: tacticalTokens.colors.matte,
+    marginTop: 2,
+    marginRight: 2,
+    marginBottom: tacticalTokens.spacing.sm,
+  },
+  manualHotspotActive: {
+    backgroundColor: tacticalTokens.colors.matteGhost,
+  },
+  manualHotspotDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  inputFrame: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 60,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.white,
+    backgroundColor: tacticalTokens.colors.void,
+    paddingHorizontal: tacticalTokens.spacing.md,
+    marginBottom: tacticalTokens.spacing.sm,
+  },
+  compactInputFrame: {
+    minHeight: 48,
+  },
+  inputPrefix: {
+    width: 14,
+    height: 30,
+    backgroundColor: tacticalTokens.colors.white,
+    marginRight: tacticalTokens.spacing.md,
   },
   nameInput: {
-    height: 48,
-    backgroundColor: '#111111',
-    borderRadius: 0,
-    paddingHorizontal: 14,
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.lg,
-    color: palette.frost,
-    borderWidth: 1,
-    borderColor: '#333333',
-    marginBottom: spacing.xl,
+    flex: 1,
+    color: tacticalTokens.colors.white,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.label + 4,
+    letterSpacing: 1.4,
+    paddingVertical: 0,
   },
-
-  // Signal routing diagram
-  routingDiagram: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    marginBottom: spacing.xl,
-    paddingVertical: 12,
-    gap: 10,
+  metaInput: {
+    flex: 1,
+    color: tacticalTokens.colors.white,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.body,
+    letterSpacing: 1.1,
+    paddingVertical: 0,
   },
-  routingNodeCard: {
+  errorRail: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: tacticalTokens.spacing.sm,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: '#1A120D',
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.sm,
   },
-  routingNodeCardDest: {
-    borderColor: '#00E5FF',
+  errorText: {
+    flex: 1,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 1,
   },
-  routingNodeLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.xs,
-    color: palette.silver,
-    letterSpacing: ls.wide,
-    marginBottom: 8,
+  modeStack: {
+    gap: tacticalTokens.spacing.sm,
   },
-  routingJack: {
-    width: 44,
-    height: 44,
-    borderRadius: 0,
-    backgroundColor: '#0A0A0A',
-    borderWidth: 2,
-    borderColor: '#333333',
+  modeCard: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    padding: tacticalTokens.spacing.md,
+  },
+  modeCardActive: {
+    backgroundColor: 'rgba(12, 12, 12, 0.96)',
+  },
+  modeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: tacticalTokens.spacing.sm,
+  },
+  modeCardTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.body + 1,
+    color: tacticalTokens.colors.white,
+  },
+  modeCardBadge: {
+    minWidth: 92,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    borderWidth: 1,
+    paddingHorizontal: tacticalTokens.spacing.sm,
   },
-  jackHole: {
-    width: 16,
-    height: 16,
-    borderRadius: 0,
-    borderWidth: 2,
-    borderColor: '#39FF14',
-    backgroundColor: 'transparent',
+  modeCardBadgeText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    letterSpacing: 1.4,
   },
-  sourceRow: {
+  modeCardDescription: {
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 18,
+  },
+  helperText: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.guideSoft,
+    letterSpacing: 1.1,
+    marginBottom: tacticalTokens.spacing.sm,
+    lineHeight: 16,
+  },
+  manualHintRail: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.guideSoft,
+    backgroundColor: 'rgba(10, 10, 10, 0.88)',
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.sm,
+    marginBottom: tacticalTokens.spacing.md,
+  },
+  manualHintTitle: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.guide,
+    letterSpacing: 1.5,
+    marginBottom: tacticalTokens.spacing.xs,
+  },
+  manualHintText: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.guideSoft,
+    letterSpacing: 1,
+    lineHeight: 18,
+  },
+  chipWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: tacticalTokens.spacing.sm,
+  },
+  routeChip: {
+    minHeight: 34,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    rowGap: 6,
-  },
-  sourceChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 0,
+    paddingHorizontal: tacticalTokens.spacing.md,
     borderWidth: 1,
-    borderColor: '#333333',
-    backgroundColor: '#111111',
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
   },
-  sourceChipActive: {
-    borderColor: '#39FF14',
-    backgroundColor: 'transparent',
+  routeChipActive: {
+    borderColor: tacticalTokens.colors.acid,
+    backgroundColor: '#0D1409',
   },
-  sourceText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 8,
-    color: palette.slate,
-    letterSpacing: ls.wide,
+  routeChipText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.micro,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.2,
   },
-  sourceTextActive: {
-    color: '#39FF14',
+  routeChipTextActive: {
+    color: tacticalTokens.colors.acid,
   },
   vibeChipActive: {
-    borderColor: '#00E5FF',
-    backgroundColor: 'transparent',
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: '#081218',
   },
-  vibeTextActive: {
-    color: '#00E5FF',
+  vibeChipTextActive: {
+    color: tacticalTokens.colors.ice,
   },
-
-  // Cable
-  cableLine: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 2,
-  },
-  cableDashRow: {
+  toggleRow: {
     flexDirection: 'row',
-    gap: 4,
-  },
-  cableDash: {
-    width: 8,
-    height: 2,
-    borderRadius: 0,
-    backgroundColor: '#333333',
-  },
-
-  // Mode selector
-  sectionLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.xs,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-    marginBottom: 10,
-  },
-  modeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
-  },
-  modePill: {
-    minWidth: 98,
-    flexGrow: 1,
-    paddingVertical: 10,
-    borderRadius: 0,
-    borderWidth: 1,
-    borderColor: '#333333',
-    backgroundColor: '#111111',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: tacticalTokens.spacing.md,
   },
-  modePillActive: {
-    borderColor: '#39FF14',
-    backgroundColor: 'transparent',
+  toggleTextWrap: {
+    flex: 1,
   },
-  modePillText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    letterSpacing: ls.wide,
+  toggleDescription: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 18,
   },
-  modePillTextActive: {
-    color: '#39FF14',
-  },
-  modeDesc: {
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.base,
-    color: palette.silver,
-    marginBottom: spacing.xl,
-    textAlign: 'center',
-  },
-
-  // Advanced toggles section
   advancedToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    marginBottom: 4,
-    borderTopWidth: 1,
-    borderTopColor: '#333333',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.md,
+    marginBottom: tacticalTokens.spacing.lg,
   },
   advancedToggleText: {
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.xs,
-    color: palette.silver,
-    letterSpacing: ls.wide,
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.micro,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.3,
   },
-  advancedSection: {
-    marginBottom: spacing.lg,
-  },
-  toggleSectionLabel: {
-    fontFamily: fontFamily.mono,
-    fontSize: 9,
-    color: palette.slate,
-    letterSpacing: ls.wide,
-    marginBottom: 8,
-    marginTop: 12,
-  },
-  behaviorToggleRow: {
+  behaviorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#333333',
-  },
-  behaviorToggleLabel: {
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.base,
-    color: palette.frost,
-  },
-  behaviorToggleDesc: {
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.sm,
-    color: palette.slate,
-    marginTop: 1,
-  },
-
-  // Toggle
-  toggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    marginBottom: spacing.xl,
+    gap: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: '#333333',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderTopColor: tacticalTokens.colors.borderGhost,
   },
-  toggleLabel: {
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.md,
-    color: palette.frost,
+  behaviorCopy: {
+    flex: 1,
+    minWidth: 0,
   },
-  toggleDesc: {
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.base,
-    color: palette.slate,
+  behaviorLabel: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.micro,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1,
+  },
+  behaviorDescription: {
     marginTop: 2,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 0.9,
+    lineHeight: 18,
   },
-  toggle: {
-    width: 48,
-    height: 28,
-    borderRadius: 0,
-    backgroundColor: '#000000',
-    padding: 2,
+  executeButton: {
+    minHeight: 56,
+    alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: tacticalTokens.colors.orange,
+    marginTop: tacticalTokens.spacing.sm,
   },
-  toggleActive: {
-    backgroundColor: '#39FF14',
-    borderColor: '#39FF14',
+  executeButtonText: {
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.label + 2,
+    color: tacticalTokens.colors.void,
+    letterSpacing: 1.2,
   },
-  toggleKnob: {
-    width: 22,
-    height: 22,
-    borderRadius: 0,
-    backgroundColor: '#333333',
+  disabledAction: {
+    opacity: 0.55,
   },
-  toggleKnobActive: {
-    backgroundColor: '#000000',
-    alignSelf: 'flex-end',
-  },
-
-  // Execute button
-  executePatch: {
-    height: 56,
-    // Orange glow
-    shadowColor: palette.orange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
+  pressed: {
+    opacity: 0.82,
   },
 });
 

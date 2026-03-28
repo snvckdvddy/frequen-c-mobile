@@ -43,6 +43,8 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { FriendsScreen } from '../screens/FriendsScreen';
 import { UserProfileScreen } from '../screens/UserProfileScreen';
 import { ActivityFeedScreen } from '../screens/ActivityFeedScreen';
+import { WelcomeBootScreen } from '../screens/WelcomeBootScreen';
+import { clearWelcomeBoot, shouldShowWelcomeBoot } from '../features/onboarding/welcomeBootState';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -52,6 +54,7 @@ type AuthStackParamList = {
 };
 
 type MainStackParamList = {
+  WelcomeBoot: undefined;
   Tabs: undefined;
   CreateSession: undefined;
   JoinSession: { joinCode?: string } | undefined;
@@ -272,7 +275,7 @@ function TabNavigator() {
       </Tab.Navigator>
 
       {currentTrack && globalRoom.playback && (
-        <View style={{ position: 'absolute', bottom: 80, left: 0, right: 0 }}>
+        <View style={{ position: 'absolute', bottom: 82, left: 12, right: 12 }}>
           <MiniPlayer
             track={currentTrack}
             playback={globalRoom.playback}
@@ -312,12 +315,28 @@ function AuthNavigator() {
 function MainNavigator() {
   return (
     <MainStack.Navigator
+      initialRouteName={shouldShowWelcomeBoot() ? 'WelcomeBoot' : 'Tabs'}
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
         contentStyle: { backgroundColor: palette.void },
       }}
     >
+      <MainStack.Screen
+        name="WelcomeBoot"
+        options={{ animation: 'fade' }}
+      >
+        {({ navigation }) => (
+          <ErrorBoundary screenName="WelcomeBoot">
+            <WelcomeBootScreen
+              onContinue={() => {
+                clearWelcomeBoot();
+                navigation.replace('Tabs');
+              }}
+            />
+          </ErrorBoundary>
+        )}
+      </MainStack.Screen>
       <MainStack.Screen name="Tabs" component={TabNavigator} />
       <MainStack.Screen
         name="CreateSession"

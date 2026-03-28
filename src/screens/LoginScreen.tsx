@@ -1,228 +1,162 @@
-/**
- * Login Screen — Modular Synthesis Entry Point
- *
- * The first thing you see. Sets the tone:
- * dark, chrome, signal-driven. "Patch in" not "sign in."
- */
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
-  Alert,
+  Pressable,
   ScrollView,
-  Animated,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
-import { SafeScreen, Text, Button, Input } from '../components/ui';
+import { Ionicons } from '@expo/vector-icons';
+import { Button, Input, SafeScreen } from '../components/ui';
+import { ManualPanel } from '../components/manual/ManualPanel';
 import { VoidSurface } from '../design/components';
 import { useAuth } from '../contexts/AuthContext';
-import { palette } from '../design/tokens/materials';
-import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
-import { spacing } from '../theme/spacing';
+import { useManualMode } from '../hooks/useManualMode';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
 interface LoginScreenProps {
   onSwitchToRegister: () => void;
 }
 
-/** Animated sine wave brand mark — replaces static glow orb */
-function SignalMark() {
-  const pulseAnim = useRef(new Animated.Value(0.5)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 0.85,
-          duration: 2500,
-          useNativeDriver: false,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0.5,
-          duration: 2500,
-          useNativeDriver: false,
-        }),
-      ])
-    ).start();
-  }, [pulseAnim]);
-
-  return (
-    <View style={signalStyles.container}>
-      {/* Glow behind waveform */}
-      <Animated.View
-        style={[
-          signalStyles.glow,
-          {
-            opacity: pulseAnim,
-            transform: [{
-              scale: pulseAnim.interpolate({
-                inputRange: [0.5, 0.85],
-                outputRange: [0.95, 1.05],
-              }),
-            }],
-          },
-        ]}
-      />
-      {/* Waveform SVG */}
-      <Svg width={200} height={48} viewBox="0 0 200 48" style={signalStyles.wave}>
-        <Path
-          d="M 0 24 Q 12.5 0, 25 24 Q 37.5 48, 50 24 Q 62.5 0, 75 24 Q 87.5 48, 100 24 Q 112.5 0, 125 24 Q 137.5 48, 150 24 Q 162.5 0, 175 24 Q 187.5 48, 200 24"
-          stroke={palette.orange}
-          strokeWidth={2}
-          fill="none"
-          opacity={0.8}
-        />
-      </Svg>
-    </View>
-  );
+function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+  return <Text {...props} />;
 }
-
-const signalStyles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 100,
-    marginBottom: spacing.md,
-  },
-  glow: {
-    position: 'absolute',
-    width: 220,
-    height: 80,
-    borderRadius: 0,
-    backgroundColor: palette.orange,
-    shadowColor: palette.orange,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 50,
-    elevation: 15,
-    opacity: 0.08,
-  },
-  wave: {
-    zIndex: 1,
-  },
-});
 
 export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
   const { login } = useAuth();
+  const { readManual } = useManualMode();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
-  function validate(): boolean {
-    const newErrors: typeof errors = {};
-    if (!email.trim()) newErrors.email = 'Email is required';
-    if (!password) newErrors.password = 'Password is required';
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }
+  const validate = () => {
+    const next: typeof errors = {};
+    if (!email.trim()) next.email = 'Email is required';
+    if (!password) next.password = 'Password is required';
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
-  async function handleLogin() {
+  const handleLogin = async () => {
     if (!validate()) return;
+    setSubmitError(null);
     setLoading(true);
     try {
       await login(email.trim(), password);
     } catch (error: any) {
-      Alert.alert('Connection failed', error.message || 'Check your credentials and try again.');
+      setSubmitError((error?.message || 'Check your credentials and try again.').toUpperCase());
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <SafeScreen>
-      <VoidSurface style={styles.container}>
+      <VoidSurface style={{ flex: 1 }}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Signal waveform brand mark */}
-          <SignalMark />
+          <View style={styles.screen}>
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <TacticalGridBackground opacity={0.58} />
+            </View>
 
-        {/* Brand */}
-        <View style={styles.brandArea}>
-          <Text
-            variant="displaySmall"
-            color={palette.frost}
-            style={styles.brandLetter}
-          >
-            C
-          </Text>
-          <Text variant="labelSmall" color={palette.slate} style={styles.brandTag}>
-            FREQUEN-C
-          </Text>
-        </View>
+            <ScrollView
+              contentContainerStyle={styles.content}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.signalPlate}>
+                <View style={styles.signalBar} />
+                <View style={styles.signalBarShort} />
+                <View style={styles.signalBar} />
+              </View>
 
-        {/* Headline */}
-        <View style={styles.header}>
-          <Text variant="h1" color={palette.frost}>
-            Patch in.
-          </Text>
-          <Text variant="body" color={palette.silver} style={styles.subtitle}>
-            Your signal chain is waiting.
-          </Text>
-        </View>
+              <View style={styles.header}>
+                <MonoText style={[styles.mono, styles.eyebrow]}>SYS.FREQ // AUTH BUS</MonoText>
+                <MonoText style={[styles.display, styles.title]}>PATCH IN</MonoText>
+                <MonoText style={[styles.mono, styles.subtitle]}>
+                  Route back into your signal chain and return to the live room grid.
+                </MonoText>
+              </View>
 
-        {/* Form */}
-        <View style={styles.form}>
-          <Input
-            label="Email"
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            error={errors.email}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="next"
-            accessibilityLabel="Email address input"
-          />
-          <Input
-            label="Password"
-            placeholder="Your password"
-            value={password}
-            onChangeText={setPassword}
-            error={errors.password}
-            secureTextEntry
-            returnKeyType="done"
-            onSubmitEditing={handleLogin}
-            accessibilityLabel="Password input"
-          />
+              {readManual ? (
+                <ManualPanel
+                  contextLabel="AUTH BUS"
+                  variant="compact"
+                  style={styles.manualRailInline}
+                  title="LOGIN FLOW"
+                  subtitle="Use this when you already have an account and just need to reconnect to the app."
+                  steps={[
+                    { tag: 'EMAIL', text: 'Enter the email tied to your existing profile.' },
+                    { tag: 'PASS', text: 'Use the same password you registered with.' },
+                    { tag: 'DONE', text: 'PATCH IN returns you to the main app once the route is valid.' },
+                  ]}
+                  callouts={[
+                    { label: 'RETURNING USER', value: 'Use Patch In if the account already exists.' },
+                    { label: 'NEXT SCREEN', value: 'Successful login hands off to the entry grid.' },
+                  ]}
+                  footer="If you have never made an account on this device, switch to Generate Signal."
+                />
+              ) : null}
 
-          <Button
-            title="Patch In"
-            onPress={handleLogin}
-            loading={loading}
-            fullWidth
-            size="lg"
-            style={styles.submitButton}
-          />
-        </View>
+              <View style={styles.panel}>
+                <Input
+                  label="EMAIL"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  error={errors.email}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  accessibilityLabel="Email address input"
+                />
+                <Input
+                  label="PASSWORD"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={setPassword}
+                  error={errors.password}
+                  secureTextEntry
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
+                  accessibilityLabel="Password input"
+                />
 
-        {/* Switch to register */}
-        <View style={styles.footer}>
-          <Text variant="body" color={palette.slate}>
-            New signal?{' '}
-          </Text>
-          <TouchableOpacity onPress={onSwitchToRegister} accessibilityRole="button" accessibilityLabel="Create your frequency, switch to registration">
-            <Text variant="body" color={palette.orange}>
-              Create your frequency
-            </Text>
-          </TouchableOpacity>
-        </View>
+                {submitError ? (
+                  <View style={styles.errorRail}>
+                    <Ionicons name="warning-outline" size={16} color={tacticalTokens.colors.orange} />
+                    <MonoText style={[styles.mono, styles.errorText]}>{submitError}</MonoText>
+                  </View>
+                ) : null}
 
-        {/* Build tag */}
-        <Text variant="labelSmall" color={palette.slate} style={styles.buildTag}>
-          DESN 374-040
-        </Text>
-        </ScrollView>
+                <Button
+                  title="PATCH IN"
+                  onPress={handleLogin}
+                  loading={loading}
+                  fullWidth
+                  size="lg"
+                  style={styles.submitButton}
+                />
+              </View>
+
+              <View style={styles.switchRow}>
+                <MonoText style={[styles.mono, styles.switchCopy]}>NO ACTIVE PROFILE?</MonoText>
+                <Pressable onPress={onSwitchToRegister} style={({ pressed }) => [pressed && styles.pressed]}>
+                  <MonoText style={[styles.monoBold, styles.switchAction]}>GENERATE SIGNAL</MonoText>
+                </Pressable>
+              </View>
+
+              <MonoText style={[styles.mono, styles.buildTag]}>DESN 374-040</MonoText>
+            </ScrollView>
+          </View>
         </KeyboardAvoidingView>
       </VoidSurface>
     </SafeScreen>
@@ -230,52 +164,108 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
+  screen: { flex: 1 },
+  content: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: spacing.screenPadding,
-    paddingVertical: spacing['3xl'],
+    paddingHorizontal: 20,
+    paddingVertical: 32,
   },
-  brandArea: {
-    alignItems: 'center',
-    marginBottom: spacing.xl,
+  pressed: { opacity: 0.82 },
+  mono: { fontFamily: tacticalTokens.fonts.mono },
+  monoBold: { fontFamily: tacticalTokens.fonts.monoBold },
+  display: { fontFamily: tacticalTokens.fonts.display },
+  signalPlate: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    alignSelf: 'center',
+    marginBottom: 24,
   },
-  brandLetter: {
-    fontSize: 64,
-    lineHeight: 72,
-    fontWeight: fontWeight.thin,
-    letterSpacing: ls.tighter,
+  signalBar: {
+    width: 22,
+    height: 46,
+    backgroundColor: tacticalTokens.colors.ice,
   },
-  brandTag: {
-    marginTop: spacing.xs,
-    letterSpacing: ls.heroWide,
+  signalBarShort: {
+    width: 22,
+    height: 26,
+    backgroundColor: tacticalTokens.colors.white,
   },
   header: {
-    marginBottom: spacing['2xl'],
+    marginBottom: 20,
+  },
+  eyebrow: {
+    fontSize: 10,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 2,
+  },
+  title: {
+    marginTop: 2,
+    fontSize: 32,
+    color: tacticalTokens.colors.white,
   },
   subtitle: {
-    marginTop: spacing.sm,
+    marginTop: 4,
+    fontSize: 12,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 20,
   },
-  form: {
-    marginBottom: spacing.xl,
+  manualRailInline: {
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  panel: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(8, 8, 8, 0.94)',
+    padding: 16,
+  },
+  errorRail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: '#1A120D',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 10,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.2,
   },
   submitButton: {
-    marginTop: spacing.sm,
+    marginTop: 12,
   },
-  footer: {
+  switchRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 8,
+    marginTop: 20,
+  },
+  switchCopy: {
+    fontSize: 10,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.4,
+  },
+  switchAction: {
+    fontSize: 10,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 1.5,
   },
   buildTag: {
+    marginTop: 24,
     textAlign: 'center',
-    marginTop: spacing['2xl'],
-    opacity: 0.3,
-    letterSpacing: ls.wider,
     fontSize: 9,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 2,
+    opacity: 0.5,
   },
 });
 
