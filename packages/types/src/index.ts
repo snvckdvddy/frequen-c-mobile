@@ -22,6 +22,7 @@ export interface User {
   totalListeningTime?: number; // minutes
   voltageBalance?: number;
   noiseGate?: 'off' | 'low' | 'medium' | 'high';
+  authProvider?: 'email' | 'apple' | 'google';
   // AI: Sonic Aura fields
   duelWinRate?: number;
   topArtists?: string[];

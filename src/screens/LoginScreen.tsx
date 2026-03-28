@@ -1,19 +1,24 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextStyle,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { Button, Input, SafeScreen } from '../components/ui';
 import { ManualPanel } from '../components/manual/ManualPanel';
 import { VoidSurface } from '../design/components';
 import { useAuth } from '../contexts/AuthContext';
 import { useManualMode } from '../hooks/useManualMode';
+import { config } from '../config';
 import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
@@ -21,16 +26,17 @@ interface LoginScreenProps {
   onSwitchToRegister: () => void;
 }
 
-function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+function MonoText(props: { children: React.ReactNode; style?: TextStyle | TextStyle[]; numberOfLines?: number }) {
   return <Text {...props} />;
 }
 
 export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
-  const { login } = useAuth();
+  const { login, loginWithApple, loginWithGoogle } = useAuth();
   const { readManual } = useManualMode();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<'apple' | 'google' | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
@@ -48,12 +54,92 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
     setLoading(true);
     try {
       await login(email.trim(), password);
-    } catch (error: any) {
-      setSubmitError((error?.message || 'Check your credentials and try again.').toUpperCase());
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Check your credentials and try again.';
+      setSubmitError(message.toUpperCase());
     } finally {
       setLoading(false);
     }
   };
+
+  // ── Apple Sign In ──────────────────────────────────────────
+  const handleAppleSignIn = async () => {
+    setSubmitError(null);
+    setSocialLoading('apple');
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        setSubmitError('APPLE DID NOT RETURN AN IDENTITY TOKEN');
+        return;
+      }
+
+      const fullName = [credential.fullName?.givenName, credential.fullName?.familyName]
+        .filter(Boolean)
+        .join(' ') || undefined;
+
+      await loginWithApple(
+        credential.identityToken,
+        credential.user,
+        fullName,
+        credential.email ?? undefined,
+      );
+    } catch (error: unknown) {
+      // code === 'ERR_REQUEST_CANCELED' means user dismissed the sheet
+      const code = error instanceof Error && 'code' in error ? (error as Error & { code: string }).code : '';
+      if (code === 'ERR_REQUEST_CANCELED') return;
+      const message = error instanceof Error ? error.message : 'Apple sign in failed.';
+      setSubmitError(message.toUpperCase());
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  // ── Google Sign In ─────────────────────────────────────────
+  const handleGoogleSignIn = async () => {
+    if (!config.GOOGLE_WEB_CLIENT_ID) {
+      setSubmitError('GOOGLE SIGN IN IS NOT CONFIGURED');
+      return;
+    }
+    setSubmitError(null);
+    setSocialLoading('google');
+    try {
+      // Configure is idempotent — safe to call before each flow
+      GoogleSignin.configure({
+        webClientId: config.GOOGLE_WEB_CLIENT_ID,
+        iosClientId: config.GOOGLE_IOS_CLIENT_ID || undefined,
+        offlineAccess: false,
+      });
+
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+
+      if (response.type === 'cancelled') return;
+
+      const idToken = response.data?.idToken;
+      if (!idToken) {
+        setSubmitError('GOOGLE DID NOT RETURN AN ID TOKEN');
+        return;
+      }
+
+      await loginWithGoogle(idToken);
+    } catch (error: unknown) {
+      // Suppress user-initiated cancellations and in-progress errors
+      const code = (error as { code?: string }).code;
+      if (code === statusCodes.SIGN_IN_CANCELLED || code === statusCodes.IN_PROGRESS) return;
+      const message = error instanceof Error ? error.message : 'Google sign in failed.';
+      setSubmitError(message.toUpperCase());
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  const isAnyLoading = loading || socialLoading !== null;
 
   return (
     <SafeScreen>
@@ -81,7 +167,7 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
                 <MonoText style={[styles.mono, styles.eyebrow]}>SYS.FREQ // AUTH BUS</MonoText>
                 <MonoText style={[styles.display, styles.title]}>PATCH IN</MonoText>
                 <MonoText style={[styles.mono, styles.subtitle]}>
-                  Route back into your signal chain and return to the live room grid.
+                  Route into your signal chain and join the live room grid.
                 </MonoText>
               </View>
 
@@ -93,8 +179,8 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
                   title="LOGIN FLOW"
                   subtitle="Use this when you already have an account and just need to reconnect to the app."
                   steps={[
-                    { tag: 'EMAIL', text: 'Enter the email tied to your existing profile.' },
-                    { tag: 'PASS', text: 'Use the same password you registered with.' },
+                    { tag: 'FAST', text: 'Use Apple or Google for one-tap sign in.' },
+                    { tag: 'EMAIL', text: 'Or enter the email tied to your existing profile.' },
                     { tag: 'DONE', text: 'PATCH IN returns you to the main app once the route is valid.' },
                   ]}
                   callouts={[
@@ -105,6 +191,67 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
                 />
               ) : null}
 
+              {/* ── Social Auth Buttons ──────────────────────────── */}
+              <View style={styles.socialSection}>
+                {Platform.OS === 'ios' && (
+                  <Pressable
+                    onPress={handleAppleSignIn}
+                    disabled={isAnyLoading}
+                    style={({ pressed }) => [
+                      styles.socialButton,
+                      styles.appleButton,
+                      pressed && styles.pressed,
+                      isAnyLoading && styles.socialDisabled,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Sign in with Apple"
+                  >
+                    {socialLoading === 'apple' ? (
+                      <ActivityIndicator color="#000000" size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name="logo-apple" size={20} color="#000000" />
+                        <MonoText style={[styles.monoBold, styles.appleButtonText]}>
+                          SIGN IN WITH APPLE
+                        </MonoText>
+                      </>
+                    )}
+                  </Pressable>
+                )}
+
+                <Pressable
+                  onPress={handleGoogleSignIn}
+                  disabled={isAnyLoading}
+                  style={({ pressed }) => [
+                    styles.socialButton,
+                    styles.googleButton,
+                    pressed && styles.pressed,
+                    isAnyLoading && styles.socialDisabled,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign in with Google"
+                >
+                  {socialLoading === 'google' ? (
+                    <ActivityIndicator color={tacticalTokens.colors.white} size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-google" size={18} color={tacticalTokens.colors.white} />
+                      <MonoText style={[styles.monoBold, styles.googleButtonText]}>
+                        SIGN IN WITH GOOGLE
+                      </MonoText>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+
+              {/* ── Divider ─────────────────────────────────────── */}
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <MonoText style={[styles.mono, styles.dividerText]}>OR ROUTE MANUALLY</MonoText>
+                <View style={styles.dividerLine} />
+              </View>
+
+              {/* ── Email / Password Form ───────────────────────── */}
               <View style={styles.panel}>
                 <Input
                   label="EMAIL"
@@ -141,6 +288,7 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
                   title="PATCH IN"
                   onPress={handleLogin}
                   loading={loading}
+                  disabled={isAnyLoading}
                   fullWidth
                   size="lg"
                   style={styles.submitButton}
@@ -216,6 +364,60 @@ const styles = StyleSheet.create({
     marginTop: -8,
     marginBottom: 12,
   },
+
+  // ── Social Auth ───────────────────────────────────────────
+  socialSection: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+    gap: 10,
+  },
+  socialDisabled: {
+    opacity: 0.35,
+  },
+  appleButton: {
+    backgroundColor: '#FFFFFF',
+  },
+  appleButtonText: {
+    color: '#000000',
+    fontSize: 12,
+    letterSpacing: 1.8,
+  },
+  googleButton: {
+    backgroundColor: tacticalTokens.colors.matte,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+  },
+  googleButtonText: {
+    color: tacticalTokens.colors.white,
+    fontSize: 12,
+    letterSpacing: 1.8,
+  },
+
+  // ── Divider ───────────────────────────────────────────────
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: tacticalTokens.colors.border,
+  },
+  dividerText: {
+    fontSize: 9,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 2,
+  },
+
+  // ── Email / Password Panel ────────────────────────────────
   panel: {
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,

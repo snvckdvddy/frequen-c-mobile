@@ -25,6 +25,10 @@ export const config = {
   // ─── SoundCloud ───────────────────────────────────────────
   SOUNDCLOUD_CLIENT_ID: readEnv(process.env.EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID) || '',
 
+  // ─── Google Sign In ─────────────────────────────────────
+  GOOGLE_WEB_CLIENT_ID: readEnv(process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) || '',
+  GOOGLE_IOS_CLIENT_ID: readEnv(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) || '',
+
   // ─── Legacy compatibility only ────────────────────────────
   // Use src/services/config.ts for active backend routing.
   LOCAL_IP: readEnv(process.env.EXPO_PUBLIC_LOCAL_IP) || '127.0.0.1',

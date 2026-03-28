@@ -78,9 +78,9 @@ export async function apiFetch<T>(endpoint: string, options: ApiOptions = {}): P
       headers,
       signal: controller.signal,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
+    if (err instanceof Error && err.name === 'AbortError') {
       throw new ApiError(
         0,
         `Request timed out to ${API_BASE_URL} — check backend + EXPO_PUBLIC_LOCAL_IP/EXPO_PUBLIC_API_PORT`

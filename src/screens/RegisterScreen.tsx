@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextStyle,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,7 +23,7 @@ interface RegisterScreenProps {
   onSwitchToLogin: () => void;
 }
 
-function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+function MonoText(props: { children: React.ReactNode; style?: TextStyle | TextStyle[]; numberOfLines?: number }) {
   return <Text {...props} />;
 }
 
@@ -57,9 +58,10 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
     try {
       armWelcomeBoot();
       await register(username.trim(), email.trim(), password);
-    } catch (error: any) {
+    } catch (error: unknown) {
       clearWelcomeBoot();
-      setSubmitError((error?.message || 'Something went wrong. Try again.').toUpperCase());
+      const message = error instanceof Error ? error.message : 'Something went wrong. Try again.';
+      setSubmitError(message.toUpperCase());
     } finally {
       setLoading(false);
     }

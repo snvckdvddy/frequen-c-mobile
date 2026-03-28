@@ -24,11 +24,12 @@ import { useManualMode } from '../hooks/useManualMode';
 import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
 import { TacticalActionPrompt } from '../features/session-v2/components/TacticalActionPrompt';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
-import { authApi, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
+import { authApi, getStoredToken, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
 import { formatAuthDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
 import { config } from '../config';
 import type { User } from '../types';
 import { notifyError, notifySuccess, tapHeavy, tapLight, tapMedium } from '../utils/haptics';
+import { Input } from '../components/ui';
 
 type PromptState =
   | null
@@ -91,11 +92,13 @@ export function ProfileScreen() {
     user,
     logout,
     deleteAccount,
+    setPassword,
     connectSpotify,
     connectSoundcloud,
     connectTidal,
     connectLastfm,
     disconnectService,
+    biometric,
   } = useAuth();
   const { readManual, setReadManual } = useManualMode();
 
@@ -109,6 +112,62 @@ export function ProfileScreen() {
   const [socialBattery, setSocialBattery] = useState<SocialBattery>('unity');
   const [noiseGate, setNoiseGate] = useState<NoiseGate>('medium');
   const [walkOnTransient, setWalkOnTransient] = useState<(typeof WALK_ON_OPTIONS)[number]>('808 KICK');
+
+  // ── Security section state ───────────────────────────────
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  // Use context user as fallback in case local copy hasn't hydrated the field yet
+  const resolvedProvider = profileUser?.authProvider ?? user?.authProvider;
+  const isSocialOnly = resolvedProvider === 'apple' || resolvedProvider === 'google';
+
+  const handleSetPassword = useCallback(async () => {
+    setPasswordError(null);
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordError('AT LEAST 6 CHARACTERS');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('PASSWORDS DO NOT MATCH');
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      await setPassword(newPassword);
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setPasswordSuccess(true);
+      notifySuccess();
+      showToast('Password set. You can now log in with email + password.', 'success', '!');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to set password.';
+      setPasswordError(message.toUpperCase());
+      notifyError();
+    } finally {
+      setPasswordLoading(false);
+    }
+  }, [newPassword, confirmNewPassword, setPassword]);
+
+  const handleBiometricToggle = useCallback(async () => {
+    tapLight();
+    if (biometric.isEnabled) {
+      await biometric.disableBiometric();
+      notifySuccess();
+      showToast('Biometric unlock disabled.', 'success', '!');
+    } else {
+      // Need the current token to store behind biometric gate
+      const token = await getStoredToken();
+      if (!token) return;
+      const success = await biometric.enableBiometric(token);
+      if (success) {
+        notifySuccess();
+        showToast('Biometric unlock enabled.', 'success', '!');
+      }
+    }
+  }, [biometric.isEnabled, biometric.disableBiometric, biometric.enableBiometric]);
 
   const hydrate = useCallback((nextUser: User | null) => {
     setProfileUser(nextUser);
@@ -423,6 +482,96 @@ export function ProfileScreen() {
               </View>
             </View>
 
+            {/* ── Security Section ─────────────────────────── */}
+            {(biometric.isAvailable || isSocialOnly) && (
+              <>
+                <MonoText style={[textStyles.mono, styles.sectionLabel]}>SECURITY</MonoText>
+                <View style={styles.panel}>
+                  {biometric.isAvailable && (
+                    <View style={styles.row}>
+                      <View style={styles.rowCopy}>
+                        <MonoText style={[textStyles.display, styles.rowTitle]}>BIOMETRIC UNLOCK</MonoText>
+                        <MonoText style={[textStyles.mono, styles.rowDescription]}>
+                          Use Face ID or fingerprint to unlock Frequen-C on launch.
+                        </MonoText>
+                      </View>
+                      <Pressable
+                        onPress={() => { void handleBiometricToggle(); }}
+                        style={({ pressed }) => [
+                          styles.toggle,
+                          biometric.isEnabled && styles.toggleActive,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <View style={[styles.toggleKnob, biometric.isEnabled && styles.toggleKnobActive]} />
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {isSocialOnly && !passwordSuccess && (
+                    <View style={styles.rowLast}>
+                      <MonoText style={[textStyles.display, styles.rowTitle]}>SET PASSWORD</MonoText>
+                      <MonoText style={[textStyles.mono, styles.rowDescription]}>
+                        Add a password so you can also log in with email. Your {profileUser?.authProvider === 'apple' ? 'Apple' : 'Google'} sign-in stays connected.
+                      </MonoText>
+                      <View style={{ marginTop: 10, gap: 8 }}>
+                        <Input
+                          label="NEW PASSWORD"
+                          placeholder="At least 6 characters"
+                          value={newPassword}
+                          onChangeText={setNewPassword}
+                          secureTextEntry
+                          returnKeyType="next"
+                          accessibilityLabel="New password"
+                        />
+                        <Input
+                          label="CONFIRM PASSWORD"
+                          placeholder="Re-enter password"
+                          value={confirmNewPassword}
+                          onChangeText={setConfirmNewPassword}
+                          secureTextEntry
+                          returnKeyType="done"
+                          onSubmitEditing={() => { void handleSetPassword(); }}
+                          accessibilityLabel="Confirm new password"
+                        />
+                        {passwordError && (
+                          <View style={styles.passwordErrorRow}>
+                            <Ionicons name="warning-outline" size={14} color={tacticalTokens.colors.orange} />
+                            <MonoText style={[textStyles.mono, styles.passwordErrorText]}>{passwordError}</MonoText>
+                          </View>
+                        )}
+                        <Pressable
+                          onPress={() => { void handleSetPassword(); }}
+                          disabled={passwordLoading}
+                          style={({ pressed }) => [
+                            styles.setPasswordButton,
+                            pressed && styles.pressed,
+                            passwordLoading && { opacity: 0.35 },
+                          ]}
+                        >
+                          {passwordLoading ? (
+                            <ActivityIndicator size="small" color={tacticalTokens.colors.void} />
+                          ) : (
+                            <MonoText style={[textStyles.monoBold, styles.setPasswordButtonText]}>SET PASSWORD</MonoText>
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+
+                  {isSocialOnly && passwordSuccess && (
+                    <View style={styles.rowLast}>
+                      <MonoText style={[textStyles.display, styles.rowTitle]}>SET PASSWORD</MonoText>
+                      <View style={styles.passwordSuccessRow}>
+                        <Ionicons name="checkmark-circle" size={16} color={tacticalTokens.colors.acid} />
+                        <MonoText style={[textStyles.mono, styles.passwordSuccessText]}>PASSWORD SET</MonoText>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
+
             <MonoText style={[textStyles.mono, styles.sectionLabel]}>PATCH CABLES</MonoText>
             <View style={styles.panel}>
               {PROVIDERS.map((entry, index) => {
@@ -645,6 +794,13 @@ const styles = StyleSheet.create({
   errorCopy: { fontSize: 12, color: tacticalTokens.colors.textSoft, letterSpacing: 1, textAlign: 'center' },
   errorAction: { marginTop: 6, borderWidth: 1, borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A', paddingHorizontal: 16, paddingVertical: 10 },
   errorActionText: { fontSize: 10, color: tacticalTokens.colors.ice, letterSpacing: 1.5 },
+  // ── Security section ─────────────────────────
+  passwordErrorRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  passwordErrorText: { fontSize: 10, color: tacticalTokens.colors.orange, letterSpacing: 1.2 },
+  setPasswordButton: { height: 44, backgroundColor: tacticalTokens.colors.ice, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  setPasswordButtonText: { fontSize: 11, color: tacticalTokens.colors.void, letterSpacing: 1.8 },
+  passwordSuccessRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  passwordSuccessText: { fontSize: 11, color: tacticalTokens.colors.acid, letterSpacing: 1.2 },
 });
 
 export default ProfileScreen;

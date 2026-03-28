@@ -22,6 +22,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { useAuthRequest, ResponseType } from 'expo-auth-session';
 import { getAuthDiagnostics } from '../services/authDiagnostics';
 import { showToast } from '../components/ui';
+import { useBiometric } from '../hooks/useBiometric';
+import type { BiometricState } from '../hooks/useBiometric';
 
 WebBrowser.maybeCompleteAuthSession();
 const BYPASS_AUTH = (process.env.EXPO_PUBLIC_BYPASS_AUTH || 'false') === 'true';
@@ -78,6 +80,9 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
+  loginWithApple: (identityToken: string, user?: string, fullName?: string, email?: string) => Promise<{ isNewUser: boolean }>;
+  loginWithGoogle: (idToken: string) => Promise<{ isNewUser: boolean }>;
+  setPassword: (password: string) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   connectSpotify: () => Promise<void>;
@@ -85,6 +90,12 @@ interface AuthContextValue extends AuthState {
   connectTidal: () => Promise<void>;
   connectLastfm: () => Promise<void>;
   disconnectService: (provider: DisconnectableProvider) => Promise<void>;
+  /** Biometric state + controls exposed so UI can show toggles / offer opt-in. */
+  biometric: BiometricState & {
+    enableBiometric: (token: string) => Promise<boolean>;
+    disableBiometric: () => Promise<void>;
+    markOffered: () => Promise<void>;
+  };
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -201,7 +212,9 @@ type PendingAuthProvider = 'spotify' | 'soundcloud' | 'tidal' | 'lastfm';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const bio = useBiometric();
   const authDiagnostics = getAuthDiagnostics();
+  const bootstrappedRef = useRef(false);
   const lastHandledSoundcloudUrlRef = useRef<string | null>(null);
   const lastHandledAuthUrlRef = useRef<string | null>(null);
   const pendingAuthProviderRef = useRef<PendingAuthProvider | null>(null);
@@ -476,7 +489,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return;
   }, []);
 
-  // Check for existing token on mount
+  // Check for existing token on mount (biometric-aware)
   useEffect(() => {
     async function bootstrap() {
       if (BYPASS_AUTH) {
@@ -494,11 +507,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const token = await getStoredToken();
+        // Try biometric unlock first if the user opted in
+        let token: string | null = null;
+        if (bio.isEnabled && !bio.isLoading) {
+          token = await bio.tryBiometricUnlock();
+        }
+
+        // Fall back to regular stored token
+        if (!token) {
+          token = await getStoredToken();
+        }
+
         if (token) {
           const { user } = await authApi.me();
+          await storeToken(token);
           dispatch({ type: 'SET_USER', payload: { user, token } });
-          // Register push token in the background
           uploadPushToken();
         } else {
           dispatch({ type: 'SET_LOADING', payload: false });
@@ -508,8 +531,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'LOGOUT' });
       }
     }
-    bootstrap();
-  }, []);
+    // Wait for biometric state to load before bootstrapping (run once only)
+    if (!bio.isLoading && !bootstrappedRef.current) {
+      bootstrappedRef.current = true;
+      bootstrap();
+    }
+  }, [bio.isLoading]);
 
   const login = useCallback(async (email: string, password: string) => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -519,7 +546,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_USER', payload: { user, token } });
       uploadPushToken();
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Login failed' });
       throw error;
     }
   }, [uploadPushToken]);
@@ -532,20 +559,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_USER', payload: { user, token } });
       uploadPushToken();
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: (error as Error).message });
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Registration failed' });
       throw error;
     }
   }, [uploadPushToken]);
 
+  const loginWithApple = useCallback(async (
+    identityToken: string,
+    user?: string,
+    fullName?: string,
+    email?: string,
+  ): Promise<{ isNewUser: boolean }> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const { token, user: authedUser, isNewUser } = await authApi.apple(identityToken, user, fullName, email);
+      await storeToken(token);
+      dispatch({ type: 'SET_USER', payload: { user: authedUser, token } });
+      uploadPushToken();
+      return { isNewUser };
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Apple sign in failed' });
+      throw error;
+    }
+  }, [uploadPushToken]);
+
+  const loginWithGoogle = useCallback(async (idToken: string): Promise<{ isNewUser: boolean }> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const { token, user, isNewUser } = await authApi.google(idToken);
+      await storeToken(token);
+      dispatch({ type: 'SET_USER', payload: { user, token } });
+      uploadPushToken();
+      return { isNewUser };
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Google sign in failed' });
+      throw error;
+    }
+  }, [uploadPushToken]);
+
+  const setPassword = useCallback(async (password: string) => {
+    await authApi.setPassword(password);
+    // Re-fetch user so local state reflects the new password status
+    if (state.token) {
+      const { user } = await authApi.me();
+      dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
+    }
+  }, [state.token]);
+
   const logout = useCallback(async () => {
+    // Wipe biometric-stored token on logout so it can't unlock a stale session
+    if (bio.isEnabled) {
+      await bio.disableBiometric();
+    }
     await authApi.logout();
     dispatch({ type: 'LOGOUT' });
-  }, []);
+  }, [bio.isEnabled, bio.disableBiometric]);
 
   const deleteAccount = useCallback(async () => {
+    if (bio.isEnabled) {
+      await bio.disableBiometric();
+    }
     await authApi.deleteAccount();
     dispatch({ type: 'LOGOUT' });
-  }, []);
+  }, [bio.isEnabled, bio.disableBiometric]);
 
   // ─── Auto Token Refresh ────────────────────────────────────
   // Decode JWT exp, schedule refresh 1 hour before expiry.
@@ -561,7 +637,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const delay = refreshAt - Date.now();
       if (delay <= 0) {
         // Already within the refresh window — refresh immediately
-        performRefresh();
+        void performRefresh();
         return;
       }
       refreshTimerRef.current = setTimeout(performRefresh, delay);
@@ -573,15 +649,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const performRefresh = useCallback(async () => {
     try {
       const { token: newToken } = await authApi.refresh();
+      const { user: freshUser } = await authApi.me();
       await storeToken(newToken);
-      dispatch({ type: 'SET_USER', payload: { user: state.user!, token: newToken } });
+      // Keep biometric store in sync so biometric unlock uses fresh JWT
+      if (bio.isEnabled) {
+        await bio.updateStoredToken(newToken);
+      }
+      dispatch({ type: 'SET_USER', payload: { user: freshUser, token: newToken } });
       scheduleRefresh(newToken);
     } catch {
       // Refresh failed — token may be expired, force logout
       await authApi.logout();
       dispatch({ type: 'LOGOUT' });
     }
-  }, [state.user, scheduleRefresh]);
+  }, [scheduleRefresh, bio.isEnabled, bio.updateStoredToken]);
 
   // Schedule on login/register/bootstrap
   useEffect(() => {
@@ -601,7 +682,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const payload = JSON.parse(atob(state.token.split('.')[1]));
           const exp = payload.exp * 1000;
           if (exp - Date.now() < 2 * 60 * 60 * 1000) {
-            performRefresh();
+            void performRefresh();
           }
         } catch { /* ignore */ }
       }
@@ -725,7 +806,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       showToast(friendlyProviderError('Last.fm', (error as Error)?.message), 'error');
     }
-  }, [state.user, state.token, authDiagnostics]);
+  }, [state.user, authDiagnostics]);
 
   const disconnectService = useCallback(async (provider: DisconnectableProvider) => {
     if (!state.user || !state.token) return;
@@ -756,7 +837,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.user, state.token]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, deleteAccount, connectSpotify, connectSoundcloud, connectTidal, connectLastfm, disconnectService }}>
+    <AuthContext.Provider value={{
+      ...state,
+      login,
+      register,
+      loginWithApple,
+      loginWithGoogle,
+      setPassword,
+      logout,
+      deleteAccount,
+      connectSpotify,
+      connectSoundcloud,
+      connectTidal,
+      connectLastfm,
+      disconnectService,
+      biometric: {
+        isAvailable: bio.isAvailable,
+        isEnabled: bio.isEnabled,
+        hasBeenOffered: bio.hasBeenOffered,
+        isLoading: bio.isLoading,
+        enableBiometric: bio.enableBiometric,
+        disableBiometric: bio.disableBiometric,
+        markOffered: bio.markOffered,
+      },
+    }}>
       {children}
     </AuthContext.Provider>
   );

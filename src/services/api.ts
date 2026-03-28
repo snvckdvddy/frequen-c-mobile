@@ -319,6 +319,46 @@ export const authApi = {
     });
   },
 
+  /** Authenticate via Apple Sign In identity token (creates or links account). */
+  apple: async (identityToken: string, user?: string, fullName?: string, email?: string) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      const token = 'mock_jwt_apple_' + Date.now();
+      return { token, user: { ...mockUser, email: email || mockUser.email }, isNewUser: true };
+    }
+    return apiFetch<{ token: string; user: User; isNewUser: boolean }>('/auth/apple', {
+      method: 'POST',
+      body: JSON.stringify({ identityToken, user, fullName, email }),
+      skipAuth: true,
+    });
+  },
+
+  /** Authenticate via Google Sign In ID token (creates or links account). */
+  google: async (idToken: string) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      const token = 'mock_jwt_google_' + Date.now();
+      return { token, user: mockUser, isNewUser: true };
+    }
+    return apiFetch<{ token: string; user: User; isNewUser: boolean }>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+      skipAuth: true,
+    });
+  },
+
+  /** Set a password on a social-only account (no existing password). */
+  setPassword: async (password: string) => {
+    if (USE_MOCKS) {
+      await mockDelay();
+      return { message: 'Password set (mock)' };
+    }
+    return apiFetch<{ message: string }>('/auth/set-password', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  },
+
   register: async (username: string, email: string, password: string) => {
     if (USE_MOCKS) {
       await mockDelay();
@@ -465,7 +505,7 @@ export const authApi = {
     if (USE_MOCKS) {
       return { success: true };
     }
-    return apiFetch<{ user: any }>('/auth/preferences', {
+    return apiFetch<{ user: User }>('/auth/preferences', {
       method: 'PUT',
       body: JSON.stringify(prefs),
     });
@@ -893,7 +933,7 @@ function searchEmergencyCatalog(query: string) {
   ] as import('../types').Track[];
 
   return localCatalog
-    .filter((track: any) =>
+    .filter((track: Track) =>
       track.title.toLowerCase().includes(q) ||
       track.artist.toLowerCase().includes(q),
     )
@@ -911,12 +951,12 @@ export const searchApi = {
 
     if (USE_MOCKS) {
       await mockDelay(200, 500);
-      const filtered = mockSearchResults.filter((t: any) => {
+      const filtered = mockSearchResults.filter((t: Track) => {
         const queryMatch =
           t.title.toLowerCase().includes(query.toLowerCase()) ||
           t.artist.toLowerCase().includes(query.toLowerCase());
         const sourceMatch =
-          requestedSources.length === 0 || requestedSources.includes(t.source);
+          requestedSources.length === 0 || (requestedSources as string[]).includes(t.source);
         return queryMatch && sourceMatch;
       });
       const merged = requestedSources.length > 0
@@ -1335,7 +1375,7 @@ export interface ActivityEvent {
   targetUser: { id: string; username: string } | null;
   sessionId: string | null;
   track: { title: string; artist: string } | null;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -1344,7 +1384,7 @@ export interface Notification {
   type: string;
   title: string;
   body: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   read: boolean;
   createdAt: string;
 }
