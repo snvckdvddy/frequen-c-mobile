@@ -1,124 +1,234 @@
 /**
  * SonicAestheticCard — Queue vibe analysis + track suggestion.
  *
- * Triggered by "ANALYZE" button in the queue area.
- * Sends the current queue to Gemini Flash, gets back:
- *   - Editorial 1-sentence "Sonic Aesthetic" description
- *   - One curated track suggestion with ADD button
- *
- * Renders as a dismissible card above the queue list.
+ * Used in both legacy queue surfaces and the active Session V2 queue path.
+ * The AI suggestion is resolved against real track search results before
+ * offering a direct patch action when possible.
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, StyleSheet, TouchableOpacity, Animated, ActivityIndicator,
+  ActivityIndicator,
+  Animated,
+  Pressable,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { Track } from '../../types';
 import { Text } from '../ui';
-import { palette } from '../../design/tokens/materials';
-import { fontFamily, fontWeight, letterSpacing as ls } from '../../design/tokens/typography';
-import { spacing } from '../../theme/spacing';
-import { aiApi, type SonicAestheticResult, type QueueTrackInput } from '../../services/api';
-
-// ─── Types ──────────────────────────────────────────────────
+import { aiApi, searchApi, type QueueTrackInput, type SonicAestheticResult } from '../../services/api';
+import { tacticalTokens } from '../../features/session-v2/theme/tacticalTokens';
+import { theme } from '../../theme/theme';
+import { useManualMode } from '../../hooks/useManualMode';
 
 interface SonicAestheticCardProps {
   queue: QueueTrackInput[];
-  onAddSuggestion: (title: string, artist: string) => void;
+  onAddSuggestion?: (title: string, artist: string) => void;
+  onAddResolvedTrack?: (track: Track) => void;
 }
 
-// ─── Analyze Button (exported for use in queue header) ──────
+function sourceLabel(source?: string) {
+  switch (source) {
+    case 'spotify':
+      return 'SPT';
+    case 'soundcloud':
+      return 'SC';
+    case 'apple':
+      return 'APL';
+    case 'tidal':
+      return 'TDL';
+    default:
+      return 'LIVE';
+  }
+}
+
+function buildQuery(result: SonicAestheticResult) {
+  return `${result.nextTrack} ${result.nextArtist}`.trim();
+}
+
+async function resolveSuggestedTrack(result: SonicAestheticResult): Promise<Track | null> {
+  const { tracks } = await searchApi.tracks(buildQuery(result));
+  return tracks[0] || null;
+}
 
 export function AnalyzeButton({
   onPress,
   loading,
   compact = false,
+  disabled = false,
 }: {
   onPress: () => void;
   loading: boolean;
   compact?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <TouchableOpacity
-      style={[styles.analyzeBtn, compact && styles.analyzeBtnCompact]}
+      style={[
+        styles.analyzeBtn,
+        compact && styles.analyzeBtnCompact,
+        disabled && styles.analyzeBtnDisabled,
+      ]}
       onPress={onPress}
-      disabled={loading}
-      activeOpacity={0.7}
+      disabled={loading || disabled}
+      activeOpacity={0.72}
       accessibilityRole="button"
       accessibilityLabel="Analyze queue vibe"
     >
       {loading ? (
-        <ActivityIndicator size="small" color={palette.amber} />
+        <ActivityIndicator size="small" color={tacticalTokens.colors.orange} />
       ) : (
-        <Text style={styles.sparkle}>✦</Text>
+        <Text style={[styles.analyzeSparkle, disabled && styles.analyzeSparkleDisabled]}>AI</Text>
       )}
-      <Text style={[styles.analyzeBtnText, compact && styles.analyzeBtnTextCompact]}>
-        {loading ? 'ANALYZING...' : 'ANALYZE'}
+      <Text
+        style={[
+          styles.analyzeBtnText,
+          compact && styles.analyzeBtnTextCompact,
+          disabled && styles.analyzeBtnTextDisabled,
+        ]}
+      >
+        {loading ? 'SCANNING...' : 'SONIC AESTHETIC'}
       </Text>
     </TouchableOpacity>
   );
 }
 
-// ─── Result Card (can be controlled externally) ─────────────
-
 export function SonicAestheticResultCard({
   result,
+  resolvedTrack,
+  resolving,
   onAddSuggestion,
+  onAddResolvedTrack,
   onDismiss,
 }: {
   result: SonicAestheticResult;
-  onAddSuggestion: (title: string, artist: string) => void;
+  resolvedTrack?: Track | null;
+  resolving?: boolean;
+  onAddSuggestion?: (title: string, artist: string) => void;
+  onAddResolvedTrack?: (track: Track) => void;
   onDismiss?: () => void;
 }) {
+  const [detailOpen, setDetailOpen] = useState(false);
+  const statusText = resolving
+    ? 'LOCKING ROUTE...'
+    : resolvedTrack
+      ? `LOCKED TO ${sourceLabel(resolvedTrack.source)}`
+      : 'DIRECT MATCH NOT LOCKED';
+
+  const actionLabel = resolving ? 'LOCK' : resolvedTrack ? 'PATCH' : 'SEARCH';
+
+  const handleAction = () => {
+    if (resolvedTrack && onAddResolvedTrack) {
+      onAddResolvedTrack(resolvedTrack);
+      return;
+    }
+    onAddSuggestion?.(result.nextTrack, result.nextArtist);
+  };
+
+  const actionDisabled = resolving || (!resolvedTrack && !onAddSuggestion);
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
-          <Text style={styles.sparkle}>✦</Text>
+          <Text style={styles.cardEyebrow}>SYS.FREQ // AI CURATION</Text>
           <Text style={styles.cardTitle}>SONIC AESTHETIC</Text>
         </View>
-        {onDismiss && (
-          <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close" size={18} color={palette.slate} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.cardHeaderActions}>
+          <Pressable
+            onPress={() => setDetailOpen((prev) => !prev)}
+            style={({ pressed }) => [styles.detailButton, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={detailOpen ? 'Hide sonic aesthetic details' : 'Open sonic aesthetic details'}
+          >
+            <Text style={styles.detailButtonText}>{detailOpen ? 'HIDE' : 'DETAIL'}</Text>
+          </Pressable>
+          {onDismiss ? (
+            <Pressable
+              onPress={onDismiss}
+              style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss sonic aesthetic"
+            >
+              <Ionicons name="close" size={16} color={tacticalTokens.colors.white} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
-      <Text style={styles.description}>
-        "{result.aestheticDescription}"
+      <Text style={styles.description} numberOfLines={1}>
+        {result.aestheticDescription}
       </Text>
+
+      <View style={styles.statusRow}>
+        <Text style={styles.statusLabel}>ROUTE</Text>
+        <Text style={styles.statusValue}>{statusText}</Text>
+      </View>
+
+      {detailOpen ? (
+        <View style={styles.detailPanel}>
+          <Text style={styles.detailLabel}>FULL PROFILE</Text>
+          <Text style={styles.detailDescription}>{result.aestheticDescription}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.suggestion}>
         <View style={styles.suggestionMeta}>
-          <Text style={styles.suggestionLabel}>ORACLE SUGGESTION</Text>
-          <Text style={styles.suggestionTrack}>{result.nextTrack}</Text>
-          <Text style={styles.suggestionArtist}>{result.nextArtist}</Text>
+          <Text style={styles.suggestionLabel}>NEXT PATCH</Text>
+          <Text style={styles.suggestionTrack} numberOfLines={1}>
+            {result.nextTrack.toUpperCase()}
+          </Text>
+          <Text style={styles.suggestionArtist} numberOfLines={1}>
+            {result.nextArtist}
+          </Text>
         </View>
         <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => onAddSuggestion(result.nextTrack, result.nextArtist)}
+          style={[styles.addBtn, actionDisabled && styles.addBtnDisabled]}
+          onPress={handleAction}
+          disabled={actionDisabled}
           accessibilityRole="button"
-          accessibilityLabel={`Add ${result.nextTrack} to queue`}
+          accessibilityLabel={`${actionLabel} ${result.nextTrack} by ${result.nextArtist}`}
         >
-          <Text style={styles.addBtnText}>ADD</Text>
+          <Text style={[styles.addBtnText, actionDisabled && styles.addBtnTextDisabled]}>
+            {actionLabel}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-// ─── Main Card ──────────────────────────────────────────────
-
-export function SonicAestheticCard({ queue, onAddSuggestion }: SonicAestheticCardProps) {
+export function SonicAestheticCard({
+  queue,
+  onAddSuggestion,
+  onAddResolvedTrack,
+}: SonicAestheticCardProps) {
+  const { readManual } = useManualMode();
   const [result, setResult] = useState<SonicAestheticResult | null>(null);
+  const [resolvedTrack, setResolvedTrack] = useState<Track | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [manualInfoOpen, setManualInfoOpen] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  const ready = queue.length >= 2;
+
+  useEffect(() => {
+    if (!readManual) {
+      setManualInfoOpen(false);
+    }
+  }, [readManual]);
+
   const analyze = useCallback(async () => {
-    if (queue.length === 0) return;
+    if (!ready) return;
     setLoading(true);
+    setResolving(false);
+    setResolvedTrack(null);
+    setResult(null);
     setError(null);
     setDismissed(false);
 
@@ -132,192 +242,439 @@ export function SonicAestheticCard({ queue, onAddSuggestion }: SonicAestheticCar
         tension: 60,
         friction: 10,
       }).start();
+
+      setResolving(true);
+      try {
+        const match = await resolveSuggestedTrack(data);
+        setResolvedTrack(match);
+      } catch (resolveErr: any) {
+        console.warn('[SonicAesthetic:Resolve]', resolveErr?.message || String(resolveErr));
+      } finally {
+        setResolving(false);
+      }
     } catch (err: any) {
-      setError(err?.message || 'Unable to analyze sonic aesthetic');
-      console.warn('[SonicAesthetic]', err.message);
+      setError(err?.message || 'Unable to profile room aesthetic');
+      console.warn('[SonicAesthetic]', err?.message || String(err));
     } finally {
       setLoading(false);
     }
-  }, [queue, fadeAnim]);
+  }, [fadeAnim, queue, ready]);
 
   const dismiss = useCallback(() => {
     Animated.timing(fadeAnim, {
       toValue: 0,
-      duration: 200,
+      duration: 180,
       useNativeDriver: true,
     }).start(() => {
       setDismissed(true);
       setResult(null);
+      setResolvedTrack(null);
     });
   }, [fadeAnim]);
 
-  const handleAdd = useCallback(() => {
-    if (result) {
-      onAddSuggestion(result.nextTrack, result.nextArtist);
+  const handleAddSuggestion = useCallback(() => {
+    if (!result) return;
+    if (resolvedTrack && onAddResolvedTrack) {
+      onAddResolvedTrack(resolvedTrack);
+      return;
     }
-  }, [result, onAddSuggestion]);
+    onAddSuggestion?.(result.nextTrack, result.nextArtist);
+  }, [onAddResolvedTrack, onAddSuggestion, resolvedTrack, result]);
 
   return (
-    <>
-      {/* Analyze button — always visible in queue header */}
-      <AnalyzeButton onPress={analyze} loading={loading} />
-
-      {/* Error */}
-      {error && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+    <View style={styles.module}>
+      <View style={styles.moduleHeader}>
+        <View style={styles.moduleHeaderText}>
+          <Text style={styles.moduleEyebrow}>AI LAYER</Text>
+          <Text style={styles.moduleTitle}>SONIC AESTHETIC</Text>
         </View>
-      )}
+        <View style={styles.moduleHeaderActions}>
+          {readManual ? (
+            <Pressable
+              onPress={() => setManualInfoOpen((prev) => !prev)}
+              style={({ pressed }) => [
+                styles.manualButton,
+                manualInfoOpen && styles.manualButtonActive,
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={manualInfoOpen ? 'Hide sonic aesthetic helper' : 'Show sonic aesthetic helper'}
+            >
+              <View style={styles.manualButtonDot} />
+            </Pressable>
+          ) : null}
+          <AnalyzeButton onPress={analyze} loading={loading} disabled={!ready} compact />
+        </View>
+      </View>
 
-      {/* Result card */}
-      {result && !dismissed && (
+      {readManual && manualInfoOpen ? (
+        <View style={styles.manualHintRail}>
+          <Text style={styles.manualHintTitle}>WHAT THIS DOES</Text>
+          <Text style={styles.manualHintText}>
+            Sonic Aesthetic reads the current queue mood and suggests one editorial next patch that fits the room.
+          </Text>
+        </View>
+      ) : null}
+
+      {!ready ? (
+        <View style={styles.infoBlock}>
+          <Text style={styles.infoTitle}>LOAD 2 TRACKS TO PROFILE THE ROOM</Text>
+          <Text style={styles.infoCopy}>QUEUE NEEDS ENOUGH SIGNAL TO MAP A CURATION LINE.</Text>
+        </View>
+      ) : null}
+
+      {error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error.toUpperCase()}</Text>
+        </View>
+      ) : null}
+
+      {result && !dismissed ? (
         <Animated.View
           style={[
             styles.cardAnimatedWrap,
             {
               opacity: fadeAnim,
-              transform: [{
-                translateY: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [12, 0],
-                }),
-              }],
+              transform: [
+                {
+                  translateY: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0],
+                  }),
+                },
+              ],
             },
           ]}
         >
-          <SonicAestheticResultCard result={result} onAddSuggestion={handleAdd} onDismiss={dismiss} />
+          <SonicAestheticResultCard
+            result={result}
+            resolvedTrack={resolvedTrack}
+            resolving={resolving}
+            onAddSuggestion={handleAddSuggestion}
+            onAddResolvedTrack={resolvedTrack && onAddResolvedTrack ? onAddResolvedTrack : undefined}
+            onDismiss={dismiss}
+          />
         </Animated.View>
-      )}
-    </>
+      ) : null}
+    </View>
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  analyzeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 12,
+  module: {
+    marginBottom: theme.spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 184, 96, 0.26)',
-    backgroundColor: 'rgba(255, 184, 96, 0.10)',
+    borderColor: theme.colors.borderLight,
+    backgroundColor: theme.colors.matteGhost,
+    padding: theme.spacing.md,
   },
-  analyzeBtnCompact: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  analyzeBtnText: {
-    fontFamily: fontFamily.mono,
-    fontWeight: fontWeight.bold,
-    fontSize: 11,
-    letterSpacing: 1.2,
-    color: palette.amber,
-    textTransform: 'uppercase' as const,
-  },
-  analyzeBtnTextCompact: {
-    fontSize: 10,
-    letterSpacing: 1,
-  },
-  sparkle: {
-    fontSize: 14,
-    color: palette.amber,
-  },
-  cardAnimatedWrap: {
-    marginTop: spacing.md,
-  },
-  card: {
-    backgroundColor: 'rgba(10, 12, 16, 0.96)',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 184, 96, 0.22)',
-    padding: 18,
-  },
-  cardHeader: {
+  moduleHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    gap: theme.spacing.md,
   },
-  cardHeaderLeft: {
+  moduleHeaderText: {
+    flex: 1,
+  },
+  moduleHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    marginRight: theme.spacing.sm,
+  },
+  moduleEyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 2,
+  },
+  moduleTitle: {
+    marginTop: 4,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.label,
+    color: tacticalTokens.colors.ice,
+  },
+  manualButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.guide,
+    backgroundColor: tacticalTokens.colors.matte,
+    marginTop: 2,
+    marginRight: 2,
+  },
+  manualButtonActive: {
+    backgroundColor: tacticalTokens.colors.matteGhost,
+  },
+  manualButtonDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: tacticalTokens.colors.guide,
+  },
+  analyzeBtn: {
+    minHeight: 34,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: 'rgba(255, 69, 0, 0.10)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  cardTitle: {
-    fontFamily: fontFamily.mono,
-    fontWeight: fontWeight.bold,
-    fontSize: 12,
+  analyzeBtnCompact: {
+    minHeight: 30,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  analyzeBtnDisabled: {
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matte,
+  },
+  analyzeSparkle: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 1.5,
+  },
+  analyzeSparkleDisabled: {
+    color: tacticalTokens.colors.textDim,
+  },
+  analyzeBtnText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.orange,
     letterSpacing: 1.3,
-    color: palette.frost,
-    textTransform: 'uppercase' as const,
   },
-  description: {
-    fontFamily: fontFamily.body,
-    fontSize: 18,
-    lineHeight: 28,
-    color: palette.frost,
-    fontStyle: 'italic',
-    marginBottom: 16,
+  analyzeBtnTextCompact: {
+    fontSize: tacticalTokens.fontSize.sys,
   },
-  suggestion: {
+  analyzeBtnTextDisabled: {
+    color: tacticalTokens.colors.textDim,
+  },
+  infoBlock: {
+    marginTop: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.borderGhost,
+    backgroundColor: theme.colors.matteGrey,
+    padding: theme.spacing.md,
+  },
+  infoTitle: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.4,
+  },
+  infoCopy: {
+    marginTop: theme.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
+  },
+  manualHintRail: {
+    marginTop: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.guideSoft,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+    padding: theme.spacing.md,
+  },
+  manualHintTitle: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.guide,
+    letterSpacing: 1.5,
+  },
+  manualHintText: {
+    marginTop: theme.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.guideSoft,
+    lineHeight: 18,
+    letterSpacing: 1,
+  },
+  errorContainer: {
+    marginTop: theme.spacing.sm,
+  },
+  errorText: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 1.2,
+  },
+  cardAnimatedWrap: {
+    marginTop: theme.spacing.md,
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+    padding: theme.spacing.md,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+  },
+  cardHeaderLeft: {
+    flex: 1,
+  },
+  cardHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.42)',
-    borderRadius: 10,
+    gap: theme.spacing.xs,
+  },
+  cardEyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.8,
+  },
+  cardTitle: {
+    marginTop: 4,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.title,
+    color: tacticalTokens.colors.white,
+  },
+  closeButton: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    padding: 14,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+  },
+  detailButton: {
+    minWidth: 68,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+    paddingHorizontal: 10,
+  },
+  detailButtonText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.2,
+  },
+  pressed: {
+    opacity: 0.76,
+  },
+  description: {
+    marginTop: theme.spacing.sm,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.body,
+    lineHeight: 20,
+    color: tacticalTokens.colors.textSoft,
+  },
+  detailPanel: {
+    marginTop: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+    padding: theme.spacing.md,
+  },
+  detailLabel: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.6,
+  },
+  detailDescription: {
+    marginTop: theme.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.body,
+    lineHeight: 22,
+    color: tacticalTokens.colors.textSoft,
+  },
+  statusRow: {
+    marginTop: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: tacticalTokens.colors.borderGhost,
+    paddingTop: theme.spacing.sm,
+  },
+  statusLabel: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.8,
+  },
+  statusValue: {
+    flex: 1,
+    textAlign: 'right',
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.2,
+  },
+  suggestion: {
+    marginTop: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+    padding: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
   },
   suggestionMeta: {
     flex: 1,
   },
   suggestionLabel: {
-    fontFamily: fontFamily.mono,
-    fontWeight: fontWeight.bold,
-    fontSize: 9,
-    letterSpacing: 1.2,
-    color: palette.slate,
-    textTransform: 'uppercase' as const,
-    marginBottom: 4,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.8,
   },
   suggestionTrack: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: 22,
-    color: palette.frost,
+    marginTop: 4,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.label,
+    color: tacticalTokens.colors.white,
   },
   suggestionArtist: {
-    fontFamily: fontFamily.body,
-    fontSize: 14,
-    color: palette.silver,
-    marginTop: 2,
+    marginTop: 4,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.ice,
   },
   addBtn: {
-    paddingHorizontal: 16,
+    minWidth: 82,
+    minHeight: 40,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: palette.silver,
-    backgroundColor: 'transparent',
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: 'rgba(255, 69, 0, 0.10)',
+  },
+  addBtnDisabled: {
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matte,
   },
   addBtnText: {
-    fontFamily: fontFamily.label,
-    fontWeight: fontWeight.bold,
-    fontSize: 11,
-    letterSpacing: ls.wide,
-    color: palette.frost,
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 1.3,
   },
-  errorContainer: {
-    marginTop: spacing.sm,
-  },
-  errorText: {
-    fontFamily: fontFamily.body,
-    fontSize: 11,
-    color: palette.red,
+  addBtnTextDisabled: {
+    color: tacticalTokens.colors.textDim,
   },
 });
 

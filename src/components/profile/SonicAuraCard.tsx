@@ -1,193 +1,215 @@
-/**
- * SonicAuraCard — AI-generated "aura reading" for the user's profile.
- *
- * Analyzes user stats (rooms hosted, duel win rate, top artists)
- * and generates a pretentious editorial reading of their sonic identity.
- */
-
-import React, { useState, useRef } from 'react';
-import { View, TouchableOpacity, Animated, ActivityIndicator, StyleSheet } from 'react-native';
-import { Text } from '../ui';
-import { aiApi, type SonicAuraResult, type SonicAuraInput } from '../../services/api';
-import { palette } from '../../design/tokens/materials';
-import { fontFamily, fontSize } from '../../design/tokens/typography';
-import { spacing } from '../../theme/spacing';
+import React, { useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { aiApi, type SonicAuraInput, type SonicAuraResult } from '../../services/api';
+import { tacticalTokens } from '../../features/session-v2/theme/tacticalTokens';
+import { notifyError, notifySuccess, tapLight, tapMedium } from '../../utils/haptics';
 
 interface Props {
-  /** User stats for the aura reading */
   roomsHosted: number;
   duelWinRate: number;
   topArtists: string[];
+}
+
+function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+  return <Text {...props} />;
 }
 
 export function SonicAuraCard({ roomsHosted, duelWinRate, topArtists }: Props) {
   const [aura, setAura] = useState<SonicAuraResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fade = useRef(new Animated.Value(0)).current;
 
   const generate = async () => {
     if (loading) return;
+    tapMedium();
     setLoading(true);
     setError(null);
     try {
       const input: SonicAuraInput = { roomsHosted, duelWinRate, topArtists };
-      const data = await aiApi.sonicAura(input);
-      setAura(data);
-      fadeAnim.setValue(0);
-      Animated.spring(fadeAnim, { toValue: 1, useNativeDriver: true }).start();
+      const result = await aiApi.sonicAura(input);
+      setAura(result);
+      notifySuccess();
+      fade.setValue(0);
+      Animated.spring(fade, { toValue: 1, useNativeDriver: true }).start();
     } catch (err: any) {
-      setError(err?.message || 'Aura reading unavailable');
-      console.warn('[SonicAura]', err.message);
+      notifyError();
+      setError(err?.message || 'AURA READING UNAVAILABLE');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <Text style={styles.headerLabel}>✦ SONIC AURA</Text>
-
-      {/* Not yet generated — show trigger */}
-      {!aura && !loading && (
-        <TouchableOpacity
-          style={styles.generateBtn}
-          onPress={generate}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Generate your sonic aura reading"
-        >
-          <Text style={styles.generateBtnText}>READ SONIC AURA</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Loading */}
-      {loading && (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color={palette.amber} />
-          <Text style={styles.loadingText}>Analyzing your frequency...</Text>
+    <View style={styles.card}>
+      <View style={styles.header}>
+        <View>
+          <MonoText style={[styles.mono, styles.eyebrow]}>SYS.FREQ // ORACLE BUS</MonoText>
+          <MonoText style={[styles.display, styles.title]}>SONIC AURA</MonoText>
         </View>
-      )}
+        <View style={styles.badge}>
+          <Ionicons name="sparkles-outline" size={14} color={tacticalTokens.colors.ice} />
+        </View>
+      </View>
 
-      {/* Error */}
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {!aura && !loading ? (
+        <Pressable onPress={() => void generate()} style={({ pressed }) => [styles.cta, pressed && styles.pressed]}>
+          <MonoText style={[styles.monoBold, styles.ctaText]}>READ PROFILE AURA</MonoText>
+        </Pressable>
+      ) : null}
 
-      {/* Aura result */}
-      {aura && (
-        <Animated.View style={[styles.auraContent, { opacity: fadeAnim }]}>
-          <View style={styles.auraBadge}>
-            <Text style={styles.auraName}>{aura.auraName.toUpperCase()}</Text>
+      {loading ? (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={tacticalTokens.colors.ice} />
+          <MonoText style={[styles.mono, styles.loadingCopy]}>ANALYZING SIGNAL HISTORY...</MonoText>
+        </View>
+      ) : null}
+
+      {error ? (
+        <View style={styles.errorRail}>
+          <Ionicons name="warning-outline" size={16} color={tacticalTokens.colors.orange} />
+          <MonoText style={[styles.mono, styles.errorText]}>{error.toUpperCase()}</MonoText>
+        </View>
+      ) : null}
+
+      {aura ? (
+        <Animated.View style={[styles.result, { opacity: fade }]}>
+          <View style={styles.resultBadge}>
+            <MonoText style={[styles.monoBold, styles.resultName]}>{aura.auraName.toUpperCase()}</MonoText>
           </View>
-          <Text style={styles.auraReading}>{aura.reading}</Text>
-
-          {/* Regenerate */}
-          <TouchableOpacity
-            style={styles.regenBtn}
-            onPress={generate}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.regenText}>RE-READ</Text>
-          </TouchableOpacity>
+          <MonoText style={[styles.mono, styles.resultCopy]}>{aura.reading}</MonoText>
+          <Pressable onPress={() => { tapLight(); void generate(); }} style={({ pressed }) => [styles.regen, pressed && styles.pressed]}>
+            <MonoText style={[styles.monoBold, styles.regenText]}>RE-RUN ORACLE</MonoText>
+          </Pressable>
         </Animated.View>
-      )}
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.sm,
-    padding: spacing.md,
-    borderRadius: 0,
-    backgroundColor: 'rgba(15, 16, 18, 0.92)',
+  card: {
+    marginTop: 20,
     borderWidth: 1,
-    borderColor: 'rgba(90, 200, 200, 0.24)',
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(8, 8, 8, 0.94)',
+    padding: 16,
   },
-  headerLabel: {
-    fontFamily: fontFamily.displayBold,
-    fontSize: fontSize.sm,
-    color: palette.frost,
-    letterSpacing: 1.2,
-    fontWeight: '700',
-    marginBottom: spacing.sm,
+  mono: { fontFamily: tacticalTokens.fonts.mono },
+  monoBold: { fontFamily: tacticalTokens.fonts.monoBold },
+  display: { fontFamily: tacticalTokens.fonts.display },
+  pressed: { opacity: 0.82 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  generateBtn: {
-    alignSelf: 'stretch',
+  eyebrow: {
+    fontSize: 10,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 2,
+  },
+  title: {
+    marginTop: 2,
+    fontSize: 24,
+    color: tacticalTokens.colors.white,
+  },
+  badge: {
+    width: 32,
+    height: 32,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cta: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: '#04161A',
+    alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 0,
-    borderWidth: 1,
-    borderColor: 'rgba(90, 200, 200, 0.34)',
-    backgroundColor: 'rgba(0, 50, 78, 0.34)',
   },
-  generateBtnText: {
-    fontFamily: fontFamily.label,
-    fontSize: fontSize.sm,
-    color: palette.ice,
-    letterSpacing: 1.3,
-    fontWeight: '700',
-    textAlign: 'center',
+  ctaText: {
+    fontSize: 12,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.8,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
-    paddingVertical: spacing.md,
+    marginTop: 16,
   },
-  loadingText: {
-    fontFamily: fontFamily.body,
-    fontSize: fontSize.xs,
-    color: palette.slate,
-    fontStyle: 'italic',
+  loadingCopy: {
+    fontSize: 10,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.3,
+  },
+  errorRail: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: '#1A120D',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   errorText: {
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.xs,
-    color: palette.red,
-    textAlign: 'center',
+    flex: 1,
+    fontSize: 10,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.2,
   },
-  auraContent: {
-    alignItems: 'center',
+  result: {
+    marginTop: 16,
   },
-  auraBadge: {
-    paddingVertical: 7,
-    paddingHorizontal: 20,
-    borderRadius: 0,
-    backgroundColor: 'rgba(90, 200, 200, 0.14)',
-    marginBottom: spacing.sm,
-  },
-  auraName: {
-    fontFamily: fontFamily.label,
-    fontSize: fontSize.md,
-    color: palette.ice,
-    letterSpacing: 1.8,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  auraReading: {
-    fontFamily: fontFamily.body,
-    fontStyle: 'italic',
-    fontSize: fontSize.md,
-    color: palette.frost,
-    lineHeight: 25,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  regenBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 0,
+  resultBadge: {
+    alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: 'rgba(90, 200, 200, 0.34)',
-    backgroundColor: 'rgba(90, 200, 200, 0.08)',
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: '#04161A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  resultName: {
+    fontSize: 12,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.6,
+  },
+  resultCopy: {
+    marginTop: 12,
+    fontSize: 12,
+    color: tacticalTokens.colors.textSoft,
+    lineHeight: 22,
+    letterSpacing: 0.6,
+  },
+  regen: {
+    marginTop: 16,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   regenText: {
-    fontFamily: fontFamily.label,
     fontSize: 10,
-    color: palette.ice,
-    letterSpacing: 1,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.4,
   },
 });
+
+export default SonicAuraCard;

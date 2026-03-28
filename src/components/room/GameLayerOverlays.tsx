@@ -25,6 +25,7 @@ export interface DuelState {
   timeRemaining: number;
   totalTime: number;
   userVote: 'a' | 'b' | null;
+  lockedVotes: Record<string, 'a' | 'b'>;
 }
 
 // ─── Forecast State ─────────────────────────────────────
@@ -68,6 +69,7 @@ interface GameLayerOverlaysProps {
   // Frequency Forecast
   forecastState: ForecastState;
   onForecastPick: (trackId: string) => void;
+  onForecastDismiss: () => void;
 
   // Resonance Event
   resonanceState: ResonanceState;
@@ -101,6 +103,7 @@ export function GameLayerOverlays({
   onDuelEnd,
   forecastState,
   onForecastPick,
+  onForecastDismiss,
   resonanceState,
   onResonanceComplete,
   transientUser,
@@ -131,10 +134,14 @@ export function GameLayerOverlays({
     reverbTails.length > 0 ||
     bounceVisible;
 
+  if (!anyActive) {
+    return null;
+  }
+
   return (
     <View
       style={StyleSheet.absoluteFill}
-      pointerEvents={anyActive ? 'box-none' : 'none'}
+      pointerEvents="box-none"
     >
       {/* ─── Layer 3: Crossfader Duel (overlay) ──────── */}
       {duelState.active && duelState.trackA && duelState.trackB && (
@@ -159,8 +166,10 @@ export function GameLayerOverlays({
             candidates={forecastState.candidates}
             reward={forecastState.reward}
             timeRemaining={forecastState.timeRemaining}
+            userPick={forecastState.userPick}
             onPredict={onForecastPick}
             lastResult={forecastState.lastResult}
+            onDismiss={onForecastDismiss}
           />
         </View>
       )}

@@ -335,7 +335,10 @@ export function QueueSheet({
             </View>
           ) : searchInSheet && searchMode === 'oracle' ? (
             <View style={{ flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
-              <OracleModeCard onAddTrack={(title, artist) => onAddSuggestion?.(title, artist)} />
+              <OracleModeCard
+                onAddResolvedTrack={onAddTrack}
+                onAddTrack={(title, artist) => onAddSuggestion?.(title, artist)}
+              />
             </View>
           ) : (
             /* Queue list */

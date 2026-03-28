@@ -8,13 +8,16 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, StyleSheet, TouchableOpacity, FlatList, Modal,
+  View, StyleSheet, TouchableOpacity, FlatList, Modal, Pressable, Text as RNText,
   Animated, Dimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Text } from './ui';
 import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import type { Listener } from '../types';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const MAX_VISIBLE_AVATARS = 5;
@@ -129,18 +132,6 @@ interface ListenerDrawerProps {
 }
 
 export function ListenerDrawer({ visible, listeners, hostId, onClose }: ListenerDrawerProps) {
-  const slideAnim = useRef(new Animated.Value(SCREEN_H)).current;
-
-  useEffect(() => {
-    Animated.spring(slideAnim, {
-      toValue: visible ? 0 : SCREEN_H,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 11,
-    }).start();
-  }, [visible]);
-
-  // Sort: host first, then alphabetical
   const sorted = [...listeners].sort((a, b) => {
     if (a.userId === hostId) return -1;
     if (b.userId === hostId) return 1;
@@ -148,56 +139,82 @@ export function ListenerDrawer({ visible, listeners, hostId, onClose }: Listener
   });
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} accessibilityViewIsModal>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+      accessibilityViewIsModal
+    >
       <View style={drawerStyles.overlay}>
-        {/* Backdrop — fills screen, tappable to dismiss */}
-        <TouchableOpacity style={drawerStyles.backdrop} activeOpacity={1} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close listeners panel" />
-
-        {/* Sheet — anchored to bottom */}
-        <Animated.View
-          style={[drawerStyles.sheet, { transform: [{ translateY: slideAnim }] }]}
-        >
-        {/* Handle */}
-        <TouchableOpacity style={drawerStyles.handleArea} onPress={onClose} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Close" accessibilityHint="Swipe or tap the handle to close listeners panel">
-          <View style={drawerStyles.handle} />
-        </TouchableOpacity>
-
-        <View style={drawerStyles.header}>
-          <Text variant="h3" color={palette.frost}>
-            Listening Now
-          </Text>
-          <Text variant="labelSmall" color={palette.slate}>
-            {listeners.length} {listeners.length === 1 ? 'person' : 'people'}
-          </Text>
-        </View>
-
-        <FlatList
-          data={sorted}
-          keyExtractor={(item) => item.userId}
-          renderItem={({ item }) => {
-            const isHost = item.userId === hostId;
-            return (
-              <View style={drawerStyles.row}>
-                <Avatar username={item.username} size={36} isHost={isHost} />
-                <View style={drawerStyles.rowInfo}>
-                  <Text variant="label" color={palette.frost}>
-                    {item.username}
-                  </Text>
-                  {isHost && (
-                    <Text variant="labelSmall" color={palette.green}>HOST</Text>
-                  )}
-                </View>
-                {/* Activity dot — green for "listening" */}
-                <View style={drawerStyles.activityDot} />
-              </View>
-            );
-          }}
-          contentContainerStyle={drawerStyles.list}
-          initialNumToRender={10}
-          maxToRenderPerBatch={5}
-          windowSize={7}
+        <Pressable
+          style={drawerStyles.backdrop}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close listeners panel"
         />
-        </Animated.View>
+        <View style={drawerStyles.sheet}>
+          <TacticalGridBackground opacity={0.84} />
+          <View style={drawerStyles.content}>
+            <View style={drawerStyles.header}>
+              <View style={drawerStyles.headerText}>
+                <RNText style={drawerStyles.eyebrow}>SYS.FREQ // ROOM BUS</RNText>
+                <RNText style={drawerStyles.title}>LISTENERS ONLINE</RNText>
+                <RNText style={drawerStyles.subtitle}>
+                  {listeners.length} {listeners.length === 1 ? 'PERSON IN ROOM' : 'PEOPLE IN ROOM'}
+                </RNText>
+              </View>
+              <View style={drawerStyles.headerActions}>
+                <View style={drawerStyles.countPill}>
+                  <RNText style={drawerStyles.countText}>{String(listeners.length).padStart(2, '0')}</RNText>
+                </View>
+                <Pressable
+                  onPress={onClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close listeners panel"
+                  style={({ pressed }) => [drawerStyles.closeButton, pressed && drawerStyles.closeButtonPressed]}
+                >
+                  <Ionicons name="close" size={18} color={tacticalTokens.colors.white} />
+                </Pressable>
+              </View>
+            </View>
+
+            <FlatList
+              data={sorted}
+              keyExtractor={(item) => item.userId}
+              renderItem={({ item, index }) => {
+                const isHost = item.userId === hostId;
+                return (
+                  <View style={drawerStyles.row}>
+                    <View style={drawerStyles.rowIndex}>
+                      <RNText style={drawerStyles.rowIndexText}>{String(index + 1).padStart(2, '0')}</RNText>
+                    </View>
+                    <Avatar username={item.username} size={34} isHost={isHost} borderColor={isHost ? tacticalTokens.colors.acid : tacticalTokens.colors.border} />
+                    <View style={drawerStyles.rowInfo}>
+                      <RNText style={drawerStyles.rowName} numberOfLines={1}>
+                        {item.username.toUpperCase()}
+                      </RNText>
+                      <RNText style={drawerStyles.rowMeta}>
+                        {isHost ? 'HOST / CONTROL' : 'LISTENER / LIVE'}
+                      </RNText>
+                    </View>
+                    <View style={drawerStyles.rowRight}>
+                      {isHost ? (
+                        <View style={drawerStyles.hostPill}>
+                          <RNText style={drawerStyles.hostPillText}>HOST</RNText>
+                        </View>
+                      ) : null}
+                      <View style={drawerStyles.activityDot} />
+                    </View>
+                  </View>
+                );
+              }}
+              contentContainerStyle={drawerStyles.list}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        </View>
       </View>
     </Modal>
   );
@@ -206,57 +223,163 @@ export function ListenerDrawer({ visible, listeners, hostId, onClose }: Listener
 const drawerStyles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    paddingHorizontal: tacticalTokens.spacing.xl,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
   },
   sheet: {
-    maxHeight: SCREEN_H * 0.55,
-    backgroundColor: palette.steel,
-    borderTopLeftRadius: spacing.radius.xl,
-    borderTopRightRadius: spacing.radius.xl,
-    paddingBottom: 40,
+    height: '68%',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+    overflow: 'hidden',
   },
-  handleArea: {
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: palette.slate,
-    opacity: 0.5,
+  content: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: tacticalTokens.spacing.sm,
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingTop: tacticalTokens.spacing.lg,
+    paddingBottom: tacticalTokens.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(4, 4, 4, 0.9)',
+  },
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  eyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textDim,
+    letterSpacing: 1.8,
+  },
+  title: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.display,
+    color: tacticalTokens.colors.white,
+  },
+  subtitle: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.2,
+  },
+  headerActions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.screenPadding,
-    paddingBottom: spacing.sm,
+    gap: tacticalTokens.spacing.sm,
+  },
+  countPill: {
+    minWidth: 42,
+    height: 36,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: '#081218',
+  },
+  countText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.body,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.4,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+  },
+  closeButtonPressed: {
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: '#141414',
   },
   list: {
-    paddingHorizontal: spacing.screenPadding,
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingVertical: tacticalTokens.spacing.lg,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
+    gap: tacticalTokens.spacing.sm,
+    minHeight: 64,
+    marginBottom: tacticalTokens.spacing.sm,
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.md,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(10, 10, 10, 0.92)',
+  },
+  rowIndex: {
+    width: 28,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: tacticalTokens.colors.border,
+    marginRight: tacticalTokens.spacing.sm,
+  },
+  rowIndexText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textDim,
+    letterSpacing: 1.2,
+    transform: [{ rotate: '-90deg' }],
   },
   rowInfo: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
+    minWidth: 0,
+  },
+  rowName: {
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.label,
+    color: tacticalTokens.colors.white,
+  },
+  rowMeta: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.1,
+  },
+  rowRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: tacticalTokens.spacing.xs,
+  },
+  hostPill: {
+    paddingHorizontal: tacticalTokens.spacing.xs + 2,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.acid,
+    backgroundColor: '#0E1408',
+  },
+  hostPillText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.micro,
+    color: tacticalTokens.colors.acid,
+    letterSpacing: 1.2,
   },
   activityDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: palette.green,
+    backgroundColor: tacticalTokens.colors.acid,
   },
 });
 
@@ -285,7 +408,7 @@ export function JoinLeaveToast({ messages }: JoinLeaveToastProps) {
     : '←';
 
   return (
-    <View style={toastStyles.container}>
+    <View style={toastStyles.container} pointerEvents="none">
       <View style={[toastStyles.pill, latest.type === 'mode' && toastStyles.modePill]}>
         <Text variant="labelSmall" color={iconColor}>{icon}</Text>
         <Text variant="labelSmall" color={latest.type === 'mode' ? palette.orange : palette.silver}>

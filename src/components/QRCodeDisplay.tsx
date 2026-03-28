@@ -6,11 +6,9 @@
  */
 
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { Text } from './ui';
-import { palette } from '../design/tokens/materials';
-import { spacing } from '../theme/spacing';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
 interface QRCodeDisplayProps {
   joinCode: string;
@@ -26,15 +24,15 @@ export function QRCodeDisplay({ joinCode, size = 180 }: QRCodeDisplayProps) {
         <QRCode
           value={value}
           size={size}
-          color={palette.frost}
-          backgroundColor={palette.midnight}
+          color={tacticalTokens.colors.white}
+          backgroundColor={tacticalTokens.colors.void}
         />
       </View>
-      <Text variant="label" color={palette.silver} align="center" style={styles.code}>
+      <Text style={styles.code}>
         {joinCode}
       </Text>
-      <Text variant="labelSmall" color={palette.slate} align="center">
-        Scan to join this room
+      <Text style={styles.caption}>
+        SCAN TO JOIN THIS ROOM
       </Text>
     </View>
   );
@@ -43,19 +41,28 @@ export function QRCodeDisplay({ joinCode, size = 180 }: QRCodeDisplayProps) {
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    padding: spacing.lg,
+    padding: tacticalTokens.spacing.lg,
   },
   qrWrapper: {
-    padding: spacing.md,
-    borderRadius: spacing.radius.lg,
-    backgroundColor: palette.midnight,
+    padding: tacticalTokens.spacing.md,
+    backgroundColor: tacticalTokens.colors.void,
     borderWidth: 1,
-    borderColor: palette.chromeBorder,
+    borderColor: tacticalTokens.colors.border,
   },
   code: {
-    marginTop: spacing.md,
-    letterSpacing: 3,
-    fontSize: 18,
+    marginTop: tacticalTokens.spacing.md,
+    fontFamily: tacticalTokens.fonts.display,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 2.2,
+    fontSize: tacticalTokens.fontSize.label,
+    textTransform: 'uppercase',
+  },
+  caption: {
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.3,
   },
 });
 

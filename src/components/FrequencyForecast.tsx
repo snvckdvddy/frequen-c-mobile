@@ -1,444 +1,422 @@
-/**
- * Frequency Forecast — Prediction Game
- *
- * "Tune your antenna" — predict which track will get the most
- * votes in the next round. Correct predictions earn CV bonus.
- *
- * Visual: Radio dial / frequency tuner UI. Users select from
- * upcoming tracks and lock in their prediction.
- *
- * Research pillar: Gamification × Social Dynamics —
- * prediction markets increase engagement and investment in outcomes.
- */
-
-import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
-import Svg, { Path, Circle, Line, Text as SvgText } from 'react-native-svg';
-import { Text } from './ui/Text';
-import { AnimatedPressable } from './ui/AnimatedPressable';
-import { palette } from '../design/tokens/materials';
-import { spacing } from '../theme/spacing';
-import { tapLight, notifySuccess } from '../utils/haptics';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { QueueTrack } from '../types';
+import TacticalGameShell from '../features/session-v2/components/TacticalGameShell';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
 interface FrequencyForecastProps {
-  /** Upcoming tracks to predict from */
   candidates: QueueTrack[];
-  /** How many CV points this forecast is worth */
   reward: number;
-  /** Time remaining to make prediction (seconds) */
   timeRemaining: number;
-  /** Called when user locks in a prediction */
+  userPick?: string | null;
   onPredict: (trackId: string) => void;
-  /** Result of the last forecast (null = pending) */
   lastResult?: {
     predicted: string;
     actual: string;
     correct: boolean;
     earned: number;
   } | null;
+  onDismiss?: () => void;
 }
 
-/** Animated radio dial indicator */
-function TunerDial({ selectedIndex, total }: { selectedIndex: number; total: number }) {
-  const rotation = useRef(new Animated.Value(0)).current;
-  const glow = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    // Rotate needle to selected position
-    const targetAngle = total > 1
-      ? -60 + (selectedIndex / (total - 1)) * 120
-      : 0;
-
-    Animated.spring(rotation, {
-      toValue: targetAngle,
-      useNativeDriver: true,
-      speed: 12,
-      bounciness: 8,
-    }).start();
-
-    // Glow pulse when moving
-    Animated.sequence([
-      Animated.timing(glow, {
-        toValue: 0.8,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(glow, {
-        toValue: 0.3,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [selectedIndex, total, rotation, glow]);
-
-  return (
-    <View style={dialStyles.container}>
-      <Svg width={160} height={80} viewBox="0 0 160 80">
-        {/* Dial arc */}
-        <Path
-          d="M 20 70 A 60 60 0 0 1 140 70"
-          stroke={palette.chromeBorder}
-          strokeWidth={1.5}
-          fill="none"
-        />
-        {/* Tick marks */}
-        {Array.from({ length: total }).map((_, i) => {
-          const angle = -60 + (i / Math.max(1, total - 1)) * 120;
-          const rad = (angle - 90) * (Math.PI / 180);
-          const cx = 80 + 55 * Math.cos(rad);
-          const cy = 70 + 55 * Math.sin(rad);
-          const isSelected = i === selectedIndex;
-          return (
-            <Circle
-              key={i}
-              cx={cx}
-              cy={cy}
-              r={isSelected ? 4 : 2.5}
-              fill={isSelected ? palette.orange : palette.chromeBorder}
-            />
-          );
-        })}
-        {/* Center dot */}
-        <Circle cx={80} cy={70} r={4} fill={palette.ice} />
-      </Svg>
-
-      {/* Needle — rotates via Animated */}
-      <Animated.View
-        style={[
-          dialStyles.needle,
-          {
-            transform: [
-              { rotate: rotation.interpolate({
-                inputRange: [-60, 60],
-                outputRange: ['-60deg', '60deg'],
-              })},
-            ],
-          },
-        ]}
-      >
-        <View style={dialStyles.needleLine} />
-        <Animated.View style={[dialStyles.needleTip, { opacity: glow }]} />
-      </Animated.View>
-    </View>
-  );
+function formatCountdown(seconds: number) {
+  const safe = Math.max(0, seconds);
+  return `${safe}s`;
 }
-
-const dialStyles = StyleSheet.create({
-  container: {
-    width: 160,
-    height: 80,
-    alignSelf: 'center',
-    position: 'relative',
-  },
-  needle: {
-    position: 'absolute',
-    bottom: 10,
-    left: 80 - 1, // center
-    width: 2,
-    height: 50,
-    transformOrigin: 'bottom',
-  },
-  needleLine: {
-    flex: 1,
-    width: 2,
-    backgroundColor: palette.orange,
-    borderRadius: 1,
-  },
-  needleTip: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: palette.orange,
-    alignSelf: 'center',
-    marginTop: -3,
-  },
-});
 
 export function FrequencyForecast({
   candidates,
   reward,
   timeRemaining,
+  userPick = null,
   onPredict,
   lastResult,
+  onDismiss,
 }: FrequencyForecastProps) {
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [locked, setLocked] = useState(false);
-  const resultAnim = useRef(new Animated.Value(0)).current;
+  const { width, height } = useWindowDimensions();
+  const compact = width <= 420 || height <= 780;
+  const [selectedId, setSelectedId] = useState<string | null>(userPick || candidates[0]?.id || null);
 
-  // Animate result reveal
   useEffect(() => {
-    if (lastResult) {
-      Animated.spring(resultAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        speed: 8,
-        bounciness: 10,
-      }).start();
-      if (lastResult.correct) notifySuccess();
-    } else {
-      resultAnim.setValue(0);
+    if (userPick) {
+      setSelectedId(userPick);
+      return;
     }
-  }, [lastResult, resultAnim]);
+    if (!selectedId && candidates[0]?.id) {
+      setSelectedId(candidates[0].id);
+    }
+  }, [candidates, selectedId, userPick]);
+
+  const lockedId = userPick || null;
+  const status = lastResult ? 'RESULT' : formatCountdown(timeRemaining);
+  const selectedTrack = candidates.find((track) => track.id === selectedId) || null;
+  const actualTrack = lastResult ? candidates.find((track) => track.id === lastResult.actual) || null : null;
+  const predictedTrack = lastResult ? candidates.find((track) => track.id === lastResult.predicted) || null : null;
+
+  const headerHint = useMemo(() => {
+    if (lastResult) {
+      return lastResult.correct
+        ? `SIGNAL CONFIRMED // +${lastResult.earned} CV`
+        : 'SIGNAL MISSED // NO CV AWARDED';
+    }
+    if (lockedId) {
+      const lockedTrack = candidates.find((track) => track.id === lockedId);
+      return lockedTrack
+        ? `LOCKED TO ${lockedTrack.title.toUpperCase()}`
+        : 'SIGNAL LOCKED';
+    }
+    return 'LOCK THE TRACK YOU THINK WINS THE NEXT ROUND';
+  }, [candidates, lastResult, lockedId]);
 
   const handleLock = () => {
-    if (locked || candidates.length === 0) return;
-    setLocked(true);
-    tapLight();
-    onPredict(candidates[selectedIndex].id);
-  };
-
-  const handleSelect = (index: number) => {
-    if (locked) return;
-    setSelectedIndex(index);
-    tapLight();
+    if (lockedId || !selectedTrack) return;
+    onPredict(selectedTrack.id);
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text variant="labelSmall" color={palette.slate} style={styles.label}>
-          FREQUENCY FORECAST
-        </Text>
-        <View style={styles.rewardBadge}>
-          <Text variant="labelSmall" color={palette.green} style={styles.rewardText}>
-            +{reward} CV
-          </Text>
-        </View>
-      </View>
-
-      <Text variant="bodySmall" color={palette.slate} style={styles.subtitle}>
-        Tune your antenna — predict which track gets the most votes
-      </Text>
-
-      {/* Timer */}
-      <View style={styles.timerRow}>
-        <View style={styles.timerBar}>
-          <View
-            style={[
-              styles.timerFill,
-              { width: `${Math.min(100, (timeRemaining / 30) * 100)}%` },
+    <TacticalGameShell
+      eyebrow="SYS.FREQ // GAME BUS"
+      title="FREQUENCY FORECAST"
+      status={status}
+      accentColor={tacticalTokens.colors.orange}
+      onClose={onDismiss}
+      footer={
+        !lastResult ? (
+          <Pressable
+            onPress={handleLock}
+            disabled={!selectedTrack || !!lockedId}
+            style={({ pressed }) => [
+              styles.lockButton,
+              compact && styles.lockButtonCompact,
+              (!!lockedId || !selectedTrack) && styles.lockButtonDisabled,
+              pressed && !lockedId && selectedTrack && styles.pressed,
             ]}
-          />
-        </View>
-        <Text variant="labelSmall" color={palette.slate} style={styles.timerText}>
-          {timeRemaining}s
-        </Text>
-      </View>
-
-      {/* Tuner dial */}
-      {candidates.length > 0 && (
-        <TunerDial selectedIndex={selectedIndex} total={candidates.length} />
-      )}
-
-      {/* Candidate list */}
-      <View style={styles.candidateList}>
-        {candidates.map((track, i) => (
-          <AnimatedPressable
-            key={track.id}
-            style={[
-              styles.candidate,
-              i === selectedIndex && styles.candidateActive,
-              locked && i === selectedIndex && styles.candidateLocked,
-            ]}
-            onPress={() => handleSelect(i)}
-            scaleDown={0.97}
-            disabled={locked}
             accessibilityRole="button"
-            accessibilityLabel={`Predict ${track.title} by ${track.artist}${i === selectedIndex ? ', selected' : ''}`}
-            accessibilityState={{ selected: i === selectedIndex, disabled: locked }}
+            accessibilityLabel="Lock forecast signal"
           >
-            <Text
-              variant="labelSmall"
-              color={i === selectedIndex ? palette.orange : palette.slate}
-              style={styles.candidateIndex}
-            >
-              {i + 1}
-            </Text>
-            <View style={styles.candidateInfo}>
-              <Text
-                variant="body"
-                color={i === selectedIndex ? palette.frost : palette.silver}
-                numberOfLines={1}
-                style={styles.candidateTitle}
-              >
-                {track.title}
-              </Text>
-              <Text variant="bodySmall" color={palette.slate} numberOfLines={1}>
-                {track.artist}
-              </Text>
-            </View>
-          </AnimatedPressable>
-        ))}
+            <Text style={[styles.lockButtonText, compact && styles.lockButtonTextCompact]}>{lockedId ? 'SIGNAL LOCKED' : 'LOCK SIGNAL'}</Text>
+          </Pressable>
+        ) : undefined
+      }
+    >
+      <View style={[styles.metaRow, compact && styles.metaRowCompact]}>
+        <View style={[styles.rewardBlock, compact && styles.rewardBlockCompact]}>
+          <Text style={[styles.rewardLabel, compact && styles.rewardLabelCompact]}>CV REWARD</Text>
+          <Text style={[styles.rewardValue, compact && styles.rewardValueCompact]}>+{reward}</Text>
+        </View>
+        <Text style={[styles.hintText, compact && styles.hintTextCompact]}>{headerHint}</Text>
       </View>
 
-      {/* Lock button */}
-      {!locked ? (
-        <AnimatedPressable
-          style={styles.lockBtn}
-          onPress={handleLock}
-          scaleDown={0.95}
-          disabled={candidates.length === 0}
-          accessibilityRole="button"
-          accessibilityLabel={`Lock signal on ${candidates[selectedIndex]?.title || 'selected track'}`}
-          accessibilityState={{ disabled: candidates.length === 0 }}
-        >
-          <Text variant="labelLarge" color={palette.void}>
-            LOCK SIGNAL
-          </Text>
-        </AnimatedPressable>
-      ) : (
-        <Text variant="labelSmall" color={palette.slate} style={styles.lockedText}>
-          ANTENNA LOCKED — AWAITING RESULTS
-        </Text>
-      )}
+      {!lastResult ? (
+        <>
+          <View style={[styles.progressTrack, compact && styles.progressTrackCompact]}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${Math.max(0, Math.min(100, (timeRemaining / 20) * 100))}%` },
+              ]}
+            />
+          </View>
 
-      {/* Result overlay */}
-      {lastResult && (
-        <Animated.View
-          style={[
-            styles.resultOverlay,
-            {
-              opacity: resultAnim,
-              transform: [{ scale: resultAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.8, 1],
-              })}],
-            },
-          ]}
-        >
-          <Text
-            variant="h2"
-            color={lastResult.correct ? palette.green : palette.red}
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={[styles.listContent, compact && styles.listContentCompact]}
+            showsVerticalScrollIndicator={false}
           >
-            {lastResult.correct ? 'SIGNAL MATCHED' : 'OFF FREQUENCY'}
-          </Text>
-          {lastResult.correct && (
-            <Text variant="labelLarge" color={palette.green} style={{ marginTop: 4 }}>
-              +{lastResult.earned} CV
+            {candidates.map((track, index) => {
+              const selected = selectedId === track.id;
+              const locked = lockedId === track.id;
+              return (
+                <Pressable
+                  key={track.id}
+                  onPress={() => {
+                    if (lockedId) return;
+                    setSelectedId(track.id);
+                  }}
+                  disabled={!!lockedId}
+                  style={({ pressed }) => [
+                    styles.candidateRow,
+                    compact && styles.candidateRowCompact,
+                    selected && styles.candidateRowSelected,
+                    locked && styles.candidateRowLocked,
+                    pressed && !lockedId && styles.pressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${track.title} by ${track.artist}`}
+                >
+                  <View style={[styles.candidateStrip, compact && styles.candidateStripCompact]}>
+                    <Text style={[styles.candidateStripText, compact && styles.candidateStripTextCompact]}>{String(index + 1).padStart(2, '0')}</Text>
+                  </View>
+
+                  <View style={[styles.candidateBody, compact && styles.candidateBodyCompact]}>
+                    <Text style={[styles.candidateTitle, compact && styles.candidateTitleCompact]} numberOfLines={1}>
+                      {track.title.toUpperCase()}
+                    </Text>
+                    <Text style={[styles.candidateArtist, compact && styles.candidateArtistCompact]} numberOfLines={1}>
+                      {track.artist}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.candidateState, compact && styles.candidateStateCompact]}>
+                    <Text style={[styles.candidateStateText, compact && styles.candidateStateTextCompact, locked && styles.candidateStateTextActive]}>
+                      {locked ? 'LOCKED' : selected ? 'ARMED' : 'OPEN'}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </>
+      ) : (
+        <View style={styles.resultBlock}>
+          <View style={styles.resultCard}>
+            <Text style={styles.resultEyebrow}>PREDICTED</Text>
+            <Text style={styles.resultTitle} numberOfLines={1}>
+              {(predictedTrack?.title || 'NO LOCK').toUpperCase()}
             </Text>
-          )}
-        </Animated.View>
+            <Text style={styles.resultMeta} numberOfLines={1}>
+              {(predictedTrack?.artist || 'UNRESOLVED').toUpperCase()}
+            </Text>
+          </View>
+
+          <View style={styles.resultCard}>
+            <Text style={styles.resultEyebrow}>ACTUAL WINNER</Text>
+            <Text style={[styles.resultTitle, styles.resultTitleAccent]} numberOfLines={1}>
+              {(actualTrack?.title || 'UNRESOLVED').toUpperCase()}
+            </Text>
+            <Text style={styles.resultMeta} numberOfLines={1}>
+              {(actualTrack?.artist || 'SYSTEM').toUpperCase()}
+            </Text>
+          </View>
+        </View>
       )}
-    </View>
+    </TacticalGameShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: palette.midnight,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginHorizontal: spacing.screenPadding,
-    marginVertical: spacing.sm,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  header: {
+  metaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: tacticalTokens.spacing.sm,
+    marginBottom: tacticalTokens.spacing.md,
   },
-  label: {
-    fontSize: 9,
-    letterSpacing: 2,
+  metaRowCompact: {
+    gap: tacticalTokens.spacing.xs + 2,
+    marginBottom: tacticalTokens.spacing.sm,
   },
-  rewardBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    backgroundColor: 'rgba(52, 211, 153, 0.08)',
+  rewardBlock: {
+    width: 74,
+    minHeight: 60,
     borderWidth: 1,
-    borderColor: 'rgba(52, 211, 153, 0.2)',
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: `${tacticalTokens.colors.orange}10`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: tacticalTokens.spacing.sm,
   },
-  rewardText: {
-    fontSize: 9,
+  rewardBlockCompact: {
+    width: 70,
+    minHeight: 56,
+  },
+  rewardLabel: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys - 1,
+    color: tacticalTokens.colors.textMuted,
     letterSpacing: 1,
   },
-  subtitle: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
+  rewardLabelCompact: {
+    fontSize: tacticalTokens.fontSize.sys - 1,
   },
-  timerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: spacing.sm,
+  rewardValue: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.label + 2,
+    color: tacticalTokens.colors.orange,
   },
-  timerBar: {
+  rewardValueCompact: {
+    fontSize: tacticalTokens.fontSize.label + 1,
+  },
+  hintText: {
     flex: 1,
-    height: 2,
-    backgroundColor: palette.steel,
-    borderRadius: 1,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 0.9,
+    paddingTop: 2,
+  },
+  hintTextCompact: {
+    fontSize: tacticalTokens.fontSize.small,
+    lineHeight: 20,
+    letterSpacing: 0.6,
+  },
+  progressTrack: {
+    height: 4,
+    marginBottom: tacticalTokens.spacing.md,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matte,
     overflow: 'hidden',
   },
-  timerFill: {
+  progressTrackCompact: {
+    marginBottom: tacticalTokens.spacing.sm,
+  },
+  progressFill: {
     height: '100%',
-    backgroundColor: palette.orange,
-    borderRadius: 1,
+    backgroundColor: tacticalTokens.colors.orange,
   },
-  timerText: {
-    fontSize: 10,
-    fontVariant: ['tabular-nums'],
-  },
-  candidateList: {
-    gap: 6,
-    marginBottom: spacing.sm,
-  },
-  candidate: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  candidateActive: {
-    borderColor: palette.chromeBorder,
-    backgroundColor: palette.steel,
-  },
-  candidateLocked: {
-    borderColor: palette.orange,
-    backgroundColor: 'rgba(90, 200, 200, 0.06)',
-  },
-  candidateIndex: {
-    width: 16,
-    textAlign: 'center',
-    fontSize: 10,
-    letterSpacing: 1,
-  },
-  candidateInfo: {
+  list: {
     flex: 1,
+  },
+  listContent: {
+    paddingBottom: tacticalTokens.spacing.xs + 2,
+    gap: tacticalTokens.spacing.xs + 2,
+  },
+  listContentCompact: {
+    gap: tacticalTokens.spacing.xs,
+  },
+  candidateRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    minHeight: 62,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+  },
+  candidateRowCompact: {
+    minHeight: 60,
+  },
+  candidateRowSelected: {
+    borderColor: tacticalTokens.colors.orange,
+  },
+  candidateRowLocked: {
+    backgroundColor: '#13110C',
+  },
+  candidateStrip: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+  },
+  candidateStripCompact: {
+    width: 24,
+  },
+  candidateStripText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
+  },
+  candidateStripTextCompact: {
+    fontSize: tacticalTokens.fontSize.sys,
+  },
+  candidateBody: {
+    flex: 1,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: tacticalTokens.spacing.xs + 2,
+    minWidth: 0,
+  },
+  candidateBodyCompact: {
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: tacticalTokens.spacing.xs,
   },
   candidateTitle: {
-    fontSize: 14,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.body + 1,
+    color: tacticalTokens.colors.white,
   },
-  lockBtn: {
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: palette.orange,
+  candidateTitleCompact: {
+    fontSize: tacticalTokens.fontSize.body + 1,
+  },
+  candidateArtist: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+  },
+  candidateArtistCompact: {
+    fontSize: tacticalTokens.fontSize.sys,
+  },
+  candidateState: {
+    width: 72,
+    borderLeftWidth: 1,
+    borderLeftColor: tacticalTokens.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: tacticalTokens.spacing.xs,
+  },
+  candidateStateCompact: {
+    width: 64,
+  },
+  candidateStateText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1,
+  },
+  candidateStateTextCompact: {
+    fontSize: tacticalTokens.fontSize.sys,
+  },
+  candidateStateTextActive: {
+    color: tacticalTokens.colors.orange,
+  },
+  resultBlock: {
+    gap: tacticalTokens.spacing.md,
+  },
+  resultCard: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingVertical: tacticalTokens.spacing.md,
+  },
+  resultEyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.6,
+  },
+  resultTitle: {
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.title,
+    color: tacticalTokens.colors.white,
+  },
+  resultTitleAccent: {
+    color: tacticalTokens.colors.orange,
+  },
+  resultMeta: {
+    marginTop: tacticalTokens.spacing.xs,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.2,
+  },
+  lockButton: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.orange,
+    backgroundColor: tacticalTokens.colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  lockedText: {
-    textAlign: 'center',
-    fontSize: 8,
-    letterSpacing: 2,
-    opacity: 0.6,
-    paddingVertical: 12,
+  lockButtonCompact: {
+    minHeight: 46,
   },
-  resultOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 16, 18, 0.92)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
+  lockButtonDisabled: {
+    backgroundColor: `${tacticalTokens.colors.orange}22`,
+  },
+  lockButtonText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.body,
+    color: tacticalTokens.colors.void,
+    letterSpacing: 1.2,
+  },
+  lockButtonTextCompact: {
+    fontSize: tacticalTokens.fontSize.body,
+  },
+  pressed: {
+    opacity: 0.84,
   },
 });
-
-export default FrequencyForecast;

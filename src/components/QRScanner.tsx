@@ -6,9 +6,9 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Text, Button } from './ui';
+import { Text, Button, showToast } from './ui';
 import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 
@@ -43,7 +43,7 @@ export function QRScanner({ onCodeScanned, onClose }: QRScannerProps) {
       joinCode = joinCode.trim().toUpperCase();
 
       if (!joinCode) {
-        Alert.alert('Invalid QR', 'This QR code doesn\'t contain a room code.');
+        showToast('This QR code does not contain a room code.', 'warning', '!');
         setScanned(false);
         return;
       }

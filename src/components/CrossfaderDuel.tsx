@@ -1,147 +1,94 @@
-/**
- * Crossfader Duel — Head-to-Head Track Battle
- *
- * Two tracks are loaded onto channels A and B. Users "crossfade"
- * by voting for one side. The crossfader position reflects
- * the vote ratio in real time. When the timer ends, the winning
- * track stays in the queue and the loser gets dropped.
- *
- * Visual: DJ mixer crossfader — horizontal slider showing
- * vote balance between two tracks.
- *
- * Research pillar: Social Choice Architecture —
- * binary choice reduces decision fatigue, increases engagement.
- */
-
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  View, StyleSheet, Image, Animated, Easing,
-  PanResponder, Dimensions,
-} from 'react-native';
-import { Text } from './ui/Text';
-import { AnimatedPressable } from './ui/AnimatedPressable';
-import { WaveformIcon } from './ui/WaveformIcon';
-import { palette } from '../design/tokens/materials';
-import { spacing } from '../theme/spacing';
-import { tapMedium, tapLight } from '../utils/haptics';
+import React, { useMemo } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { QueueTrack } from '../types';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const FADER_WIDTH = SCREEN_WIDTH - spacing.screenPadding * 2;
-const KNOB_WIDTH = 48;
-const FADER_TRAVEL = FADER_WIDTH - KNOB_WIDTH;
+import TacticalGameShell from '../features/session-v2/components/TacticalGameShell';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
 interface CrossfaderDuelProps {
   trackA: QueueTrack;
   trackB: QueueTrack;
-  /** Vote counts: { a: number, b: number } */
   votes: { a: number; b: number };
-  /** Remaining time in seconds */
   timeRemaining: number;
-  /** Total duel duration in seconds */
   totalTime: number;
-  /** Called when user votes for a side */
   onVote: (side: 'a' | 'b') => void;
-  /** Which side the current user voted for (null = hasn't voted) */
   userVote: 'a' | 'b' | null;
-  /** Called when duel ends */
-  onDuelEnd?: (winner: 'a' | 'b') => void;
+  onDuelEnd?: () => void;
 }
 
-// Track channel display (A or B)
-function ChannelTrack({
+function formatCountdown(seconds: number) {
+  const safe = Math.max(0, seconds);
+  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
+}
+
+function formatTrackTitle(title: string) {
+  return title.toUpperCase();
+}
+
+function DuelTrackRail({
   track,
   side,
   votes,
-  isWinning,
+  locked,
+  winning,
+  onLock,
 }: {
   track: QueueTrack;
   side: 'a' | 'b';
   votes: number;
-  isWinning: boolean;
+  locked: boolean;
+  winning: boolean;
+  onLock: () => void;
 }) {
+  const accentColor = side === 'a' ? tacticalTokens.colors.orange : tacticalTokens.colors.ice;
   return (
-    <View style={[channelStyles.container, side === 'b' && channelStyles.containerB]}>
-      {/* Album art */}
-      {track.albumArt ? (
-        <Image source={{ uri: track.albumArt }} style={channelStyles.art} />
-      ) : (
-        <View style={[channelStyles.art, channelStyles.artPlaceholder]}>
-          <WaveformIcon mode="campfire" size={16} />
-        </View>
-      )}
-
-      {/* Track info */}
-      <View style={channelStyles.info}>
-        <Text
-          variant="labelSmall"
-          color={isWinning ? palette.orange : palette.slate}
-          style={channelStyles.sideLabel}
-        >
-          {side === 'a' ? 'CH A' : 'CH B'}
-        </Text>
-        <Text
-          variant="body"
-          color={palette.frost}
-          numberOfLines={1}
-          style={channelStyles.title}
-        >
-          {track.title}
-        </Text>
-        <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
-          {track.artist}
-        </Text>
+    <View style={[styles.rail, winning && { borderColor: accentColor }]}>
+      <View style={[styles.railStrip, { backgroundColor: `${accentColor}1F`, borderRightColor: accentColor }]}>
+        <Text style={[styles.railStripText, { color: accentColor }]}>{side === 'a' ? 'A' : 'B'}</Text>
       </View>
 
-      {/* Vote count */}
-      <View style={[channelStyles.voteCount, isWinning && channelStyles.voteCountWinning]}>
-        <Text variant="h2" color={isWinning ? palette.orange : palette.slate}>
-          {votes}
-        </Text>
+      <View style={styles.railBody}>
+        <View style={styles.railHeader}>
+          <Text style={[styles.railChannel, { color: accentColor }]}>{side === 'a' ? 'CHANNEL A' : 'CHANNEL B'}</Text>
+          <Text style={[styles.voteCount, { color: winning ? accentColor : tacticalTokens.colors.textSoft }]}>
+            {votes}
+          </Text>
+        </View>
+
+        <View style={styles.trackRow}>
+          <View style={styles.artFrame}>
+            {track.albumArt ? <Image source={{ uri: track.albumArt }} style={styles.art} /> : null}
+          </View>
+
+          <View style={styles.trackMeta}>
+            <Text style={styles.trackTitle} numberOfLines={1}>
+              {formatTrackTitle(track.title)}
+            </Text>
+            <Text style={styles.trackArtist} numberOfLines={1}>
+              {track.artist}
+            </Text>
+          </View>
+        </View>
+
+        <Pressable
+          onPress={onLock}
+          disabled={locked}
+          style={({ pressed }) => [
+            styles.lockButton,
+            { borderColor: accentColor },
+            locked && { backgroundColor: `${accentColor}16` },
+            pressed && !locked && styles.pressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={locked ? `Locked ${side.toUpperCase()}` : `Lock ${side.toUpperCase()}`}
+        >
+          <Text style={[styles.lockButtonText, { color: accentColor }]}>
+            {locked ? `LOCKED ${side.toUpperCase()}` : `LOCK ${side.toUpperCase()}`}
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
 }
-
-const channelStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-  },
-  containerB: {
-    flexDirection: 'row-reverse',
-  },
-  art: {
-    width: 48,
-    height: 48,
-    borderRadius: 6,
-    backgroundColor: palette.midnight,
-  },
-  artPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  info: {
-    flex: 1,
-  },
-  sideLabel: {
-    fontSize: 8,
-    letterSpacing: 2,
-    marginBottom: 2,
-  },
-  title: {
-    fontSize: 14,
-  },
-  voteCount: {
-    width: 40,
-    alignItems: 'center',
-  },
-  voteCountWinning: {
-    // glow effect handled by text color
-  },
-});
 
 export function CrossfaderDuel({
   trackA,
@@ -153,292 +100,305 @@ export function CrossfaderDuel({
   userVote,
   onDuelEnd,
 }: CrossfaderDuelProps) {
-  const total = votes.a + votes.b;
-  const ratio = total > 0 ? votes.a / total : 0.5; // 0 = all B, 1 = all A
-  const faderPosition = useRef(new Animated.Value(ratio * FADER_TRAVEL)).current;
-  const pulseAnim = useRef(new Animated.Value(0.5)).current;
+  const totalVotes = votes.a + votes.b;
+  const aRatio = totalVotes > 0 ? votes.a / totalVotes : 0.5;
+  const bRatio = 1 - aRatio;
+  const countdown = formatCountdown(timeRemaining);
+  const finished = timeRemaining <= 0;
+  const { width, height } = useWindowDimensions();
+  const compact = width <= 420 || height <= 780;
+  const winner = votes.b > votes.a ? 'b' : 'a';
+  const resultLabel = winner === 'a' ? 'CHANNEL A WON' : 'CHANNEL B WON';
+  const leadTrack = winner === 'a' ? trackA : trackB;
+  const progress = totalTime > 0 ? Math.max(0, timeRemaining / totalTime) : 0;
 
-  // Animate fader to vote ratio
-  useEffect(() => {
-    Animated.timing(faderPosition, {
-      toValue: ratio * FADER_TRAVEL,
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [ratio, faderPosition]);
-
-  // Pulse animation for active duel
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0.5,
-          duration: 500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [pulseAnim]);
-
-  const isAWinning = votes.a >= votes.b;
-  const timerPercent = totalTime > 0 ? timeRemaining / totalTime : 0;
+  const lockHint = useMemo(() => {
+    if (finished) return `${resultLabel} // ${leadTrack.title.toUpperCase()}`;
+    if (userVote === 'a') return 'SIGNAL LOCKED TO CHANNEL A';
+    if (userVote === 'b') return 'SIGNAL LOCKED TO CHANNEL B';
+    return 'LOCK A SIDE BEFORE THE FADER CLOSES';
+  }, [finished, leadTrack.title, resultLabel, userVote]);
 
   return (
-    <View style={styles.container}>
-      {/* Duel header */}
-      <View style={styles.header}>
-        <Animated.View style={{ opacity: pulseAnim }}>
-          <Text variant="labelSmall" color={palette.red} style={styles.duelLabel}>
-            CROSSFADER DUEL
-          </Text>
-        </Animated.View>
-        <Text variant="labelSmall" color={palette.slate} style={styles.timer}>
-          {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
-        </Text>
-      </View>
-
-      {/* Timer bar */}
-      <View style={styles.timerBar}>
-        <View style={[styles.timerFill, { width: `${timerPercent * 100}%` }]} />
-      </View>
-
-      {/* Channel A */}
-      <ChannelTrack
-        track={trackA}
-        side="a"
-        votes={votes.a}
-        isWinning={isAWinning}
-      />
-
-      {/* Crossfader track */}
-      <View style={styles.faderTrack}>
-        {/* A-side zone */}
-        <View style={[styles.faderZone, { backgroundColor: 'rgba(255, 107, 53, 0.08)' }]}>
-          <Text variant="labelSmall" color={palette.orange} style={styles.zoneLabel}>A</Text>
+    <TacticalGameShell
+      eyebrow="SYS.FREQ // GAME BUS"
+      title="CROSSFADER DUEL"
+      status={finished ? 'RESULT' : countdown}
+      accentColor={tacticalTokens.colors.orange}
+      onClose={onDuelEnd}
+      footer={
+        <View style={[styles.footerBar, compact && styles.footerBarCompact]}>
+          <View style={[styles.footerFill, { width: `${progress * 100}%` }]} />
         </View>
-        {/* B-side zone */}
-        <View style={[styles.faderZone, { backgroundColor: 'rgba(192, 223, 255, 0.08)' }]}>
-          <Text variant="labelSmall" color={palette.signalSaw} style={styles.zoneLabel}>B</Text>
-        </View>
+      }
+    >
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <Text style={[styles.systemHint, compact && styles.systemHintCompact]}>{lockHint}</Text>
 
-        {/* Center line */}
-        <View style={styles.centerLine} />
-
-        {/* Fader knob — animated to vote ratio */}
-        <Animated.View style={[styles.faderKnob, { left: faderPosition }]}>
-          <View style={styles.knobGrip}>
-            <View style={styles.knobLine} />
-            <View style={styles.knobLine} />
-            <View style={styles.knobLine} />
+        <View style={[styles.meterFrame, compact && styles.meterFrameCompact]}>
+          <View style={[styles.meterTrack, compact && styles.meterTrackCompact]}>
+            <View style={[styles.meterHalf, { backgroundColor: `${tacticalTokens.colors.orange}14` }]} />
+            <View style={[styles.meterHalf, { backgroundColor: `${tacticalTokens.colors.ice}14` }]} />
+            <View style={styles.meterCenterLine} />
+            <View style={[styles.meterKnob, compact && styles.meterKnobCompact, { left: `${aRatio * 100}%` }]} />
           </View>
-        </Animated.View>
-      </View>
 
-      {/* Channel B */}
-      <ChannelTrack
-        track={trackB}
-        side="b"
-        votes={votes.b}
-        isWinning={!isAWinning}
-      />
+          <View style={styles.meterLegend}>
+            <Text style={[styles.meterLabel, compact && styles.meterLabelCompact, { color: tacticalTokens.colors.orange }]}>
+              A {Math.round(aRatio * 100)}%
+            </Text>
+            <Text style={[styles.meterLabel, compact && styles.meterLabelCompact, { color: tacticalTokens.colors.ice }]}>
+              B {Math.round(bRatio * 100)}%
+            </Text>
+          </View>
+        </View>
 
-      {/* Vote buttons */}
-      <View style={styles.voteRow}>
-        <AnimatedPressable
-          style={[
-            styles.voteBtn,
-            styles.voteBtnA,
-            userVote === 'a' && styles.voteBtnActive,
-          ]}
-          onPress={() => {
-            tapMedium();
-            onVote('a');
-          }}
-          disabled={userVote !== null}
-          scaleDown={0.93}
-          accessibilityRole="button"
-          accessibilityLabel={`Vote for Channel A, ${trackA.title} by ${trackA.artist}, ${votes.a} votes`}
-          accessibilityState={{ disabled: userVote !== null, selected: userVote === 'a' }}
-        >
-          <Text
-            variant="labelLarge"
-            color={userVote === 'a' ? palette.void : palette.orange}
-          >
-            CHANNEL A
-          </Text>
-        </AnimatedPressable>
+        <View style={[styles.rails, compact && styles.railsCompact]}>
+          <DuelTrackRail
+            track={trackA}
+            side="a"
+            votes={votes.a}
+            winning={winner === 'a'}
+            locked={!!userVote}
+            onLock={() => onVote('a')}
+          />
+          <DuelTrackRail
+            track={trackB}
+            side="b"
+            votes={votes.b}
+            winning={winner === 'b'}
+            locked={!!userVote}
+            onLock={() => onVote('b')}
+          />
+        </View>
 
-        <AnimatedPressable
-          style={[
-            styles.voteBtn,
-            styles.voteBtnB,
-            userVote === 'b' && styles.voteBtnActive,
-          ]}
-          onPress={() => {
-            tapMedium();
-            onVote('b');
-          }}
-          disabled={userVote !== null}
-          scaleDown={0.93}
-          accessibilityRole="button"
-          accessibilityLabel={`Vote for Channel B, ${trackB.title} by ${trackB.artist}, ${votes.b} votes`}
-          accessibilityState={{ disabled: userVote !== null, selected: userVote === 'b' }}
-        >
-          <Text
-            variant="labelLarge"
-            color={userVote === 'b' ? palette.void : palette.signalSaw}
-          >
-            CHANNEL B
-          </Text>
-        </AnimatedPressable>
-      </View>
-
-      {userVote && (
-        <Text variant="labelSmall" color={palette.slate} style={styles.votedLabel}>
-          SIGNAL LOCKED — {userVote === 'a' ? 'CH A' : 'CH B'}
-        </Text>
-      )}
-    </View>
+        {finished ? (
+          <View style={styles.resultBlock}>
+            <Text style={styles.resultEyebrow}>RESULT</Text>
+            <Text style={styles.resultTitle}>{resultLabel}</Text>
+            <Text style={styles.resultMeta} numberOfLines={1}>
+              {leadTrack.title.toUpperCase()} // {leadTrack.artist.toUpperCase()}
+            </Text>
+          </View>
+        ) : null}
+      </ScrollView>
+    </TacticalGameShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: palette.midnight,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginHorizontal: spacing.screenPadding,
-    marginVertical: spacing.sm,
+  scrollContent: {
+    paddingBottom: tacticalTokens.spacing.xs,
   },
-  header: {
+  systemHint: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.2,
+    marginBottom: tacticalTokens.spacing.md,
+  },
+  systemHintCompact: {
+    fontSize: tacticalTokens.fontSize.sys,
+    lineHeight: 18,
+    marginBottom: tacticalTokens.spacing.sm,
+  },
+  meterFrame: {
+    marginBottom: tacticalTokens.spacing.md,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: tacticalTokens.spacing.sm,
+  },
+  meterFrameCompact: {
+    marginBottom: tacticalTokens.spacing.sm,
+    paddingHorizontal: tacticalTokens.spacing.xs + 2,
+    paddingVertical: tacticalTokens.spacing.xs + 2,
+  },
+  meterTrack: {
+    position: 'relative',
+    flexDirection: 'row',
+    height: 34,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    overflow: 'hidden',
+  },
+  meterTrackCompact: {
+    height: 28,
+  },
+  meterHalf: {
+    flex: 1,
+  },
+  meterCenterLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 1,
+    marginLeft: -0.5,
+    backgroundColor: tacticalTokens.colors.border,
+  },
+  meterKnob: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    width: 34,
+    marginLeft: -17,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: tacticalTokens.colors.void,
+  },
+  meterKnobCompact: {
+    top: 3,
+    bottom: 3,
+    width: 24,
+    marginLeft: -12,
+  },
+  meterLegend: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: tacticalTokens.spacing.sm,
+  },
+  meterLabel: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.small,
+    letterSpacing: 1.2,
+  },
+  meterLabelCompact: {
+    fontSize: tacticalTokens.fontSize.sys,
+  },
+  rails: {
+    gap: tacticalTokens.spacing.sm,
+  },
+  railsCompact: {
+    gap: tacticalTokens.spacing.xs + 2,
+  },
+  rail: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+  },
+  railStrip: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+  },
+  railStripText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.label,
+    letterSpacing: 1.5,
+  },
+  railBody: {
+    flex: 1,
+    padding: tacticalTokens.spacing.sm,
+    gap: tacticalTokens.spacing.xs + 2,
+  },
+  railHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xs,
   },
-  duelLabel: {
-    fontSize: 9,
-    letterSpacing: 2,
+  railChannel: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.small,
+    letterSpacing: 1.4,
   },
-  timer: {
-    fontSize: 11,
-    letterSpacing: 1,
-    fontVariant: ['tabular-nums'],
+  voteCount: {
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.label + 2,
   },
-  timerBar: {
-    height: 2,
-    backgroundColor: palette.steel,
-    borderRadius: 1,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-  },
-  timerFill: {
-    height: '100%',
-    backgroundColor: palette.red,
-    borderRadius: 1,
-  },
-  // Crossfader track
-  faderTrack: {
-    height: 36,
+  trackRow: {
     flexDirection: 'row',
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    position: 'relative',
-    marginVertical: spacing.sm,
-  },
-  faderZone: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: tacticalTokens.spacing.sm,
   },
-  zoneLabel: {
-    fontSize: 8,
-    letterSpacing: 2,
-    opacity: 0.6,
-  },
-  centerLine: {
-    position: 'absolute',
-    left: '50%',
-    top: 4,
-    bottom: 4,
-    width: 1,
-    backgroundColor: palette.chromeBorder,
-  },
-  faderKnob: {
-    position: 'absolute',
-    top: 2,
-    bottom: 2,
-    width: KNOB_WIDTH,
-    backgroundColor: palette.steel,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: palette.ice,
-    justifyContent: 'center',
-    alignItems: 'center',
-    // Shadow
-    shadowColor: palette.void,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  knobGrip: {
-    flexDirection: 'row',
-    gap: 3,
-  },
-  knobLine: {
-    width: 1,
-    height: 16,
-    backgroundColor: palette.ice,
-    borderRadius: 0.5,
-  },
-  // Vote buttons
-  voteRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: spacing.sm,
-  },
-  voteBtn: {
-    flex: 1,
+  artFrame: {
+    width: 44,
     height: 44,
-    borderRadius: 8,
     borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    overflow: 'hidden',
+  },
+  art: {
+    width: '100%',
+    height: '100%',
+  },
+  trackMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  trackTitle: {
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.body + 1,
+    color: tacticalTokens.colors.white,
+  },
+  trackArtist: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+  },
+  lockButton: {
+    alignSelf: 'flex-start',
+    minWidth: 88,
+    minHeight: 34,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    borderWidth: 1,
+    backgroundColor: tacticalTokens.colors.void,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  voteBtnA: {
-    borderColor: palette.orange,
-    backgroundColor: 'rgba(255, 107, 53, 0.06)',
+  lockButtonText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    letterSpacing: 1,
   },
-  voteBtnB: {
-    borderColor: palette.signalSaw,
-    backgroundColor: 'rgba(192, 223, 255, 0.06)',
+  resultBlock: {
+    marginTop: tacticalTokens.spacing.md,
+    paddingTop: tacticalTokens.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: tacticalTokens.colors.borderGhost,
+    gap: tacticalTokens.spacing.xs,
   },
-  voteBtnActive: {
-    backgroundColor: palette.orange,
-    borderColor: palette.orange,
+  resultEyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.6,
   },
-  votedLabel: {
-    textAlign: 'center',
-    marginTop: spacing.xs,
-    fontSize: 8,
-    letterSpacing: 2,
-    opacity: 0.6,
+  resultTitle: {
+    fontFamily: tacticalTokens.fonts.display,
+    fontSize: tacticalTokens.fontSize.title,
+    color: tacticalTokens.colors.orange,
+  },
+  resultMeta: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.small,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.1,
+  },
+  footerBar: {
+    height: 4,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matte,
+    overflow: 'hidden',
+  },
+  footerBarCompact: {
+    height: 3,
+  },
+  footerFill: {
+    height: '100%',
+    backgroundColor: tacticalTokens.colors.orange,
+  },
+  pressed: {
+    opacity: 0.84,
   },
 });
-
-export default CrossfaderDuel;

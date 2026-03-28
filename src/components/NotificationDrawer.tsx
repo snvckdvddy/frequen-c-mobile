@@ -1,25 +1,18 @@
-/**
- * NotificationDrawer — Slide-over notification panel.
- *
- * Shows recent notifications (friend requests, room invites, CV earned, etc.)
- * with mark-all-read and per-item read tracking.
- * Presented as a Modal from the HomeScreen header bell icon.
- */
-
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, StyleSheet, Modal, TouchableOpacity, FlatList,
-  RefreshControl, ActivityIndicator,
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, SafeScreen } from './ui';
 import { notificationApi, type Notification } from '../services/api';
-import { useTheme } from '../contexts/ThemeContext';
-import { VoidSurface, ModuleFaceplate, ChromeButton } from '../design/components';
-import { palette } from '../design/tokens/materials';
-import { colors } from '../design/tokens/colors';
-import { fontFamily, fontSize, letterSpacing as ls } from '../design/tokens/typography';
-import { spacing } from '../theme/spacing';
+import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
+import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
 interface NotificationDrawerProps {
   visible: boolean;
@@ -28,8 +21,7 @@ interface NotificationDrawerProps {
   onOpenRoom?: (sessionId: string) => void;
 }
 
-// Notification type → icon mapping
-const NOTIF_ICONS: Record<string, string> = {
+const NOTIF_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   friend_request: 'person-add-outline',
   friend_accepted: 'people-outline',
   room_invite: 'radio-outline',
@@ -39,25 +31,38 @@ const NOTIF_ICONS: Record<string, string> = {
   system: 'information-circle-outline',
 };
 
-function formatTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d`;
-  return `${Math.floor(days / 7)}w`;
+function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+  return <Text {...props} />;
 }
 
-// Extracted separator to avoid inline re-creation
-const NotifSeparator = () => <View style={styles.separator} />;
+function formatTimeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'NOW';
+  if (mins < 60) return `${mins}M`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}H`;
+  const days = Math.floor(hrs / 24);
+  return `${days}D`;
+}
+
+function parseNotifData(notif: Notification) {
+  if (typeof notif.data === 'string') {
+    try {
+      return JSON.parse(notif.data || '{}');
+    } catch {
+      return {};
+    }
+  }
+  return notif.data || {};
+}
 
 export function NotificationDrawer({
-  visible, onClose, onOpenUserProfile, onOpenRoom,
+  visible,
+  onClose,
+  onOpenUserProfile,
+  onOpenRoom,
 }: NotificationDrawerProps) {
-  const { accent } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -69,243 +74,383 @@ export function NotificationDrawer({
       setNotifications(res.notifications ?? []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load notifications');
+      setError(err instanceof Error ? err.message.toUpperCase() : 'SIGNAL LOG OFFLINE');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
     if (visible) {
       setLoading(true);
-      fetchNotifications();
+      void fetchNotifications();
     }
   }, [visible, fetchNotifications]);
 
-  const onRefresh = useCallback(async () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    await fetchNotifications();
-    setRefreshing(false);
+    void fetchNotifications();
   }, [fetchNotifications]);
 
   const handleMarkAllRead = useCallback(async () => {
     try {
       await notificationApi.markAllRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch { /* swallow */ }
+      setNotifications((prev) => prev.map((notif) => ({ ...notif, read: true })));
+    } catch {}
   }, []);
 
   const handleNotifPress = useCallback((notif: Notification) => {
-    // Mark as read
     if (!notif.read) {
       notificationApi.markRead([notif.id]).catch(() => {});
       setNotifications((prev) =>
-        prev.map((n) => n.id === notif.id ? { ...n, read: true } : n)
+        prev.map((item) => (item.id === notif.id ? { ...item, read: true } : item)),
       );
     }
 
-    // Route based on notification data
-    const data = typeof notif.data === 'string' ? JSON.parse(notif.data || '{}') : (notif.data || {});
+    const data = parseNotifData(notif);
     if (data.userId && onOpenUserProfile) {
       onClose();
       onOpenUserProfile(data.userId);
-    } else if (data.sessionId && onOpenRoom) {
+      return;
+    }
+    if (data.sessionId && onOpenRoom) {
       onClose();
       onOpenRoom(data.sessionId);
     }
-  }, [onClose, onOpenUserProfile, onOpenRoom]);
+  }, [onClose, onOpenRoom, onOpenUserProfile]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const renderNotification = ({ item }: { item: Notification }) => {
-    const iconName = NOTIF_ICONS[item.type] || NOTIF_ICONS.system;
-    return (
-      <TouchableOpacity
-        style={[styles.notifItem, !item.read && styles.notifUnread]}
-        onPress={() => handleNotifPress(item)}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={`${item.read ? '' : 'Unread: '}${item.title}. ${item.body}`}
-      >
-        <View style={[styles.notifIcon, !item.read && { borderColor: accent }]}>
-          <Ionicons name={iconName as any} size={16} color={item.read ? palette.slate : accent} />
-        </View>
-        <View style={styles.notifContent}>
-          <Text style={[styles.notifTitle, !item.read && { color: palette.frost }]}>{item.title}</Text>
-          <Text style={styles.notifBody} numberOfLines={2}>{item.body}</Text>
-        </View>
-        <Text style={styles.notifTime}>{formatTimeAgo(item.createdAt)}</Text>
-      </TouchableOpacity>
-    );
-  };
+  const unreadCount = useMemo(
+    () => notifications.filter((notif) => !notif.read).length,
+    [notifications],
+  );
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeScreen>
-        <VoidSurface style={{ flex: 1 }}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close notifications">
-              <Ionicons name="chevron-down" size={24} color={palette.frost} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>SIGNAL LOG</Text>
-            {unreadCount > 0 && (
-              <TouchableOpacity onPress={handleMarkAllRead} style={styles.markReadBtn} accessibilityRole="button" accessibilityLabel="Mark all as read">
-                <Text style={[styles.markReadText, { color: accent }]}>CLEAR ALL</Text>
-              </TouchableOpacity>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        <Pressable
+          style={styles.backdrop}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close notification drawer"
+        />
+
+        <View style={styles.sheet}>
+          <TacticalGridBackground opacity={0.84} />
+          <View style={styles.content}>
+            <View style={styles.header}>
+              <View style={styles.headerCopy}>
+                <MonoText style={[styles.mono, styles.eyebrow]}>SYS.FREQ // SIGNAL LOG</MonoText>
+                <MonoText style={[styles.display, styles.title]}>NOTIFICATIONS</MonoText>
+              </View>
+
+              <View style={styles.headerActions}>
+                <View style={styles.countChip}>
+                  <MonoText style={[styles.monoBold, styles.countText]}>
+                    {String(unreadCount).padStart(2, '0')}
+                  </MonoText>
+                </View>
+                <Pressable
+                  onPress={onClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close notifications"
+                  style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+                >
+                  <Ionicons name="close" size={18} color={tacticalTokens.colors.white} />
+                </Pressable>
+              </View>
+            </View>
+
+            {unreadCount > 0 ? (
+              <Pressable
+                onPress={() => void handleMarkAllRead()}
+                accessibilityRole="button"
+                accessibilityLabel="Mark all notifications as read"
+                style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}
+              >
+                <MonoText style={[styles.monoBold, styles.clearButtonText]}>CLEAR ALL</MonoText>
+              </Pressable>
+            ) : null}
+
+            {loading ? (
+              <View style={styles.centerState}>
+                <ActivityIndicator size="large" color={tacticalTokens.colors.ice} />
+              </View>
+            ) : error ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="warning-outline" size={42} color={tacticalTokens.colors.orange} />
+                <MonoText style={[styles.display, styles.emptyTitle]}>CONNECTION LOST</MonoText>
+                <MonoText style={[styles.mono, styles.emptyCopy]}>{error}</MonoText>
+                <Pressable
+                  onPress={handleRefresh}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry notification load"
+                  style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+                >
+                  <MonoText style={[styles.monoBold, styles.retryButtonText]}>RETRY</MonoText>
+                </Pressable>
+              </View>
+            ) : notifications.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="notifications-off-outline" size={42} color={tacticalTokens.colors.textMuted} />
+                <MonoText style={[styles.display, styles.emptyTitle]}>NO SIGNALS</MonoText>
+                <MonoText style={[styles.mono, styles.emptyCopy]}>
+                  Friend requests, room events, and CV alerts will route here.
+                </MonoText>
+              </View>
+            ) : (
+              <FlatList
+                data={notifications}
+                keyExtractor={(item) => String(item.id)}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.listContent}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={handleRefresh}
+                    tintColor={tacticalTokens.colors.ice}
+                  />
+                }
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+                renderItem={({ item }) => {
+                  const iconName = NOTIF_ICONS[item.type] || NOTIF_ICONS.system;
+                  return (
+                    <Pressable
+                      onPress={() => handleNotifPress(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${item.read ? '' : 'Unread '}${item.title}`}
+                      style={({ pressed }) => [
+                        styles.notificationRow,
+                        !item.read && styles.notificationUnread,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <View style={[styles.notificationIcon, !item.read && styles.notificationIconUnread]}>
+                        <Ionicons
+                          name={iconName}
+                          size={16}
+                          color={item.read ? tacticalTokens.colors.textMuted : tacticalTokens.colors.ice}
+                        />
+                      </View>
+
+                      <View style={styles.notificationCopy}>
+                        <MonoText style={[styles.display, styles.notificationTitle]} numberOfLines={1}>
+                          {item.title.toUpperCase()}
+                        </MonoText>
+                        <MonoText style={[styles.mono, styles.notificationBody]} numberOfLines={2}>
+                          {item.body}
+                        </MonoText>
+                      </View>
+
+                      <MonoText style={[styles.mono, styles.notificationTime]}>
+                        {formatTimeAgo(item.createdAt)}
+                      </MonoText>
+                    </Pressable>
+                  );
+                }}
+              />
             )}
           </View>
-
-          {/* Content */}
-          {loading ? (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color={accent} />
-            </View>
-          ) : error ? (
-            <View style={styles.center}>
-              <Ionicons name="warning-outline" size={48} color={palette.orange} />
-              <Text style={styles.emptyText}>Connection lost</Text>
-              <Text style={styles.emptySubtext}>{error}</Text>
-              <TouchableOpacity onPress={onRefresh} style={styles.retryBtn} accessibilityRole="button" accessibilityLabel="Retry loading">
-                <Text style={[styles.retryText, { color: accent }]}>TAP TO RETRY</Text>
-              </TouchableOpacity>
-            </View>
-          ) : notifications.length === 0 ? (
-            <View style={styles.center}>
-              <Ionicons name="notifications-off-outline" size={48} color={palette.steel} />
-              <Text style={styles.emptyText}>No signals received yet.</Text>
-              <Text style={styles.emptySubtext}>
-                Friend requests, room activity, and CV alerts will appear here.
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={notifications}
-              keyExtractor={(item) => String(item.id)}
-              renderItem={renderNotification}
-              contentContainerStyle={styles.listContent}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />
-              }
-              ItemSeparatorComponent={NotifSeparator}
-              initialNumToRender={15}
-              windowSize={5}
-            />
-          )}
-        </VoidSurface>
-      </SafeScreen>
+        </View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+  },
+  sheet: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+    overflow: 'hidden',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+  pressed: {
+    opacity: 0.82,
+  },
+  mono: {
+    fontFamily: tacticalTokens.fonts.mono,
+  },
+  monoBold: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+  },
+  display: {
+    fontFamily: tacticalTokens.fonts.display,
+  },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.screenPadding,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.chromeBorder,
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: fontFamily.mono,
-    fontSize: 13,
-    color: palette.frost,
-    letterSpacing: ls.wider,
-  },
-  markReadBtn: {
-    padding: 4,
-  },
-  markReadText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 10,
-    letterSpacing: ls.normal,
-  },
-  listContent: {
-    paddingVertical: spacing.sm,
-  },
-  notifItem: {
-    flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: spacing.screenPadding,
-    paddingVertical: 14,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  notifUnread: {
-    backgroundColor: 'rgba(255, 179, 71, 0.04)',
-  },
-  notifIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.chromeBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    marginTop: 2,
-  },
-  notifContent: {
+  headerCopy: {
     flex: 1,
-    marginRight: 8,
+    minWidth: 0,
   },
-  notifTitle: {
-    fontFamily: fontFamily.body,
-    fontSize: 13,
-    color: palette.slate,
-    marginBottom: 2,
-  },
-  notifBody: {
-    fontFamily: fontFamily.body,
-    fontSize: 12,
-    color: palette.slate,
-    lineHeight: 17,
-    opacity: 0.7,
-  },
-  notifTime: {
-    fontFamily: fontFamily.mono,
+  eyebrow: {
     fontSize: 10,
-    color: palette.slate,
-    letterSpacing: ls.normal,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 2,
+  },
+  title: {
     marginTop: 2,
+    fontSize: 28,
+    color: tacticalTokens.colors.white,
   },
-  separator: {
-    height: 1,
-    backgroundColor: palette.chromeBorder,
-    marginHorizontal: spacing.screenPadding,
-    opacity: 0.5,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
+  headerActions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.xl,
+    gap: 8,
   },
-  emptyText: {
-    fontFamily: fontFamily.display,
-    fontSize: 16,
-    color: palette.silver,
-    marginTop: spacing.md,
+  countChip: {
+    minWidth: 40,
+    height: 40,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: '#04161A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
-  emptySubtext: {
-    fontFamily: fontFamily.body,
+  countText: {
     fontSize: 12,
-    color: palette.slate,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.4,
   },
-  retryBtn: {
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.md,
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearButton: {
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.white,
+    backgroundColor: tacticalTokens.colors.white,
+    paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  retryText: {
-    fontFamily: fontFamily.mono,
-    fontSize: 11,
-    letterSpacing: ls.wider,
+  clearButtonText: {
+    fontSize: 10,
+    color: tacticalTokens.colors.void,
+    letterSpacing: 1.6,
+  },
+  listContent: {
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  separator: {
+    height: 8,
+  },
+  notificationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: 'rgba(9, 9, 9, 0.94)',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  notificationUnread: {
+    borderColor: tacticalTokens.colors.ice,
+  },
+  notificationIcon: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationIconUnread: {
+    borderColor: tacticalTokens.colors.ice,
+  },
+  notificationCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    color: tacticalTokens.colors.white,
+  },
+  notificationBody: {
+    marginTop: 2,
+    fontSize: 10,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 18,
+  },
+  notificationTime: {
+    fontSize: 10,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
+  },
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  emptyTitle: {
+    marginTop: 12,
+    fontSize: 24,
+    color: tacticalTokens.colors.white,
+  },
+  emptyCopy: {
+    marginTop: 4,
+    fontSize: 12,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: '#04161A',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  retryButtonText: {
+    fontSize: 10,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.5,
   },
 });
+
+export default NotificationDrawer;
