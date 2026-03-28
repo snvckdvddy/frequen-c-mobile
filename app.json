@@ -90,6 +90,8 @@
         }
       ],
       "expo-apple-authentication",
+      "expo-local-authentication",
+      "@react-native-google-signin/google-signin",
       "expo-web-browser",
       "expo-font",
       "expo-asset",
