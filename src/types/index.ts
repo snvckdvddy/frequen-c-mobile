@@ -74,11 +74,9 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
-// Mock user shape for development/testing
-export interface MockUser {
-  id: string;
-  username: string;
-  avatarUrl?: string;
+// Mock user shape for development/testing — derived from canonical User type
+import type { User as _User } from '@frequen-c/types';
+export type MockUser = Pick<_User, 'id' | 'username' | 'avatarUrl' | 'tracksAdded'> & {
+  /** @deprecated Use sessionsHosted (from User) for consistency */
   sessionsCount: number;
-  tracksAdded: number;
-}
+};
