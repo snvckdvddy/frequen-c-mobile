@@ -29,7 +29,9 @@
         "EXPO_PUBLIC_USE_MOCKS": "false",
         "EXPO_PUBLIC_BYPASS_AUTH": "false",
         "EXPO_PUBLIC_API_BASE_URL": "https://frequen-c-backend-production.up.railway.app/api",
-        "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app"
+        "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "141946415324-u45pd9d3bub5huli0ja92bh6lpv4da7b.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "141946415324-0v0u7fns6640s4pthqbhandg5p6l5qm5.apps.googleusercontent.com"
       }
     },
     "preview:apk": {
@@ -44,7 +46,9 @@
         "EXPO_PUBLIC_USE_MOCKS": "false",
         "EXPO_PUBLIC_BYPASS_AUTH": "false",
         "EXPO_PUBLIC_API_BASE_URL": "https://frequen-c-backend-production.up.railway.app/api",
-        "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app"
+        "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "141946415324-u45pd9d3bub5huli0ja92bh6lpv4da7b.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "141946415324-0v0u7fns6640s4pthqbhandg5p6l5qm5.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -58,7 +62,9 @@
         "EXPO_PUBLIC_USE_MOCKS": "false",
         "EXPO_PUBLIC_BYPASS_AUTH": "false",
         "EXPO_PUBLIC_API_BASE_URL": "https://frequen-c-backend-production.up.railway.app/api",
-        "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app"
+        "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "141946415324-u45pd9d3bub5huli0ja92bh6lpv4da7b.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "141946415324-0v0u7fns6640s4pthqbhandg5p6l5qm5.apps.googleusercontent.com"
       }
     }
   }
