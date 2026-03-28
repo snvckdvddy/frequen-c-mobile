@@ -14,7 +14,11 @@ export const theme = {
     // Text & UI
     textPure: '#FFFFFF',
     textDim: '#666666',
+    textMuted: '#8A8A8A',
+    textSoft: '#767676',
     borderLight: '#333333',
+    borderGhost: '#2A2A2A',
+    matteGhost: '#101010',
   },
   fonts: {
     display: 'ChakraPetch-Bold', // Ensure these are loaded in App.tsx

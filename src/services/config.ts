@@ -5,6 +5,9 @@
  * Supports either explicit base URLs or local LAN fallback.
  */
 
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
+
 const readEnv = (value: string | undefined): string | undefined => {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -15,7 +18,9 @@ const SOCKET_BASE_OVERRIDE = readEnv(process.env.EXPO_PUBLIC_SOCKET_URL);
 
 const LOCAL_IP = readEnv(process.env.EXPO_PUBLIC_LOCAL_IP) || '127.0.0.1';
 const API_PORT = readEnv(process.env.EXPO_PUBLIC_API_PORT) || '5000';
-const LOCAL_SOCKET_URL = `http://${LOCAL_IP}:${API_PORT}`;
+const IS_ANDROID_EMULATOR = Platform.OS === 'android' && !Device.isDevice;
+const LOCAL_HOST = IS_ANDROID_EMULATOR ? '10.0.2.2' : LOCAL_IP;
+const LOCAL_SOCKET_URL = `http://${LOCAL_HOST}:${API_PORT}`;
 const LOCAL_API_URL = `${LOCAL_SOCKET_URL}/api`;
 const BYPASS_AUTH = (process.env.EXPO_PUBLIC_BYPASS_AUTH || 'false') === 'true';
 const USE_REAL_AI = (process.env.EXPO_PUBLIC_USE_REAL_AI || 'false') === 'true';
