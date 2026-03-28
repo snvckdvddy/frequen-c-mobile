@@ -18,7 +18,8 @@
       "channel": "preview",
       "distribution": "internal",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "credentialsSource": "remote"
       },
       "android": {
         "buildType": "apk"
@@ -49,6 +50,9 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "ios": {
+        "credentialsSource": "remote"
+      },
       "env": {
         "APP_ENV": "production",
         "EXPO_PUBLIC_USE_MOCKS": "false",

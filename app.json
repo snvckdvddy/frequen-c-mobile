@@ -16,9 +16,24 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.frequenc.app",
       "buildNumber": "1",
+      "appleTeamId": "H2QNN353KH",
+      "associatedDomains": [
+        "applinks:frequenc.app",
+        "webcredentials:frequenc.app"
+      ],
+      "entitlements": {
+        "com.apple.developer.applesignin": ["Default"],
+        "com.apple.developer.group-session": true,
+        "com.apple.developer.nfc.readersession.formats": ["TAG"],
+        "com.apple.developer.siri": true,
+        "com.apple.developer.usernotifications.communication": true,
+        "com.apple.developer.usernotifications.time-sensitive": true
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "Frequen-C uses the camera to scan QR codes for joining rooms.",
         "NSMicrophoneUsageDescription": "Frequen-C may access the microphone for future audio features.",
+        "NFCReaderUsageDescription": "Frequen-C uses NFC to join listening sessions by tapping.",
+        "NSSiriUsageDescription": "Frequen-C uses Siri to let you join sessions and queue music hands-free.",
         "UIBackgroundModes": [
           "audio"
         ]
@@ -74,6 +89,7 @@
           "sounds": []
         }
       ],
+      "expo-apple-authentication",
       "expo-web-browser",
       "expo-font",
       "expo-asset",
