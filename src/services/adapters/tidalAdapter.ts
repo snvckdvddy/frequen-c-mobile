@@ -14,13 +14,18 @@ class TidalAdapter implements MusicServiceAdapter {
         return this.connected;
     }
 
-    async search(query: string): Promise<Track[]> {
+    async search(query: string, options?: { silent?: boolean; rethrow?: boolean }): Promise<Track[]> {
         if (!this.connected) return [];
         try {
             const res = await apiFetch<{ tracks: Track[] }>(`/auth/tidal/search?q=${encodeURIComponent(query)}`);
             return res.tracks;
         } catch (e) {
-            console.error('TidalAdapter search failed:', e);
+            if (options?.rethrow) {
+                throw e;
+            }
+            if (!options?.silent) {
+                console.log('TidalAdapter search unavailable:', e);
+            }
             return [];
         }
     }
@@ -30,7 +35,7 @@ class TidalAdapter implements MusicServiceAdapter {
             const res = await apiFetch<{ url: string }>(`/auth/tidal/stream/${trackId}`);
             return res.url;
         } catch (e) {
-            console.error('TidalAdapter getStreamUrl failed:', e);
+            console.log('TidalAdapter getStreamUrl unavailable:', e);
             return '';
         }
     }

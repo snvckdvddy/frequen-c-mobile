@@ -39,6 +39,11 @@ if (!isExpoGo && Notifications) {
 // ─── Push Token Registration ────────────────────────────────
 
 export async function registerForPushNotifications(): Promise<string | null> {
+  // Temporarily disabled for presentation-safe boots.
+  // Re-enable only after native Firebase credentials are configured.
+  return null;
+
+  /*
   // Push notifications only work on physical devices
   if (!Device.isDevice) {
     console.log('[Notifications] Must use physical device for push notifications');
@@ -95,6 +100,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     console.error('[Notifications] Failed to get push token:', err);
     return null;
   }
+  */
 }
 
 // ─── Local Notifications ────────────────────────────────────

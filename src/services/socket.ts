@@ -123,7 +123,7 @@ export async function connectSocket(): Promise<Socket | null> {
   });
 
   socket.on('connect_error', (err) => {
-    console.error('[Socket] Connection error:', err.message);
+    console.log('[Socket] Connection unavailable:', err.message);
     setHealth({ status: 'reconnecting', lastError: err.message });
   });
 
@@ -138,7 +138,7 @@ export async function connectSocket(): Promise<Socket | null> {
   });
 
   socket.io.on('reconnect_failed', () => {
-    console.error('[Socket] All reconnect attempts exhausted');
+    console.log('[Socket] All reconnect attempts exhausted');
     setHealth({ status: 'disconnected', lastError: 'Connection lost. Please check your network.' });
   });
 
@@ -513,6 +513,14 @@ export function submitForecast(sessionId: string, userId: string, trackId: strin
   socket?.emit('forecast:predict', { sessionId, userId, trackId });
 }
 
+/** Start a Frequency Forecast round (host only) */
+export function startForecast(sessionId: string): void {
+  if (USE_MOCKS) {
+    return;
+  }
+  socket?.emit('forecast:start', { sessionId });
+}
+
 /** Send listen heartbeat (called every 60s while in an active session) */
 export function listenHeartbeat(sessionId: string): void {
   if (USE_MOCKS) return;
@@ -547,6 +555,7 @@ export default {
   overdrive,
   phaseCancel,
   startDuel,
+  startForecast,
   submitForecast,
   listenHeartbeat,
 };

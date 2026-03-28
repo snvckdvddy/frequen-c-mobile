@@ -21,7 +21,6 @@ import type { User, AuthState } from '../types';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthRequest, ResponseType } from 'expo-auth-session';
 import { getAuthDiagnostics } from '../services/authDiagnostics';
-import { registerForPushNotifications } from '../services/notifications';
 import { showToast } from '../components/ui';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -96,6 +95,27 @@ const providerLabel: Record<DisconnectableProvider, string> = {
   tidal: 'Tidal',
   lastfm: 'Last.fm',
 };
+
+function summarizeConnectedServices(user: User | null) {
+  return {
+    spotify: {
+      connected: !!user?.connectedServices?.spotify?.connected,
+      username: user?.connectedServices?.spotify?.username,
+    },
+    soundcloud: {
+      connected: !!user?.connectedServices?.soundcloud?.connected,
+      username: user?.connectedServices?.soundcloud?.username,
+    },
+    tidal: {
+      connected: !!user?.connectedServices?.tidal?.connected,
+      username: user?.connectedServices?.tidal?.username,
+    },
+    lastfm: {
+      connected: !!user?.connectedServices?.lastfm?.connected,
+      username: user?.connectedServices?.lastfm?.username,
+    },
+  };
+}
 
 function friendlyAuthError(service: 'SoundCloud' | 'Tidal', detail?: string) {
   const lower = (detail || '').toLowerCase();
@@ -191,7 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     {
       responseType: ResponseType.Code,
       clientId: config.SPOTIFY_CLIENT_ID,
-      scopes: ['user-read-email', 'user-read-private', 'playlist-read-private', 'streaming'],
+      scopes: ['user-read-email', 'user-read-private', 'playlist-read-private'],
       usePKCE: true,
       redirectUri: authDiagnostics.spotifyRedirectUri,
     },
@@ -212,6 +232,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sync external adapter dependency tree with active user connectedServices
   useEffect(() => {
     setCurrentServices(state.user?.connectedServices);
+    const isDevRuntime = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+    if (isDevRuntime) {
+      console.log(`[SearchTruth][auth] ${JSON.stringify({
+        userId: state.user?.id || null,
+        connectedServices: summarizeConnectedServices(state.user),
+      })}`);
+    }
   }, [state.user?.connectedServices]);
 
   // Catch the Spotify Auth Response
@@ -443,17 +470,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, [handleIncomingAuthUrl]);
 
-  // Upload push token to backend after authentication
+  // Push notification registration is temporarily disabled for presentation-safe boots.
+  // Do not re-enable this path until native Firebase credentials are configured.
   const uploadPushToken = useCallback(async () => {
-    try {
-      const pushToken = await registerForPushNotifications();
-      if (pushToken) {
-        await authApi.registerPushToken(pushToken);
-        console.log('[Auth] Push token registered with backend');
-      }
-    } catch (err) {
-      console.warn('[Auth] Failed to register push token:', err);
-    }
+    return;
   }, []);
 
   // Check for existing token on mount
