@@ -22,7 +22,6 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/bottom-tabs": "^7.14.0",
-    "@frequen-c/types": "file:./packages/types",
     "@react-navigation/native": "^7.1.28",
     "@react-navigation/native-stack": "^7.13.0",
     "@shopify/react-native-skia": "2.2.12",
