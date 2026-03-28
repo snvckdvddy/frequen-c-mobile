@@ -31,7 +31,11 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://frequen-c-backend-production.up.railway.app/api",
         "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "141946415324-u45pd9d3bub5huli0ja92bh6lpv4da7b.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "141946415324-0v0u7fns6640s4pthqbhandg5p6l5qm5.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "141946415324-0v0u7fns6640s4pthqbhandg5p6l5qm5.apps.googleusercontent.com",
+        "EXPO_PUBLIC_SPOTIFY_CLIENT_ID": "221b46468ba146ab82fb85a09a0ba6c9",
+        "EXPO_PUBLIC_TIDAL_CLIENT_ID": "zvU13xkVZYA7JNR2",
+        "EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID": "A6P1OlzNLYo7LrMcTA2TaGWVzM6RHgbw",
+        "EXPO_PUBLIC_LASTFM_API_KEY": "4cdc4d6459ac72ee723a9d9792d2884c"
       }
     },
     "preview:apk": {
@@ -48,7 +52,11 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://frequen-c-backend-production.up.railway.app/api",
         "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "141946415324-u45pd9d3bub5huli0ja92bh6lpv4da7b.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "141946415324-0v0u7fns6640s4pthqbhandg5p6l5qm5.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "141946415324-0v0u7fns6640s4pthqbhandg5p6l5qm5.apps.googleusercontent.com",
+        "EXPO_PUBLIC_SPOTIFY_CLIENT_ID": "221b46468ba146ab82fb85a09a0ba6c9",
+        "EXPO_PUBLIC_TIDAL_CLIENT_ID": "zvU13xkVZYA7JNR2",
+        "EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID": "A6P1OlzNLYo7LrMcTA2TaGWVzM6RHgbw",
+        "EXPO_PUBLIC_LASTFM_API_KEY": "4cdc4d6459ac72ee723a9d9792d2884c"
       }
     },
     "production": {
@@ -64,7 +72,11 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://frequen-c-backend-production.up.railway.app/api",
         "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "141946415324-u45pd9d3bub5huli0ja92bh6lpv4da7b.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "141946415324-0v0u7fns6640s4pthqbhandg5p6l5qm5.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "141946415324-0v0u7fns6640s4pthqbhandg5p6l5qm5.apps.googleusercontent.com",
+        "EXPO_PUBLIC_SPOTIFY_CLIENT_ID": "221b46468ba146ab82fb85a09a0ba6c9",
+        "EXPO_PUBLIC_TIDAL_CLIENT_ID": "zvU13xkVZYA7JNR2",
+        "EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID": "A6P1OlzNLYo7LrMcTA2TaGWVzM6RHgbw",
+        "EXPO_PUBLIC_LASTFM_API_KEY": "4cdc4d6459ac72ee723a9d9792d2884c"
       }
     }
   }
