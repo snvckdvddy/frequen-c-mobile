@@ -11,12 +11,11 @@
         "simulator": true
       },
       "env": {
-        "APP_ENV": "development",
-        "EXPO_PUBLIC_USE_MOCKS": "false",
-        "EXPO_PUBLIC_BYPASS_AUTH": "false"
+        "APP_ENV": "development"
       }
     },
     "preview": {
+      "channel": "preview",
       "distribution": "internal",
       "ios": {
         "simulator": false
@@ -28,11 +27,12 @@
         "APP_ENV": "preview",
         "EXPO_PUBLIC_USE_MOCKS": "false",
         "EXPO_PUBLIC_BYPASS_AUTH": "false",
-        "EXPO_PUBLIC_API_BASE_URL": "https://REPLACE_WITH_RAILWAY_DOMAIN",
-        "EXPO_PUBLIC_SOCKET_URL": "wss://REPLACE_WITH_RAILWAY_DOMAIN"
+        "EXPO_PUBLIC_API_BASE_URL": "https://frequen-c-backend-production.up.railway.app/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app"
       }
     },
     "preview:apk": {
+      "channel": "preview",
       "distribution": "internal",
       "android": {
         "buildType": "apk",
@@ -42,18 +42,19 @@
         "APP_ENV": "preview",
         "EXPO_PUBLIC_USE_MOCKS": "false",
         "EXPO_PUBLIC_BYPASS_AUTH": "false",
-        "EXPO_PUBLIC_API_BASE_URL": "https://REPLACE_WITH_RAILWAY_DOMAIN",
-        "EXPO_PUBLIC_SOCKET_URL": "wss://REPLACE_WITH_RAILWAY_DOMAIN"
+        "EXPO_PUBLIC_API_BASE_URL": "https://frequen-c-backend-production.up.railway.app/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app"
       }
     },
     "production": {
+      "channel": "production",
       "autoIncrement": true,
       "env": {
         "APP_ENV": "production",
         "EXPO_PUBLIC_USE_MOCKS": "false",
         "EXPO_PUBLIC_BYPASS_AUTH": "false",
-        "EXPO_PUBLIC_API_BASE_URL": "https://REPLACE_WITH_RAILWAY_DOMAIN",
-        "EXPO_PUBLIC_SOCKET_URL": "wss://REPLACE_WITH_RAILWAY_DOMAIN"
+        "EXPO_PUBLIC_API_BASE_URL": "https://frequen-c-backend-production.up.railway.app/api",
+        "EXPO_PUBLIC_SOCKET_URL": "https://frequen-c-backend-production.up.railway.app"
       }
     }
   }
