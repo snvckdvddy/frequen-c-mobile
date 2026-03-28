@@ -244,6 +244,17 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+// ─── Library / Playlists ─────────────────────────────────────
+
+export interface Playlist {
+  id: string;
+  name: string;
+  trackCount: number;
+  coverArt?: string;
+  source: TrackSource;
+  owner?: string;
+}
+
 // ─── Search ──────────────────────────────────────────────────
 
 export interface SearchResult {

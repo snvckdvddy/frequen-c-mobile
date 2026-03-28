@@ -1,33 +1,37 @@
 /**
  * Library Screen — User's personal music & session history.
  *
- * Sprint 3: Fleshed out with real favorites data from FavoritesContext,
- * mock session history, and segmented tabs (Liked / History).
- *
- * Tab 4 of 4 in bottom nav.
+ * Three segments:
+ *   Liked    — local Frequen-C favorites (FavoritesContext)
+ *   Playlists — streaming service playlists (adapter library methods)
+ *   History  — archived session history (backend API)
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
-  View, StyleSheet, ScrollView, TouchableOpacity, Image,
+  View, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, Text, ADSRFadeIn, TrackListItem, ErrorState, TrackCardSkeleton } from '../components/ui';
+import { ServiceSelectorPills } from '../components/library/ServiceSelectorPills';
+import { PlaylistList } from '../components/library/PlaylistList';
+import { PlaylistTrackList } from '../components/library/PlaylistTrackList';
 import { ArchiveSessionModal } from '../components/ArchiveSessionModal';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLibraryBrowse } from '../hooks/useLibraryBrowse';
 import { sessionApi } from '../services/api';
 import { VoidSurface } from '../design/components';
 import { palette } from '../design/tokens/materials';
 import { colors } from '../design/tokens/colors';
 import { spacing } from '../theme/spacing';
-import type { Track, FavoriteTrack, Session, RoomMode } from '../types';
+import type { Track, Session, RoomMode } from '../types';
 
 // ─── Segment Tabs ────────────────────────────────────────────
 
-type Segment = 'liked' | 'history';
+type Segment = 'liked' | 'playlists' | 'history';
 
 interface SegmentTabsProps {
   active: Segment;
@@ -36,50 +40,39 @@ interface SegmentTabsProps {
 
 function SegmentTabs({ active, onChange }: SegmentTabsProps) {
   const { accent } = useTheme();
+
+  const tabs: { key: Segment; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }[] = [
+    { key: 'liked', label: 'Liked', icon: 'heart-outline', iconActive: 'heart' },
+    { key: 'playlists', label: 'Playlists', icon: 'albums-outline', iconActive: 'albums' },
+    { key: 'history', label: 'History', icon: 'time-outline', iconActive: 'time' },
+  ];
+
   return (
     <View style={segStyles.row}>
-      <TouchableOpacity
-        style={[segStyles.tab, active === 'liked' && [segStyles.tabActive, { borderColor: accent }]]}
-        onPress={() => onChange('liked')}
-        activeOpacity={0.7}
-        accessibilityRole="tab"
-        accessibilityLabel="Liked tracks tab"
-        accessibilityState={{ selected: active === 'liked' }}
-      >
-        <Ionicons
-          name={active === 'liked' ? 'heart' : 'heart-outline'}
-          size={16}
-          color={active === 'liked' ? accent : palette.slate}
-        />
-        <Text
-          variant="label"
-          color={active === 'liked' ? accent : palette.slate}
-          style={{ marginLeft: 6 }}
+      {tabs.map((tab) => (
+        <TouchableOpacity
+          key={tab.key}
+          style={[segStyles.tab, active === tab.key && [segStyles.tabActive, { borderColor: accent }]]}
+          onPress={() => onChange(tab.key)}
+          activeOpacity={0.7}
+          accessibilityRole="tab"
+          accessibilityLabel={`${tab.label} tab`}
+          accessibilityState={{ selected: active === tab.key }}
         >
-          Liked
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[segStyles.tab, active === 'history' && [segStyles.tabActive, { borderColor: accent }]]}
-        onPress={() => onChange('history')}
-        activeOpacity={0.7}
-        accessibilityRole="tab"
-        accessibilityLabel="Session history tab"
-        accessibilityState={{ selected: active === 'history' }}
-      >
-        <Ionicons
-          name={active === 'history' ? 'time' : 'time-outline'}
-          size={16}
-          color={active === 'history' ? accent : palette.slate}
-        />
-        <Text
-          variant="label"
-          color={active === 'history' ? accent : palette.slate}
-          style={{ marginLeft: 6 }}
-        >
-          History
-        </Text>
-      </TouchableOpacity>
+          <Ionicons
+            name={active === tab.key ? tab.iconActive : tab.icon}
+            size={16}
+            color={active === tab.key ? accent : palette.slate}
+          />
+          <Text
+            variant="label"
+            color={active === tab.key ? accent : palette.slate}
+            style={{ marginLeft: 6 }}
+          >
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
@@ -106,7 +99,7 @@ const segStyles = StyleSheet.create({
   },
 });
 
-// ─── Mock Session History ─────────────────────────────────────
+// ─── Session History Types ───────────────────────────────────
 
 interface PastSession {
   id: string;
@@ -204,10 +197,17 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
   const [sessionHistory, setSessionHistory] = useState<PastSession[]>([]);
   const [archivePreview, setArchivePreview] = useState<Session | null>(null);
 
+  // ─── Library browsing (via shared hook) ───────────────────
+  const library = useLibraryBrowse({
+    connectedServices: user?.connectedServices,
+    enableCache: true,
+  });
+
+  // ─── History fetch ────────────────────────────────────────
+
   const fetchHistory = useCallback(async () => {
     try {
       const { sessions } = await sessionApi.myRooms();
-      // Convert Session[] to PastSession[] — archived sessions only
       const history: PastSession[] = sessions
         .filter((s) => !s.isLive)
         .map((s) => ({
@@ -229,9 +229,13 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchHistory();
+    if (segment === 'playlists') {
+      library.refreshPlaylists();
+    } else {
+      await fetchHistory();
+    }
     setRefreshing(false);
-  }, [fetchHistory]);
+  }, [fetchHistory, library, segment]);
 
   useEffect(() => {
     fetchHistory().then(() => setIsLoading(false));
@@ -243,131 +247,181 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
     [favorites],
   );
 
+  // ─── Track tap handler (standalone context) ───────────────
+  const handleTrackPress = useCallback((track: Track) => {
+    // In standalone library, track press could open a context menu.
+    // For now, log — will wire up context menu in a follow-up.
+    console.log('Library track pressed:', track.title);
+  }, []);
+
   return (
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
         {/* Header */}
         <View style={styles.header}>
-        <Text variant="h2" color={palette.frost}>Library</Text>
-        {favorites.length > 0 && (
-          <Text variant="labelSmall" color={palette.slate}>
-            {favorites.length} liked
-          </Text>
-        )}
-      </View>
+          <Text variant="h2" color={palette.frost}>Library</Text>
+          {favorites.length > 0 && segment === 'liked' && (
+            <Text variant="labelSmall" color={palette.slate}>
+              {favorites.length} liked
+            </Text>
+          )}
+        </View>
 
-      {/* Segment Tabs */}
-      <SegmentTabs active={segment} onChange={setSegment} />
+        {/* Segment Tabs */}
+        <SegmentTabs active={segment} onChange={setSegment} />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={accent}
-          />
-        }
-      >
-        {/* ─── Liked Tracks ─────────────────────────── */}
-        {segment === 'liked' && (
-          <ADSRFadeIn index={0}>
-            {error && (
-              <ErrorState
-                message={error}
-                onRetry={onRefresh}
-              />
-            )}
-            {isLoading && !error ? (
-              <View style={styles.trackList}>
-                {[...Array(5)].map((_, i) => (
-                  <TrackCardSkeleton key={`skeleton-${i}`} />
-                ))}
-              </View>
-            ) : sortedFavorites.length === 0 ? (
+        {/* ─── Playlists Segment ─────────────────────── */}
+        {segment === 'playlists' && (
+          <View style={{ flex: 1 }}>
+            <ServiceSelectorPills
+              connectedServices={library.connectedSources}
+              selectedService={library.selectedService}
+              onSelectService={library.selectService}
+            />
+
+            {library.connectedSources.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="heart-outline" size={48} color={palette.slate} />
+                <Ionicons name="link-outline" size={48} color={palette.slate} />
                 <Text variant="body" color={palette.silver} align="center" style={{ marginTop: spacing.sm }}>
-                  No liked tracks yet
+                  No services connected
                 </Text>
                 <Text variant="bodySmall" color={palette.slate} align="center" style={{ marginTop: spacing.xs }}>
-                  Tap the heart on any track to save it here
+                  Connect a streaming service in Settings to browse your playlists
                 </Text>
               </View>
+            ) : library.selectedPlaylist ? (
+              <PlaylistTrackList
+                playlist={library.selectedPlaylist}
+                tracks={library.tracks}
+                loading={library.tracksLoading}
+                onTrackPress={handleTrackPress}
+                onBack={library.clearPlaylist}
+              />
             ) : (
-              <View style={styles.trackList}>
-                {sortedFavorites.map((fav, i) => (
-                  <ADSRFadeIn index={i} staggerMs={40}>
-                    <TrackListItem
-                      title={fav.track.title}
-                      artist={fav.track.artist}
-                      albumArt={fav.track.albumArt}
-                      duration={fav.track.duration}
-                      rightAction={
-                        <TouchableOpacity
-                          onPress={() => removeFavorite(fav.track.id)}
-                          style={styles.removeBtn}
-                          activeOpacity={0.6}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Remove ${fav.track.title} from liked tracks`}
-                          accessibilityHint="Double tap to remove this track from your favorites"
-                        >
-                          <Ionicons name="heart" size={18} color={accent} />
-                        </TouchableOpacity>
-                      }
-                    />
-                  </ADSRFadeIn>
-                ))}
-              </View>
-            )}
-          </ADSRFadeIn>
-        )}
-
-        {/* ─── Session History ──────────────────────── */}
-        {segment === 'history' && (
-          <ADSRFadeIn index={0}>
-            {error && (
-              <ErrorState
-                message={error}
-                onRetry={onRefresh}
+              <PlaylistList
+                playlists={library.playlists}
+                loading={library.playlistsLoading}
+                onSelectPlaylist={library.selectPlaylist}
+                onRefresh={library.refreshPlaylists}
+                refreshing={refreshing}
               />
             )}
-            {isLoading && !error ? (
-              <View style={styles.historyList}>
-                {[...Array(5)].map((_, i) => (
-                  <TrackCardSkeleton key={`skeleton-${i}`} />
-                ))}
-              </View>
-            ) : sessionHistory.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="time-outline" size={48} color={palette.slate} />
-                <Text variant="body" color={palette.silver} align="center" style={{ marginTop: spacing.sm }}>
-                  No session history yet
-                </Text>
-                <Text variant="bodySmall" color={palette.slate} align="center" style={{ marginTop: spacing.xs }}>
-                  Sessions you join will appear here
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.historyList}>
-                {sessionHistory.map((session, i) => (
-                  <ADSRFadeIn index={i} staggerMs={60}>
-                    <HistoryCard
-                      session={session}
-                      onPress={() => setArchivePreview(session.session)}
-                    />
-                  </ADSRFadeIn>
-                ))}
-              </View>
-            )}
-          </ADSRFadeIn>
+          </View>
         )}
-      </ScrollView>
-      <ArchiveSessionModal
-        session={archivePreview}
-        onClose={() => setArchivePreview(null)}
-      />
+
+        {/* ─── Liked / History Segments (ScrollView) ── */}
+        {segment !== 'playlists' && (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={accent}
+              />
+            }
+          >
+            {/* ─── Liked Tracks ─────────────────────────── */}
+            {segment === 'liked' && (
+              <ADSRFadeIn index={0}>
+                {error && (
+                  <ErrorState
+                    message={error}
+                    onRetry={onRefresh}
+                  />
+                )}
+                {isLoading && !error ? (
+                  <View style={styles.trackList}>
+                    {[...Array(5)].map((_, i) => (
+                      <TrackCardSkeleton key={`skeleton-${i}`} />
+                    ))}
+                  </View>
+                ) : sortedFavorites.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="heart-outline" size={48} color={palette.slate} />
+                    <Text variant="body" color={palette.silver} align="center" style={{ marginTop: spacing.sm }}>
+                      No liked tracks yet
+                    </Text>
+                    <Text variant="bodySmall" color={palette.slate} align="center" style={{ marginTop: spacing.xs }}>
+                      Tap the heart on any track to save it here
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.trackList}>
+                    {sortedFavorites.map((fav, i) => (
+                      <ADSRFadeIn key={fav.track.id} index={i} staggerMs={40}>
+                        <TrackListItem
+                          title={fav.track.title}
+                          artist={fav.track.artist}
+                          albumArt={fav.track.albumArt}
+                          duration={fav.track.duration}
+                          rightAction={
+                            <TouchableOpacity
+                              onPress={() => removeFavorite(fav.track.id)}
+                              style={styles.removeBtn}
+                              activeOpacity={0.6}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Remove ${fav.track.title} from liked tracks`}
+                              accessibilityHint="Double tap to remove this track from your favorites"
+                            >
+                              <Ionicons name="heart" size={18} color={accent} />
+                            </TouchableOpacity>
+                          }
+                        />
+                      </ADSRFadeIn>
+                    ))}
+                  </View>
+                )}
+              </ADSRFadeIn>
+            )}
+
+            {/* ─── Session History ──────────────────────── */}
+            {segment === 'history' && (
+              <ADSRFadeIn index={0}>
+                {error && (
+                  <ErrorState
+                    message={error}
+                    onRetry={onRefresh}
+                  />
+                )}
+                {isLoading && !error ? (
+                  <View style={styles.historyList}>
+                    {[...Array(5)].map((_, i) => (
+                      <TrackCardSkeleton key={`skeleton-${i}`} />
+                    ))}
+                  </View>
+                ) : sessionHistory.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="time-outline" size={48} color={palette.slate} />
+                    <Text variant="body" color={palette.silver} align="center" style={{ marginTop: spacing.sm }}>
+                      No session history yet
+                    </Text>
+                    <Text variant="bodySmall" color={palette.slate} align="center" style={{ marginTop: spacing.xs }}>
+                      Sessions you join will appear here
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.historyList}>
+                    {sessionHistory.map((session, i) => (
+                      <ADSRFadeIn key={session.id} index={i} staggerMs={60}>
+                        <HistoryCard
+                          session={session}
+                          onPress={() => setArchivePreview(session.session)}
+                        />
+                      </ADSRFadeIn>
+                    ))}
+                  </View>
+                )}
+              </ADSRFadeIn>
+            )}
+          </ScrollView>
+        )}
+
+        <ArchiveSessionModal
+          session={archivePreview}
+          onClose={() => setArchivePreview(null)}
+        />
       </VoidSurface>
     </SafeScreen>
   );

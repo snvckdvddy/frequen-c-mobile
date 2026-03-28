@@ -5,6 +5,10 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+  moduleNameMapper: {
+    '^@frequen-c/types$': '<rootDir>/packages/types/src/index.ts',
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
@@ -16,7 +20,10 @@ module.exports = {
         jsx: 'react-jsx',
         skipLibCheck: true,
         baseUrl: '.',
-        paths: { '@/*': ['src/*'] },
+        paths: {
+          '@/*': ['src/*'],
+          '@frequen-c/types': ['packages/types/src/index.ts'],
+        },
       },
     }],
   },

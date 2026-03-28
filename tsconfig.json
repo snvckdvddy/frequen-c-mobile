@@ -5,7 +5,8 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@frequen-c/types": ["packages/types/src/index.ts"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "src/**/*"]

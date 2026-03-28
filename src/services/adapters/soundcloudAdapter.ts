@@ -1,5 +1,5 @@
 import { MusicServiceAdapter } from './types';
-import { Track } from '../../types';
+import { Track, Playlist } from '../../types';
 import { apiFetch } from '../fetchClient';
 
 class SoundCloudAdapter implements MusicServiceAdapter {
@@ -38,6 +38,41 @@ class SoundCloudAdapter implements MusicServiceAdapter {
         } catch (e) {
             console.log('SoundCloudAdapter getStreamUrl unavailable:', e);
             return '';
+        }
+    }
+
+    // ─── Library Access ─────────────────────────────────────
+
+    async getUserPlaylists(): Promise<Playlist[]> {
+        if (!this.connected) return [];
+        try {
+            const res = await apiFetch<{ playlists: Playlist[] }>('/auth/soundcloud/playlists');
+            return res.playlists;
+        } catch (e) {
+            console.log('SoundCloudAdapter getUserPlaylists unavailable:', e);
+            return [];
+        }
+    }
+
+    async getPlaylistTracks(playlistId: string): Promise<Track[]> {
+        if (!this.connected) return [];
+        try {
+            const res = await apiFetch<{ tracks: Track[] }>(`/auth/soundcloud/playlists/${playlistId}/tracks`);
+            return res.tracks;
+        } catch (e) {
+            console.log('SoundCloudAdapter getPlaylistTracks unavailable:', e);
+            return [];
+        }
+    }
+
+    async getLikedTracks(): Promise<Track[]> {
+        if (!this.connected) return [];
+        try {
+            const res = await apiFetch<{ tracks: Track[] }>('/auth/soundcloud/likes');
+            return res.tracks;
+        } catch (e) {
+            console.log('SoundCloudAdapter getLikedTracks unavailable:', e);
+            return [];
         }
     }
 }

@@ -33,6 +33,9 @@ export {
   type Reaction,
   type QueueTrack,
 
+  // Library / Playlists
+  type Playlist,
+
   // CV Economy
   type CVAction,
   type CVLedgerEntry,

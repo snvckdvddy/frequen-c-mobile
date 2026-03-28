@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,8 +12,12 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { Track } from '../../types';
+import type { Track, ConnectedServices } from '../../types';
 import { OracleModeCard } from '../../components/room/OracleModeCard';
+import { ServiceSelectorPills } from '../../components/library/ServiceSelectorPills';
+import { PlaylistList } from '../../components/library/PlaylistList';
+import { PlaylistTrackList } from '../../components/library/PlaylistTrackList';
+import { useLibraryBrowse } from '../../hooks/useLibraryBrowse';
 import TacticalGridBackground from '../session-v2/components/TacticalGridBackground';
 import { tacticalTokens } from '../session-v2/theme/tacticalTokens';
 import type { SearchHudSource } from '../../hooks/useSearch';
@@ -21,6 +25,7 @@ import type { SearchDiagnostics, SearchProviderState } from '../../services/api'
 
 type ProviderKey = SearchHudSource | 'apple' | 'tidal';
 type SearchMode = 'database' | 'oracle';
+type HudTab = 'search' | 'library';
 
 const PROVIDER_ORDER: ProviderKey[] = ['spotify', 'soundcloud', 'apple', 'tidal'];
 
@@ -61,6 +66,8 @@ export interface SearchHudOverlayProps {
   onClose: () => void;
   onPatchTrack: (track: Track) => void;
   onAddSuggestion?: (title: string, artist: string) => void;
+  /** Connected services for library browsing (optional — hides Library tab if absent) */
+  connectedServices?: ConnectedServices;
 }
 
 export function SearchHudOverlay({
@@ -78,10 +85,18 @@ export function SearchHudOverlay({
   onClose,
   onPatchTrack,
   onAddSuggestion,
+  connectedServices,
 }: SearchHudOverlayProps) {
+  const [hudTab, setHudTab] = useState<HudTab>('search');
   const [searchMode, setSearchMode] = useState<SearchMode>('database');
   const [patchedId, setPatchedId] = useState<string | null>(null);
   const activeSourceCount = Object.values(sources).filter(Boolean).length;
+
+  // ─── Library tab (via shared hook) ─────────────────────────
+  const library = useLibraryBrowse({
+    connectedServices,
+    enableCache: false, // in-session browsing doesn't need disk cache
+  });
   const isDevRuntime = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
 
   const filtered = useMemo(() => {
@@ -266,6 +281,62 @@ export function SearchHudOverlay({
             </Pressable>
           </View>
 
+          {/* Top-level HUD tab: SEARCH / LIBRARY */}
+          <View style={styles.hudTabRow}>
+            {(['search', 'library'] as const).map((tab) => {
+              const active = hudTab === tab;
+              return (
+                <Pressable
+                  key={tab}
+                  onPress={() => setHudTab(tab)}
+                  style={({ pressed }) => [
+                    styles.hudTabBtn,
+                    active && styles.hudTabBtnActive,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={[styles.hudTabText, active && styles.hudTabTextActive]}>
+                    {tab.toUpperCase()}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* ─── Library Tab Content ───────────────────── */}
+          {hudTab === 'library' && (
+            <View style={styles.libraryContent}>
+              <ServiceSelectorPills
+                connectedServices={library.connectedSources}
+                selectedService={library.selectedService}
+                onSelectService={library.selectService}
+              />
+              {library.connectedSources.length === 0 ? (
+                <View style={styles.libraryEmpty}>
+                  <Text style={styles.libraryEmptyText}>NO SERVICES CONNECTED</Text>
+                  <Text style={styles.libraryEmptySubtext}>CONNECT A PROVIDER IN SETTINGS</Text>
+                </View>
+              ) : library.selectedPlaylist ? (
+                <PlaylistTrackList
+                  playlist={library.selectedPlaylist}
+                  tracks={library.tracks}
+                  loading={library.tracksLoading}
+                  onTrackPress={onPatchTrack}
+                  onBack={library.clearPlaylist}
+                />
+              ) : (
+                <PlaylistList
+                  playlists={library.playlists}
+                  loading={library.playlistsLoading}
+                  onSelectPlaylist={library.selectPlaylist}
+                />
+              )}
+            </View>
+          )}
+
+          {/* ─── Search Tab Content ────────────────────── */}
+          {hudTab === 'search' && (
+          <>
           <View style={styles.inputZone}>
             <View style={styles.modeRow}>
               {([
@@ -437,6 +508,8 @@ export function SearchHudOverlay({
                 />
               )}
             </>
+          )}
+          </>
           )}
 
           <View style={styles.keyboardMock}>
@@ -816,6 +889,62 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.84,
     transform: [{ scale: 0.99 }],
+  },
+
+  // ─── HUD Tab Toggle (Search / Library) ─────
+  hudTabRow: {
+    flexDirection: 'row',
+    gap: tacticalTokens.spacing.xs,
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingTop: tacticalTokens.spacing.md,
+    paddingBottom: tacticalTokens.spacing.xs,
+  },
+  hudTabBtn: {
+    flex: 1,
+    minHeight: 34,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hudTabBtnActive: {
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: 'rgba(90, 200, 200, 0.12)',
+  },
+  hudTabText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 11,
+    color: tacticalTokens.colors.textDim,
+    letterSpacing: 1.6,
+  },
+  hudTabTextActive: {
+    color: tacticalTokens.colors.ice,
+  },
+
+  // ─── Library Tab ──────────────────────────────
+  libraryContent: {
+    flex: 1,
+    paddingTop: tacticalTokens.spacing.sm,
+  },
+  libraryEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: tacticalTokens.spacing.xl * 2,
+  },
+  libraryEmptyText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 11,
+    color: tacticalTokens.colors.textDim,
+    letterSpacing: 2,
+  },
+  libraryEmptySubtext: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: 9,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1,
+    marginTop: tacticalTokens.spacing.xs,
   },
 });
 

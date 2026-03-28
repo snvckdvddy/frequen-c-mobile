@@ -1327,6 +1327,7 @@ export function SessionRoomScreen() {
                 handleAddTrack(track);
               }}
               onAddSuggestion={handleAddSuggestion}
+              connectedServices={user?.connectedServices}
             />
           )}
 
