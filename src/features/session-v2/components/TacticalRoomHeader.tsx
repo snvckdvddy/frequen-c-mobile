@@ -72,17 +72,17 @@ export function TacticalRoomHeader({
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: tacticalTokens.spacing.xl,
-    paddingTop: tacticalTokens.spacing.sm,
+    paddingTop: tacticalTokens.spacing.xs,
     backgroundColor: tacticalTokens.colors.void,
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: tacticalTokens.spacing.sm,
   },
   iconBlock: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: tacticalTokens.radius.sharp,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
@@ -100,26 +100,26 @@ const styles = StyleSheet.create({
   },
   systemLabel: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.sys,
-    letterSpacing: 2,
-    color: tacticalTokens.colors.acid,
-    marginBottom: tacticalTokens.spacing.xs,
+    fontSize: tacticalTokens.fontSize.micro,
+    letterSpacing: 1.8,
+    color: tacticalTokens.colors.textSoft,
+    marginBottom: 3,
   },
   roomName: {
     fontFamily: tacticalTokens.fonts.display,
-    fontSize: tacticalTokens.fontSize.display,
-    lineHeight: tacticalTokens.fontSize.display,
+    fontSize: tacticalTokens.fontSize.title + 2,
+    lineHeight: tacticalTokens.fontSize.title + 4,
     color: tacticalTokens.colors.white,
   },
   rightCluster: {
     alignItems: 'flex-end',
-    gap: tacticalTokens.spacing.xs,
+    gap: 6,
   },
   modeBlock: {
-    minWidth: 88,
-    minHeight: 32,
+    minWidth: 82,
+    minHeight: 28,
     paddingHorizontal: tacticalTokens.spacing.sm,
-    paddingVertical: tacticalTokens.spacing.xs,
+    paddingVertical: 4,
     borderRadius: tacticalTokens.radius.sharp,
     borderWidth: 1,
     alignItems: 'center',
@@ -127,13 +127,13 @@ const styles = StyleSheet.create({
   },
   modeText: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.micro,
-    letterSpacing: 1.6,
+    fontSize: 9,
+    letterSpacing: 1.4,
   },
   rule: {
-    marginTop: tacticalTokens.spacing.md,
+    marginTop: tacticalTokens.spacing.sm,
     height: 2,
-    backgroundColor: tacticalTokens.colors.acid,
+    backgroundColor: tacticalTokens.colors.guideSoft,
   },
 });
 

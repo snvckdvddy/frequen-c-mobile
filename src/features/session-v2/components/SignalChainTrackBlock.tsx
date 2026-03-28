@@ -24,13 +24,13 @@ function withAlpha(hex: string, alpha: number): string {
 function getBlockVisuals(item: SignalChainItem, mode: SignalChainVisualMode) {
   if (item.isPending) {
     return {
-      borderColor: theme.colors.textDim,
+      borderColor: theme.colors.textSoft,
       stripColor: theme.colors.void,
       backgroundColor: withAlpha(theme.colors.void, 0.92),
       opacity: 0.92,
       borderStyle: 'dashed' as const,
       titleColor: theme.colors.textDim,
-      metaColor: theme.colors.textDim,
+      metaColor: theme.colors.textSoft,
     };
   }
 
@@ -42,7 +42,7 @@ function getBlockVisuals(item: SignalChainItem, mode: SignalChainVisualMode) {
       opacity: 1,
       borderStyle: 'solid' as const,
       titleColor: theme.colors.textPure,
-      metaColor: theme.colors.textDim,
+      metaColor: theme.colors.textMuted,
     };
   }
 
@@ -54,7 +54,7 @@ function getBlockVisuals(item: SignalChainItem, mode: SignalChainVisualMode) {
       opacity: 1,
       borderStyle: 'solid' as const,
       titleColor: theme.colors.textPure,
-      metaColor: theme.colors.textDim,
+      metaColor: theme.colors.textMuted,
     };
   }
 
@@ -66,7 +66,7 @@ function getBlockVisuals(item: SignalChainItem, mode: SignalChainVisualMode) {
       opacity: 0.4,
       borderStyle: 'solid' as const,
       titleColor: theme.colors.textPure,
-      metaColor: theme.colors.textDim,
+      metaColor: theme.colors.textSoft,
     };
   }
 
@@ -77,7 +77,7 @@ function getBlockVisuals(item: SignalChainItem, mode: SignalChainVisualMode) {
     opacity: 1,
     borderStyle: 'solid' as const,
     titleColor: theme.colors.textPure,
-    metaColor: theme.colors.textDim,
+    metaColor: theme.colors.textMuted,
   };
 }
 
@@ -250,7 +250,7 @@ export function SignalChainTrackBlock({
 const styles = StyleSheet.create({
   wrapper: {
     position: 'relative',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
   wrapperCampfire: {
     marginBottom: theme.spacing.xs,
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   block: {
-    minHeight: 72,
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'stretch',
     backgroundColor: theme.colors.matteGrey,
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   indexStrip: {
-    width: 24,
+    width: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: 1,
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   },
   indexText: {
     fontFamily: theme.fonts.mono,
-    fontSize: 10,
+    fontSize: 9,
     color: theme.colors.textDim,
     transform: [{ rotate: '-90deg' }],
   },
@@ -287,14 +287,14 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.xs + 2,
+    paddingVertical: 6,
+    gap: theme.spacing.xs,
     overflow: 'hidden',
   },
   artBlock: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     borderWidth: 1,
     borderColor: theme.colors.borderLight,
     backgroundColor: theme.colors.matteGrey,
@@ -325,27 +325,27 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: theme.fonts.display,
-    fontSize: 16,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 15,
     color: theme.colors.textPure,
     textTransform: 'uppercase',
   },
   meta: {
-    marginTop: 4,
+    marginTop: 2,
     fontFamily: theme.fonts.mono,
-    fontSize: 9,
+    fontSize: 8,
     color: theme.colors.textDim,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   approvalTower: {
-    width: 80,
+    width: 64,
     flexDirection: 'row',
     borderLeftWidth: 1,
     borderLeftColor: theme.colors.borderLight,
   },
   approvalCell: {
-    width: 40,
+    width: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -362,17 +362,17 @@ const styles = StyleSheet.create({
   },
   approvalGlyph: {
     fontFamily: theme.fonts.monoBold,
-    fontSize: 18,
+    fontSize: 16,
   },
   voteTower: {
-    width: 56,
+    width: 44,
     flexDirection: 'column',
     borderLeftWidth: 1,
     borderLeftColor: theme.colors.borderLight,
     backgroundColor: theme.colors.void,
   },
   voteCell: {
-    minHeight: 20,
+    minHeight: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -382,10 +382,10 @@ const styles = StyleSheet.create({
   voteGlyph: {
     fontFamily: theme.fonts.monoBold,
     fontSize: 11,
-    color: theme.colors.textDim,
+    color: theme.colors.textMuted,
   },
   voteCountCell: {
-    minHeight: 28,
+    minHeight: 26,
     alignItems: 'center',
     justifyContent: 'center',
     borderTopWidth: 1,
@@ -395,14 +395,14 @@ const styles = StyleSheet.create({
   },
   voteCount: {
     fontFamily: theme.fonts.monoBold,
-    fontSize: 16,
+    fontSize: 15,
   },
   patchCable: {
     position: 'absolute',
     left: 11,
     top: '100%',
     width: 2,
-    height: 8,
+    height: 6,
   },
 });
 

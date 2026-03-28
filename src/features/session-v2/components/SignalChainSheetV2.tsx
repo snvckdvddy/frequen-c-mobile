@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import type { QueueTrack, RoomBehaviors, RoomMode, Track } from '../../../types';
 import { buildSignalChainItems } from '../adapters/buildSignalChainItems';
 import { deriveVisualMode } from '../adapters/deriveVisualMode';
+import { OracleModeCard } from '../../../components/room/OracleModeCard';
+import SonicAestheticCard from '../../../components/room/SonicAestheticCard';
 import TacticalGridBackground from './TacticalGridBackground';
 import SignalChainModeSwitch from './SignalChainModeSwitch';
 import SignalChainAddBlock from './SignalChainAddBlock';
@@ -36,6 +38,7 @@ interface SignalChainSheetV2Props {
   searchInSheet: boolean;
   query: string;
   results: Track[];
+  searchFallbackUsed?: boolean;
   isSearching: boolean;
   recentSearches: Array<{ query: string; timestamp: string }>;
   isHost: boolean;
@@ -47,6 +50,7 @@ interface SignalChainSheetV2Props {
   onQueryChange: (query: string) => void;
   onSelectMode: (mode: RoomMode) => void;
   onAddTrack: (track: Track) => void;
+  onAddSuggestion?: (title: string, artist: string) => void;
   onVote: (trackId: string, direction: 1 | -1) => void;
   onApproveTrack: (trackId: string) => void;
   onRejectTrack: (trackId: string) => void;
@@ -85,19 +89,26 @@ function SearchResultRow({
   track: Track;
   onAdd: (track: Track) => void;
 }) {
+  const fallbackSource = track.resultOrigin === 'open' || (track.source !== 'spotify' && track.source !== 'soundcloud');
+  const availabilitySources = (track.availableSources || [track.source]).filter(
+    (source): source is 'spotify' | 'soundcloud' => source === 'spotify' || source === 'soundcloud',
+  );
+
   return (
     <Pressable
       onPress={() => onAdd(track)}
       style={({ pressed }) => [styles.searchResultRow, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel={`Add ${track.title} by ${track.artist}`}
-    >
+      >
       <View style={styles.searchResultStrip}>
         <Text style={styles.searchResultStripText}>+</Text>
       </View>
       <View style={styles.searchResultContent}>
         <View style={styles.searchResultMetaRow}>
-          <Text style={styles.searchResultMetaTag}>TRACK</Text>
+          <View style={styles.searchResultMetaLeft}>
+            <Text style={styles.searchResultMetaTag}>TRACK</Text>
+          </View>
           <Text style={styles.searchResultMetaValue}>{formatDuration(track.duration)}</Text>
         </View>
         <Text style={styles.searchResultTitle} numberOfLines={1}>
@@ -106,16 +117,49 @@ function SearchResultRow({
         <Text style={styles.searchResultMeta} numberOfLines={1}>
           {track.artist}
         </Text>
-        <View style={styles.searchPreviewRow}>
-          <View style={styles.searchArtBlock}>
-            {track.albumArt ? <Image source={{ uri: track.albumArt }} style={styles.searchArtImage} /> : null}
+        {track.albumArt ? (
+          <View style={styles.searchPreviewRow}>
+            <View style={styles.searchArtBlock}>
+              <Image source={{ uri: track.albumArt }} style={styles.searchArtImage} />
+            </View>
           </View>
-          <View style={styles.searchPreviewGhost} />
-          <View style={styles.searchPreviewGhost} />
-        </View>
+        ) : null}
       </View>
       <View style={styles.addCell}>
-        <Ionicons name="add" size={18} color={tacticalTokens.colors.orange} />
+        {availabilitySources.length > 0 || fallbackSource ? (
+          <View style={styles.searchTagCluster}>
+            {availabilitySources.map((availabilitySource) => (
+              <View
+                key={`${track.id}-${availabilitySource}`}
+                style={[
+                  styles.searchTagBadge,
+                  availabilitySource === 'spotify'
+                    ? styles.searchTagBadgeSpotify
+                    : styles.searchTagBadgeSoundcloud,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.searchTagText,
+                    availabilitySource === 'spotify'
+                      ? styles.searchTagTextSpotify
+                      : styles.searchTagTextSoundcloud,
+                  ]}
+                >
+                  {availabilitySource === 'spotify' ? 'SPT' : 'SC'}
+                </Text>
+              </View>
+            ))}
+            {fallbackSource ? (
+              <View style={styles.searchOriginChip}>
+                <Text style={styles.searchOriginChipText}>OPEN</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.searchTagSpacer} />
+        )}
+        <Text style={styles.searchAddText}>ADD</Text>
       </View>
     </Pressable>
   );
@@ -267,6 +311,7 @@ export function SignalChainSheetV2({
   searchInSheet,
   query,
   results,
+  searchFallbackUsed = false,
   isSearching,
   recentSearches,
   isHost,
@@ -278,6 +323,7 @@ export function SignalChainSheetV2({
   onQueryChange,
   onSelectMode,
   onAddTrack,
+  onAddSuggestion,
   onVote,
   onApproveTrack,
   onRejectTrack,
@@ -296,6 +342,12 @@ export function SignalChainSheetV2({
   useEffect(() => {
     if (searchInSheet) {
       setActiveView('queue');
+    }
+  }, [searchInSheet]);
+
+  useEffect(() => {
+    if (!searchInSheet) {
+      setSearchMode('database');
     }
   }, [searchInSheet]);
 
@@ -340,8 +392,18 @@ export function SignalChainSheetV2({
 
           <View style={styles.headerRow}>
             <Text style={styles.headerTitle}>SIGNAL CHAIN</Text>
-            <View style={styles.voltageBlock}>
-              <Text style={styles.voltageText}>{String(voltage).padStart(2, '0')}V</Text>
+            <View style={styles.headerActions}>
+              <View style={styles.voltageBlock}>
+                <Text style={styles.voltageText}>{String(voltage).padStart(2, '0')}V</Text>
+              </View>
+              <Pressable
+                onPress={onClose}
+                style={({ pressed }) => [styles.closeSheetButton, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Close signal chain"
+              >
+                <Ionicons name="close" size={18} color={tacticalTokens.colors.white} />
+              </Pressable>
             </View>
           </View>
 
@@ -403,6 +465,15 @@ export function SignalChainSheetV2({
 
                   {query.length > 0 ? (
                     <View style={styles.searchResultsWrap}>
+                      {searchFallbackUsed && results.length > 0 && !isSearching ? (
+                        <View style={styles.searchFallbackBanner}>
+                            <Text style={styles.searchFallbackBannerText}>
+                              {results.some((track) => track.resultOrigin === 'direct')
+                                ? 'DIRECT + OPEN CATALOG RESULTS'
+                                : 'OPEN CATALOG FALLBACK ACTIVE'}
+                            </Text>
+                        </View>
+                      ) : null}
                       {isSearching ? (
                         <ActivityIndicator color={tacticalTokens.colors.orange} style={{ marginTop: tacticalTokens.spacing.lg }} />
                       ) : (
@@ -423,7 +494,7 @@ export function SignalChainSheetV2({
                   ) : (
                     <View style={styles.recentSearchWrap}>
                       <Text style={styles.recentSearchHeader}>RECENT SEARCHES</Text>
-                      {recentSearches.length ? recentSearches.slice(0, 6).map((item, index) => (
+                      {recentSearches.length ? recentSearches.slice(0, 4).map((item, index) => (
                         <View key={`${item.query}-${item.timestamp}`} style={styles.recentSearchRow}>
                           <View style={styles.recentSearchStrip}>
                             <Text style={styles.recentSearchStripText}>{String(index + 1).padStart(2, '0')}</Text>
@@ -445,29 +516,37 @@ export function SignalChainSheetV2({
                   )}
                 </>
               ) : (
-                <View style={styles.oracleStub}>
-                  <View style={styles.oracleStubHeader}>
-                    <Text style={styles.oracleStubId}>ROUTE.404</Text>
-                    <View style={styles.oracleStubStatus} />
-                  </View>
-                  <Text style={styles.oracleStubTitle}>ORACLE OFFLINE</Text>
-                  <Text style={styles.oracleStubBody}>
-                    DATABASE SEARCH IS ACTIVE IN V2. ORACLE ROUTING RETURNS IN A LATER SLICE.
-                  </Text>
+                <View style={styles.oracleCardWrap}>
+                  <OracleModeCard
+                    onAddResolvedTrack={handleAddFromSearch}
+                    onAddTrack={(title, artist) => {
+                      onAddSuggestion?.(title, artist);
+                      onCloseSearch();
+                    }}
+                  />
                 </View>
               )}
             </View>
           ) : activeView === 'queue' ? (
             <>
               <SignalChainModeSwitch mode={roomMode} isHost={isHost} onSelectMode={onSelectMode} />
-              <SignalChainAddBlock onPress={onOpenSearch} />
-
               <FlatList
                 data={items}
                 keyExtractor={(item) => `${item.track.id}-${item.indexLabel}-${item.isPending ? 'pending' : 'live'}`}
                 renderItem={renderQueueItem}
+                ListHeaderComponent={
+                  <View style={styles.queueListHeader}>
+                    <SignalChainAddBlock onPress={onOpenSearch} />
+                    <SonicAestheticCard
+                      queue={queue}
+                      onAddResolvedTrack={onAddTrack}
+                      onAddSuggestion={onAddSuggestion}
+                    />
+                  </View>
+                }
                 contentContainerStyle={styles.listContent}
                 keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               />
             </>
           ) : (
@@ -495,33 +574,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    minHeight: '75%',
-    maxHeight: '85%',
+    minHeight: '86%',
+    maxHeight: '94%',
     backgroundColor: theme.colors.void,
     borderTopWidth: 2,
     borderTopColor: theme.colors.textPure,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     overflow: 'hidden',
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.lg,
   },
   sheetTopRule: {
     height: 0,
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.xl,
-    paddingVertical: theme.spacing.xl,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderLight,
   },
   viewSwitch: {
     flexDirection: 'row',
     paddingHorizontal: theme.spacing.xl,
-    paddingTop: tacticalTokens.spacing.md,
-    paddingBottom: tacticalTokens.spacing.md,
+    paddingTop: tacticalTokens.spacing.xs + 2,
+    paddingBottom: tacticalTokens.spacing.xs + 2,
     gap: 0,
   },
   viewSwitchButton: {
@@ -539,7 +618,7 @@ const styles = StyleSheet.create({
   viewSwitchLabel: {
     fontFamily: theme.fonts.monoBold,
     fontSize: 10,
-    color: theme.colors.textDim,
+    color: theme.colors.textMuted,
     letterSpacing: 0.8,
   },
   viewSwitchLabelActive: {
@@ -547,25 +626,39 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: theme.fonts.display,
-    fontSize: 24,
-    lineHeight: 24,
+    fontSize: 20,
+    lineHeight: 20,
     color: theme.colors.textPure,
     textTransform: 'uppercase',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tacticalTokens.spacing.xs,
+  },
   voltageBlock: {
-    minWidth: 52,
+    minWidth: 48,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
     borderWidth: 1,
-    borderColor: theme.colors.iceCyan,
+    borderColor: tacticalTokens.colors.borderGhost,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.void,
   },
   voltageText: {
     fontFamily: theme.fonts.monoBold,
-    fontSize: 14,
+    fontSize: 12,
     color: theme.colors.iceCyan,
+  },
+  closeSheetButton: {
+    width: 36,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
   },
   searchPanel: {
     flex: 1,
@@ -574,14 +667,12 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.xl,
     flexDirection: 'row',
     backgroundColor: theme.colors.borderLight,
-    padding: 2,
+    padding: 1,
     gap: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderLight,
   },
   searchTab: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 38,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.void,
@@ -591,15 +682,15 @@ const styles = StyleSheet.create({
   },
   searchTabLabel: {
     fontFamily: theme.fonts.monoBold,
-    fontSize: 10,
-    color: theme.colors.textDim,
+    fontSize: 9,
+    color: theme.colors.textMuted,
     letterSpacing: 0.8,
   },
   searchTabLabelActive: {
     color: theme.colors.void,
   },
   searchInputRow: {
-    marginTop: tacticalTokens.spacing.md,
+    marginTop: tacticalTokens.spacing.xs,
     marginHorizontal: tacticalTokens.spacing.xl,
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -607,7 +698,7 @@ const styles = StyleSheet.create({
   },
   searchInputPrefix: {
     width: 44,
-    minHeight: 52,
+    minHeight: 46,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.matte,
@@ -617,24 +708,24 @@ const styles = StyleSheet.create({
   searchInputPrefixText: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.ice,
+    color: tacticalTokens.colors.textSoft,
     letterSpacing: 1.2,
   },
   searchInput: {
     flex: 1,
-    minHeight: 52,
+    minHeight: 46,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.void,
     color: tacticalTokens.colors.white,
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.label,
+    fontSize: tacticalTokens.fontSize.body + 1,
     paddingHorizontal: tacticalTokens.spacing.md,
     letterSpacing: 0.8,
   },
   closeSearchButton: {
     width: 44,
-    minHeight: 52,
+    minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -643,24 +734,40 @@ const styles = StyleSheet.create({
   },
   searchResultsWrap: {
     flex: 1,
-    paddingTop: tacticalTokens.spacing.sm,
+    paddingTop: tacticalTokens.spacing.xs,
+  },
+  searchFallbackBanner: {
+    marginHorizontal: tacticalTokens.spacing.xl,
+    marginTop: tacticalTokens.spacing.xs,
+    marginBottom: tacticalTokens.spacing.xs,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: tacticalTokens.spacing.xs + 2,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+  },
+  searchFallbackBannerText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys - 1,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 0.7,
   },
   resultsContent: {
     paddingHorizontal: tacticalTokens.spacing.xl,
-    paddingTop: tacticalTokens.spacing.md,
-    paddingBottom: tacticalTokens.spacing.xxxl,
+    paddingTop: tacticalTokens.spacing.xs + 2,
+    paddingBottom: tacticalTokens.spacing.xl,
   },
   searchResultRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    minHeight: 108,
+    minHeight: 66,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.void,
-    marginBottom: tacticalTokens.spacing.md,
+    marginBottom: tacticalTokens.spacing.xs + 1,
   },
   searchResultStrip: {
-    width: 32,
+    width: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: tacticalTokens.colors.matte,
@@ -669,35 +776,40 @@ const styles = StyleSheet.create({
   },
   searchResultStripText: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.label,
+    fontSize: tacticalTokens.fontSize.small + 1,
     color: tacticalTokens.colors.orange,
   },
   searchResultContent: {
     flex: 1,
-    paddingHorizontal: tacticalTokens.spacing.md,
-    paddingVertical: tacticalTokens.spacing.md,
+    paddingHorizontal: tacticalTokens.spacing.xs + 2,
+    paddingVertical: tacticalTokens.spacing.xs + 1,
     minWidth: 0,
   },
   searchResultMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: tacticalTokens.spacing.xs,
+    marginBottom: tacticalTokens.spacing.xs - 1,
+  },
+  searchResultMetaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tacticalTokens.spacing.xs,
   },
   searchResultMetaTag: {
     fontFamily: tacticalTokens.fonts.mono,
     fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.textDim,
+    color: tacticalTokens.colors.textMuted,
     letterSpacing: 1.2,
   },
   searchResultMetaValue: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.ice,
+    color: tacticalTokens.colors.textSoft,
     letterSpacing: 1.2,
   },
   searchArtBlock: {
-    width: 32,
-    height: 32,
+    width: 24,
+    height: 24,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.matte,
@@ -709,34 +821,119 @@ const styles = StyleSheet.create({
   },
   searchResultTitle: {
     fontFamily: tacticalTokens.fonts.display,
-    fontSize: tacticalTokens.fontSize.title,
+    fontSize: tacticalTokens.fontSize.body,
     color: tacticalTokens.colors.white,
   },
   searchResultMeta: {
     marginTop: 2,
     fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.small,
-    color: tacticalTokens.colors.textDim,
+    fontSize: tacticalTokens.fontSize.sys - 1,
+    color: tacticalTokens.colors.textMuted,
+  },
+  searchAvailabilityRow: {
+    flexDirection: 'row',
+    gap: tacticalTokens.spacing.xs,
+    marginTop: tacticalTokens.spacing.xs,
+    flexWrap: 'wrap',
+  },
+  searchAvailabilityBadge: {
+    minHeight: 20,
+    paddingHorizontal: tacticalTokens.spacing.xs + 2,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tacticalTokens.colors.void,
+  },
+  searchAvailabilityBadgeSpotify: {
+    borderColor: '#1DB954',
+    backgroundColor: '#1DB95414',
+  },
+  searchAvailabilityBadgeSoundcloud: {
+    borderColor: '#FF5500',
+    backgroundColor: '#FF550014',
+  },
+  searchAvailabilityText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    letterSpacing: 1,
+  },
+  searchAvailabilityTextSpotify: {
+    color: '#1DB954',
+  },
+  searchAvailabilityTextSoundcloud: {
+    color: '#FF5500',
+  },
+  searchOriginChip: {
+    minHeight: 16,
+    paddingHorizontal: tacticalTokens.spacing.xs,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchOriginChipText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys - 1,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 0.7,
   },
   searchPreviewRow: {
     flexDirection: 'row',
-    gap: tacticalTokens.spacing.xs,
-    marginTop: tacticalTokens.spacing.md,
-  },
-  searchPreviewGhost: {
-    width: 32,
-    height: 32,
-    borderWidth: 1,
-    borderColor: tacticalTokens.colors.border,
-    backgroundColor: '#1D1D1D',
+    marginTop: tacticalTokens.spacing.xs + 2,
   },
   addCell: {
-    width: 48,
-    minHeight: 106,
+    width: 62,
+    minHeight: 66,
     borderLeftWidth: 1,
     borderLeftColor: tacticalTokens.colors.border,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: tacticalTokens.spacing.xs,
+    paddingVertical: tacticalTokens.spacing.xs,
+  },
+  searchAddText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1,
+  },
+  searchTagCluster: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 3,
+    minHeight: 16,
+  },
+  searchTagSpacer: {
+    minHeight: 16,
+  },
+  searchTagBadge: {
+    minHeight: 16,
+    minWidth: 20,
+    paddingHorizontal: tacticalTokens.spacing.xs,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  searchTagBadgeSpotify: {
+    borderColor: '#1DB954',
+    backgroundColor: 'rgba(29, 185, 84, 0.08)',
+  },
+  searchTagBadgeSoundcloud: {
+    borderColor: '#FF5500',
+    backgroundColor: 'rgba(255, 85, 0, 0.08)',
+  },
+  searchTagText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys - 1,
+    letterSpacing: 0.7,
+  },
+  searchTagTextSpotify: {
+    color: '#1DB954',
+  },
+  searchTagTextSoundcloud: {
+    color: '#FF5500',
   },
   searchEmpty: {
     minHeight: 132,
@@ -752,20 +949,25 @@ const styles = StyleSheet.create({
   searchEmptyText: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.label,
-    color: tacticalTokens.colors.textDim,
+    color: tacticalTokens.colors.textMuted,
     letterSpacing: 1.6,
     textAlign: 'center',
   },
   recentSearchWrap: {
     paddingHorizontal: tacticalTokens.spacing.xl,
-    paddingTop: tacticalTokens.spacing.lg,
+    paddingTop: tacticalTokens.spacing.sm,
+  },
+  oracleCardWrap: {
+    flex: 1,
+    paddingHorizontal: tacticalTokens.spacing.md,
+    paddingTop: tacticalTokens.spacing.sm,
   },
   recentSearchHeader: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.label,
-    color: tacticalTokens.colors.textDim,
+    fontSize: tacticalTokens.fontSize.body,
+    color: tacticalTokens.colors.textMuted,
     letterSpacing: 2,
-    marginBottom: tacticalTokens.spacing.md,
+    marginBottom: tacticalTokens.spacing.sm,
   },
   recentSearchRow: {
     flexDirection: 'row',
@@ -774,7 +976,7 @@ const styles = StyleSheet.create({
   },
   recentSearchStrip: {
     width: 44,
-    minHeight: 56,
+    minHeight: 46,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.matte,
@@ -784,12 +986,12 @@ const styles = StyleSheet.create({
   recentSearchStripText: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.ice,
+    color: tacticalTokens.colors.textMuted,
     letterSpacing: 1.2,
   },
   recentSearchQuery: {
     flex: 1,
-    minHeight: 56,
+    minHeight: 46,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     justifyContent: 'center',
@@ -799,78 +1001,39 @@ const styles = StyleSheet.create({
   },
   recentSearchText: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.label,
+    fontSize: tacticalTokens.fontSize.body,
     color: tacticalTokens.colors.white,
     letterSpacing: 0.8,
   },
   recentSearchRemove: {
     width: 44,
-    minHeight: 56,
+    minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: tacticalTokens.colors.border,
+    borderColor: tacticalTokens.colors.borderGhost,
     marginLeft: tacticalTokens.spacing.xs,
-    backgroundColor: tacticalTokens.colors.matte,
-  },
-  oracleStub: {
-    marginTop: tacticalTokens.spacing.lg,
-    marginHorizontal: tacticalTokens.spacing.xl,
-    padding: tacticalTokens.spacing.lg,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: tacticalTokens.colors.border,
-    backgroundColor: tacticalTokens.colors.void,
-    minHeight: 188,
-  },
-  oracleStubHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: tacticalTokens.colors.border,
-    paddingBottom: tacticalTokens.spacing.xs,
-    marginBottom: tacticalTokens.spacing.md,
-  },
-  oracleStubId: {
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.textDim,
-    letterSpacing: 1.2,
-  },
-  oracleStubStatus: {
-    width: 6,
-    height: 6,
-    backgroundColor: tacticalTokens.colors.textDim,
-  },
-  oracleStubTitle: {
-    fontFamily: tacticalTokens.fonts.display,
-    fontSize: tacticalTokens.fontSize.title,
-    color: tacticalTokens.colors.white,
-  },
-  oracleStubBody: {
-    marginTop: tacticalTokens.spacing.sm,
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.label,
-    color: tacticalTokens.colors.textDim,
-    lineHeight: 28,
+    backgroundColor: tacticalTokens.colors.matteGhost,
   },
   listContent: {
     paddingHorizontal: theme.spacing.xl,
-    paddingTop: theme.spacing.xl,
-    paddingBottom: tacticalTokens.spacing.xxxl,
+    paddingTop: theme.spacing.md,
+    paddingBottom: tacticalTokens.spacing.xl,
+  },
+  queueListHeader: {
+    marginBottom: tacticalTokens.spacing.xs,
   },
   logsView: {
     flex: 1,
   },
   logsContent: {
     paddingHorizontal: theme.spacing.xl,
-    paddingTop: tacticalTokens.spacing.lg,
-    paddingBottom: tacticalTokens.spacing.xxxl,
+    paddingTop: tacticalTokens.spacing.sm,
+    paddingBottom: tacticalTokens.spacing.xl,
   },
   historySection: {
-    marginTop: theme.spacing.xl,
-    paddingTop: theme.spacing.lg,
+    marginTop: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
     borderTopWidth: 1,
     borderTopColor: theme.colors.borderLight,
   },
@@ -880,18 +1043,18 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
   },
   historyHeader: {
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
     fontFamily: theme.fonts.monoBold,
-    fontSize: 12,
-    color: theme.colors.iceCyan,
+    fontSize: 11,
+    color: theme.colors.textMuted,
     letterSpacing: 1.4,
   },
   historyScroll: {
     paddingRight: tacticalTokens.spacing.xl,
-    gap: tacticalTokens.spacing.md,
+    gap: tacticalTokens.spacing.sm,
   },
   historyStack: {
-    gap: tacticalTokens.spacing.md,
+    gap: tacticalTokens.spacing.sm,
   },
   historyEmpty: {
     minHeight: 92,
@@ -913,12 +1076,12 @@ const styles = StyleSheet.create({
   historyEmptySubtext: {
     fontFamily: tacticalTokens.fonts.mono,
     fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.textDim,
+    color: tacticalTokens.colors.textMuted,
     letterSpacing: 1.2,
   },
   historyCard: {
     width: 176,
-    minHeight: 152,
+    minHeight: 138,
     flexDirection: 'row',
     backgroundColor: tacticalTokens.colors.matte,
     borderWidth: 1,
@@ -936,7 +1099,7 @@ const styles = StyleSheet.create({
   historyCardStripText: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.ice,
+    color: tacticalTokens.colors.textMuted,
     transform: [{ rotate: '-90deg' }],
   },
   historyCardBody: {
@@ -944,7 +1107,7 @@ const styles = StyleSheet.create({
     padding: tacticalTokens.spacing.md,
   },
   historyRow: {
-    minHeight: 96,
+    minHeight: 84,
     flexDirection: 'row',
     alignItems: 'stretch',
     borderWidth: 1,
@@ -962,14 +1125,14 @@ const styles = StyleSheet.create({
   historyRowStripText: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.ice,
+    color: tacticalTokens.colors.textMuted,
     transform: [{ rotate: '-90deg' }],
   },
   historyRowArt: {
-    width: 56,
-    height: 56,
-    marginLeft: tacticalTokens.spacing.md,
-    marginTop: tacticalTokens.spacing.md,
+    width: 48,
+    height: 48,
+    marginLeft: tacticalTokens.spacing.sm,
+    marginTop: tacticalTokens.spacing.sm,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.matte,
@@ -978,23 +1141,23 @@ const styles = StyleSheet.create({
   historyRowBody: {
     flex: 1,
     minWidth: 0,
-    paddingHorizontal: tacticalTokens.spacing.md,
-    paddingVertical: tacticalTokens.spacing.md,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: tacticalTokens.spacing.sm,
   },
   historyRowTitle: {
     fontFamily: tacticalTokens.fonts.display,
-    fontSize: tacticalTokens.fontSize.title,
+    fontSize: tacticalTokens.fontSize.label,
     color: tacticalTokens.colors.white,
   },
   historyRowMeta: {
     marginTop: 2,
     fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.small,
+    fontSize: tacticalTokens.fontSize.sys,
     color: tacticalTokens.colors.textDim,
     letterSpacing: 1,
   },
   historyRowStat: {
-    width: 74,
+    width: 60,
     borderLeftWidth: 1,
     borderLeftColor: tacticalTokens.colors.border,
     alignItems: 'center',
@@ -1019,7 +1182,7 @@ const styles = StyleSheet.create({
   historyStatusDot: {
     width: 6,
     height: 6,
-    backgroundColor: tacticalTokens.colors.acid,
+    backgroundColor: tacticalTokens.colors.guideSoft,
   },
   historyCardTitle: {
     fontFamily: tacticalTokens.fonts.display,
@@ -1054,12 +1217,12 @@ const styles = StyleSheet.create({
   historyDataValueOrange: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.orange,
+    color: tacticalTokens.colors.textSoft,
   },
   historyDataValueIce: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.ice,
+    color: tacticalTokens.colors.textSoft,
   },
   historyArtBlock: {
     width: 32,

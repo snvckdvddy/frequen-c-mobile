@@ -26,11 +26,11 @@ export function SignalChainAddBlock({ onPress }: SignalChainAddBlockProps) {
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: theme.spacing.md,
-    minHeight: 64,
+    marginBottom: theme.spacing.sm,
+    minHeight: 48,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: theme.colors.textDim,
+    borderColor: theme.colors.borderGhost,
     borderRadius: 0,
     backgroundColor: theme.colors.void,
     alignItems: 'center',
@@ -39,18 +39,18 @@ const styles = StyleSheet.create({
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   plus: {
     fontFamily: theme.fonts.display,
-    fontSize: 16,
-    color: theme.colors.textDim,
+    fontSize: 14,
+    color: theme.colors.textMuted,
     textTransform: 'uppercase',
   },
   label: {
     fontFamily: theme.fonts.display,
-    fontSize: 16,
-    color: theme.colors.textDim,
+    fontSize: 14,
+    color: theme.colors.textMuted,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },

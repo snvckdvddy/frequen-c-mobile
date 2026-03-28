@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Alert, Share } from 'react-native';
+import { Share } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { sessionApi } from '../services/api';
 import {
@@ -19,6 +19,7 @@ import {
   voteTrack, sendReaction, skipTrack, onSessionEvent,
 } from '../services/socket';
 import { tapMedium, tapLight, tapHeavy, notifySuccess } from '../utils/haptics';
+import { showToast } from '../components/ui';
 import type { Session, QueueTrack, Track, RoomBehaviors } from '../types';
 import { DEFAULT_BEHAVIORS } from '../types';
 
@@ -167,7 +168,7 @@ export function useSession(sessionId: string): UseSessionReturn {
     // Behavior-driven skip access check
     const behaviors: RoomBehaviors = session.behaviors || DEFAULT_BEHAVIORS;
     if (behaviors.skipAccess === 'hostOnly' && session.hostId !== user.id) {
-      Alert.alert('Host Only', 'Only the host can skip tracks in this session.');
+      showToast('Only the host can skip tracks in this session.', 'warning', '!');
       return;
     }
     tapHeavy();

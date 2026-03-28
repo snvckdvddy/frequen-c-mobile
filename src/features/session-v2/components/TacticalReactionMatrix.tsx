@@ -67,7 +67,7 @@ export function TacticalReactionMatrix({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: tacticalTokens.spacing.xs,
+    marginTop: 4,
     marginHorizontal: tacticalTokens.spacing.xl,
     flexDirection: 'row',
     gap: tacticalTokens.spacing.xs,

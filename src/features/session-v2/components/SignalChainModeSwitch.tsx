@@ -51,14 +51,14 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.xl,
     flexDirection: 'row',
     backgroundColor: theme.colors.borderLight,
-    padding: 2,
+    padding: 1,
     gap: 2,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderLight,
   },
   segment: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 36,
     backgroundColor: theme.colors.void,
     alignItems: 'center',
     justifyContent: 'center',
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: theme.fonts.monoBold,
     fontSize: 10,
-    color: theme.colors.textDim,
+    color: theme.colors.textMuted,
     letterSpacing: 0.8,
   },
   labelSelected: {

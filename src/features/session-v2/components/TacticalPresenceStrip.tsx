@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Image,
   Pressable,
@@ -61,81 +61,98 @@ export function TacticalPresenceStrip({
   currentUsername,
   onPress,
 }: TacticalPresenceStripProps) {
-  const liveListeners = listeners.slice(0, 4);
-  const fallbackListener = !liveListeners.length && currentUsername
+  const activeId = currentUserId || hostId;
+  const fallbackListener = !listeners.length && currentUsername
     ? [{ userId: currentUserId || hostId, username: currentUsername }]
     : [];
-  const visible = [...liveListeners, ...fallbackListener].slice(0, 4);
-  const fillerCount = Math.max(0, 4 - visible.length);
-  const activeId = currentUserId || hostId;
+
+  const roster = useMemo(() => {
+    const unique = new Map<string, Listener>();
+    [...listeners, ...fallbackListener].forEach((listener) => {
+      if (!unique.has(listener.userId)) {
+        unique.set(listener.userId, listener);
+      }
+    });
+    return Array.from(unique.values());
+  }, [fallbackListener, listeners]);
+
+  const visible = roster.slice(0, 2);
+  const overflowCount = Math.max(0, roster.length - visible.length);
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
-      accessibilityRole="button"
-      accessibilityLabel={`${listeners.length} listeners in the room`}
-    >
-      <View style={styles.avatarRow}>
-        {visible.map((listener) => (
-          <AvatarBlock
-            key={listener.userId}
-            listener={listener}
-            isActive={listener.userId === activeId}
-          />
-        ))}
-        {Array.from({ length: fillerCount }, (_, index) => (
-          <View key={`ghost-${index}`} style={styles.ghostBlock} />
-        ))}
-      </View>
+    <View style={styles.wrap} accessible={false}>
+      <View style={styles.container}>
+        <View style={styles.avatarRow}>
+          {visible.map((listener) => (
+            <AvatarBlock
+              key={listener.userId}
+              listener={listener}
+              isActive={listener.userId === activeId}
+            />
+          ))}
+          {overflowCount > 0 ? (
+            <View style={styles.overflowBlock}>
+              <Text style={styles.overflowText}>{`+${overflowCount}`}</Text>
+            </View>
+          ) : null}
+        </View>
 
-      <View style={styles.countBlock}>
-        <Text style={styles.countNumber}>{listeners.length}</Text>
-        <Text style={styles.countLabel}>USERS</Text>
+        <Pressable
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`Open room roster, ${roster.length} listeners in the room`}
+          style={({ pressed }) => [styles.countPill, pressed && styles.countPillPressed]}
+        >
+          <Text style={styles.countNumber}>{roster.length}</Text>
+        </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrap: {
     marginHorizontal: tacticalTokens.spacing.xl,
-    marginTop: tacticalTokens.spacing.md,
-    flexDirection: 'row',
-    alignItems: 'stretch',
+    marginTop: tacticalTokens.spacing.xs,
   },
-  pressed: {
-    opacity: 0.84,
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   avatarRow: {
     flexDirection: 'row',
     gap: tacticalTokens.spacing.xs,
-    minHeight: 56,
+    minHeight: 38,
+    flex: 1,
   },
   avatarBlock: {
-    width: 56,
-    height: 56,
+    width: 38,
+    height: 38,
     borderWidth: 1,
     borderRadius: tacticalTokens.radius.sharp,
     overflow: 'hidden',
     backgroundColor: tacticalTokens.colors.matte,
   },
-  ghostBlock: {
-    width: 56,
-    height: 56,
+  overflowBlock: {
+    minWidth: 38,
+    height: 38,
     borderWidth: 1,
     borderRadius: tacticalTokens.radius.sharp,
-    borderColor: tacticalTokens.colors.borderSoft,
-    backgroundColor: 'rgba(17, 17, 17, 0.45)',
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: '#111111',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: tacticalTokens.spacing.xs,
   },
   avatarImage: {
     width: '100%',
     height: '100%',
-    opacity: 0.7,
+    opacity: 0.66,
   },
   avatarImageScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    backgroundColor: 'rgba(0, 0, 0, 0.32)',
   },
   avatarFallback: {
     flex: 1,
@@ -144,32 +161,41 @@ const styles = StyleSheet.create({
   },
   avatarInitials: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.small,
+    fontSize: tacticalTokens.fontSize.micro,
     color: tacticalTokens.colors.white,
     letterSpacing: 1,
   },
   activeOverlay: {
     ...StyleSheet.absoluteFillObject,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: tacticalTokens.colors.ice,
     borderRadius: tacticalTokens.radius.sharp,
   },
-  countBlock: {
-    width: 52,
-    marginLeft: tacticalTokens.spacing.sm,
-    alignItems: 'flex-end',
+  overflowText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textDim,
+    letterSpacing: 1,
+  },
+  countPill: {
+    minWidth: 38,
+    height: 38,
+    marginLeft: tacticalTokens.spacing.xs,
+    paddingHorizontal: tacticalTokens.spacing.xs + 2,
+    alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+  },
+  countPillPressed: {
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: '#141414',
   },
   countNumber: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.label,
-    color: tacticalTokens.colors.white,
-  },
-  countLabel: {
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.sys,
-    letterSpacing: 1.5,
-    color: tacticalTokens.colors.textDim,
+    fontSize: tacticalTokens.fontSize.body,
+    color: tacticalTokens.colors.textSoft,
   },
 });
 

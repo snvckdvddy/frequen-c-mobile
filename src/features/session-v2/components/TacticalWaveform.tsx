@@ -60,7 +60,9 @@ export function TacticalWaveform({
                     ? tacticalTokens.colors.orange
                     : isActive
                       ? tacticalTokens.colors.white
-                      : '#333333',
+                      : idle
+                        ? '#292929'
+                        : '#333333',
                 },
               ]}
             />
@@ -69,8 +71,8 @@ export function TacticalWaveform({
       </View>
 
       <View style={styles.timeRow}>
-        <Text style={styles.timeText}>{formatTime(elapsed)}</Text>
-        <Text style={styles.timeText}>-{formatTime(remaining)}</Text>
+        <Text style={[styles.timeText, idle && styles.timeTextIdle]}>{formatTime(elapsed)}</Text>
+        <Text style={[styles.timeText, idle && styles.timeTextIdle]}>-{formatTime(remaining)}</Text>
       </View>
     </View>
   );
@@ -78,15 +80,15 @@ export function TacticalWaveform({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: tacticalTokens.spacing.md,
+    marginTop: tacticalTokens.spacing.xs + 2,
     marginHorizontal: tacticalTokens.spacing.xl,
-    paddingTop: tacticalTokens.spacing.xs,
+    paddingTop: 2,
   },
   idleContainer: {
-    marginTop: tacticalTokens.spacing.xs,
+    marginTop: 1,
   },
   waveRow: {
-    height: 42,
+    height: 36,
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 1,
@@ -96,7 +98,7 @@ const styles = StyleSheet.create({
     minWidth: 4,
   },
   timeRow: {
-    marginTop: 2,
+    marginTop: 1,
     paddingTop: 2,
     borderTopWidth: 1,
     borderTopColor: tacticalTokens.colors.borderSoft,
@@ -107,6 +109,9 @@ const styles = StyleSheet.create({
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.small,
     color: tacticalTokens.colors.acid,
+  },
+  timeTextIdle: {
+    color: '#6E6E6E',
   },
 });
 

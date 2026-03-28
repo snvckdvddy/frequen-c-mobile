@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Alert } from "react-native";
 import { useAuth } from "../contexts/AuthContext";
 import { useActiveSession } from "../contexts/ActiveSessionContext";
 import { useCV } from "../hooks/useCV";
 import { tapMedium, tapLight, tapHeavy } from "../utils/haptics";
+import { showToast } from "../components/ui";
 import type { ToastMessage } from "../components/ListenerPresence";
 import type {
   Session,
@@ -92,9 +92,11 @@ export function useSessionRoom(sessionId: string) {
   const [suggestedQueue, setSuggestedQueue] = useState<QueueTrack[]>([]);
   const [playedHistory, setPlayedHistory] = useState<QueueTrack[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [listeners, setListeners] = useState<Listener[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [playback, setPlayback] = useState<PlaybackState>(DEFAULT_PLAYBACK_STATE);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   // Master Bounce (session receipt)
   const [bounceVisible, setBounceVisible] = useState(false);
@@ -215,6 +217,7 @@ export function useSessionRoom(sessionId: string) {
       setPlayedHistory([]);
       setListeners([]);
       setToasts([]);
+      setError(null);
       setBounceVisible(false);
       setSkipVoteState(null);
       setPhaseCancelShield(null);
@@ -233,6 +236,7 @@ export function useSessionRoom(sessionId: string) {
 
     async function init() {
       try {
+        setError(null);
         const { session: s } = await sessionApi.get(sessionId);
         if (!mounted) return;
         setSession(s);
@@ -412,8 +416,14 @@ export function useSessionRoom(sessionId: string) {
           joinSession(sessionId, user.id, user.username);
         }
       } catch (err: any) {
-        Alert.alert("Error", err.message || "Could not load session.");
-        // If an Error occurs, caller should handle navigation
+        const message = err?.message || "Could not load session.";
+        if (!mounted) return;
+        setError(message);
+        const isTransientInfraError =
+          /request timed out|connection error: timeout|\[socket\]/i.test(message);
+        if (!isTransientInfraError) {
+          showToast(message, "error", "!");
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -427,7 +437,7 @@ export function useSessionRoom(sessionId: string) {
       if (user) leaveSession(sessionId, user.id);
       clearActiveSession();
     };
-  }, [sessionId]);
+  }, [sessionId, reloadNonce]);
 
   // ─── Mock socket listeners (behavior-aware via queueEngine) ──
   useEffect(() => {
@@ -622,6 +632,8 @@ export function useSessionRoom(sessionId: string) {
     setPlayedHistory,
     loading,
     setLoading,
+    error,
+    setError,
     listeners,
     setListeners,
     toasts,
@@ -634,6 +646,11 @@ export function useSessionRoom(sessionId: string) {
     setSkipVoteState,
     phaseCancelShield,
     setPhaseCancelShield,
+    retrySession: () => {
+      setLoading(true);
+      setError(null);
+      setReloadNonce((prev) => prev + 1);
+    },
     advanceQueue,
   };
 }

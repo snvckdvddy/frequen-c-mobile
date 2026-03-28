@@ -10,6 +10,7 @@ export interface PowerMove {
   cost: number;
   description: string;
   variant: 'acid' | 'ice' | 'hotPink';
+  disabled?: boolean;
 }
 
 const DEFAULT_MOVES: PowerMove[] = [
@@ -82,12 +83,14 @@ export function PowerRoutingSheet({
             {moves.map((move) => {
               const c = getVariantColors(move.variant);
               const canAfford = voltage >= move.cost;
+              const isDisabled = move.disabled || !canAfford;
               return (
                 <View
                   key={move.id}
                   style={[
                     styles.move,
                     move.id === 'overdrive' && styles.moveOverdrive,
+                    isDisabled && styles.moveDisabled,
                     { borderColor: move.id === 'overdrive' ? c.accent : tacticalTokens.colors.border },
                   ]}
                 >
@@ -100,17 +103,17 @@ export function PowerRoutingSheet({
                   </View>
                   <Pressable
                     onPress={() => onExecute?.(move.id)}
-                    disabled={!canAfford}
+                    disabled={isDisabled}
                     style={({ pressed }) => [
                       styles.execBtn,
-                      { backgroundColor: canAfford ? c.accent : '#1A1A1A' },
-                      pressed && canAfford && styles.pressed,
+                      { backgroundColor: isDisabled ? '#1A1A1A' : c.accent },
+                      pressed && !isDisabled && styles.pressed,
                     ]}
                     accessibilityRole="button"
                     accessibilityLabel={`Execute ${move.name}`}
-                    accessibilityState={{ disabled: !canAfford }}
+                    accessibilityState={{ disabled: isDisabled }}
                   >
-                    <Text style={[styles.execText, { color: canAfford ? tacticalTokens.colors.void : tacticalTokens.colors.textDim }]}>
+                    <Text style={[styles.execText, { color: isDisabled ? tacticalTokens.colors.textDim : tacticalTokens.colors.void }]}>
                       EXEC
                     </Text>
                   </Pressable>
@@ -198,6 +201,9 @@ const styles = StyleSheet.create({
   moveOverdrive: {
     borderLeftWidth: 6,
     borderLeftColor: tacticalTokens.colors.hotPink,
+  },
+  moveDisabled: {
+    opacity: 0.52,
   },
   costBox: {
     width: 48,

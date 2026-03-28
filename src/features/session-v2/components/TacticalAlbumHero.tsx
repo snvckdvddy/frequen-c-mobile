@@ -1,10 +1,10 @@
 import React from 'react';
 import {
-  Dimensions,
   Image,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import type { QueueTrack } from '../../../types';
 import type { TacticalReadoutValues } from '../types';
@@ -12,31 +12,34 @@ import TacticalLCDOverlay from './TacticalLCDOverlay';
 import TacticalGridBackground from './TacticalGridBackground';
 import { tacticalTokens } from '../theme/tacticalTokens';
 
-const HERO_SIZE = Math.min(Dimensions.get('window').width - 56, 320);
-
 interface TacticalAlbumHeroProps {
   track: QueueTrack | null;
   readout: TacticalReadoutValues;
 }
 
 export function TacticalAlbumHero({ track, readout }: TacticalAlbumHeroProps) {
+  const { width } = useWindowDimensions();
+  const compact = width < 390;
   const idle = !track;
+  const heroSize = Math.min(width - (compact ? 48 : 56), compact ? 292 : 308);
 
   return (
-    <View style={styles.wrap}>
-      <View style={[styles.frame, idle && styles.idleFrame]}>
+    <View style={[styles.wrap, compact && styles.wrapCompact]} pointerEvents="none" accessible={false}>
+      <View style={[styles.frame, { width: heroSize, height: heroSize }]}>
         {track?.albumArt ? (
           <Image source={{ uri: track.albumArt }} style={styles.art} />
         ) : (
           <View style={styles.placeholder}>
             <TacticalGridBackground opacity={0.85} />
-            <Text style={styles.placeholderText}>NO SIGNAL</Text>
-            <Text style={styles.placeholderSubtext}>PATCH A TRACK TO PRIME OUTPUT</Text>
+            <View style={styles.idlePlate}>
+              <Text style={styles.placeholderText}>OUTPUT IDLE</Text>
+              <Text style={styles.placeholderSubtext}>PATCH A TRACK TO PRIME OUTPUT</Text>
+            </View>
           </View>
         )}
 
-        <View style={styles.overlay}>
-          <TacticalLCDOverlay values={readout} />
+        <View style={[styles.overlay, compact && styles.overlayCompact]}>
+          <TacticalLCDOverlay values={readout} dimmed={idle} />
         </View>
       </View>
     </View>
@@ -46,20 +49,19 @@ export function TacticalAlbumHero({ track, readout }: TacticalAlbumHeroProps) {
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
-    marginTop: tacticalTokens.spacing.sm,
+    marginTop: tacticalTokens.spacing.xs + 2,
     paddingHorizontal: tacticalTokens.spacing.xl,
   },
+  wrapCompact: {
+    marginTop: 4,
+    paddingHorizontal: tacticalTokens.spacing.lg,
+  },
   frame: {
-    width: HERO_SIZE,
-    height: HERO_SIZE,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     borderRadius: tacticalTokens.radius.sharp,
     overflow: 'hidden',
     backgroundColor: tacticalTokens.colors.matte,
-  },
-  idleFrame: {
-    height: Math.round(HERO_SIZE * 0.58),
   },
   art: {
     width: '100%',
@@ -71,23 +73,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  idlePlate: {
+    minWidth: '68%',
+    minHeight: 68,
+    paddingHorizontal: tacticalTokens.spacing.lg,
+    paddingVertical: tacticalTokens.spacing.sm + 2,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   placeholderText: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.label,
-    color: tacticalTokens.colors.acid,
+    fontSize: tacticalTokens.fontSize.body,
+    color: tacticalTokens.colors.textMuted,
     letterSpacing: 2,
   },
   placeholderSubtext: {
-    marginTop: tacticalTokens.spacing.sm,
+    marginTop: tacticalTokens.spacing.xs,
     fontFamily: tacticalTokens.fonts.mono,
     fontSize: tacticalTokens.fontSize.micro,
-    color: tacticalTokens.colors.textDim,
-    letterSpacing: 1.3,
+    color: tacticalTokens.colors.textSoft,
+    letterSpacing: 1.2,
   },
   overlay: {
     position: 'absolute',
     top: tacticalTokens.spacing.xs,
     right: tacticalTokens.spacing.xs,
+  },
+  overlayCompact: {
+    top: 6,
+    right: 6,
   },
 });
 

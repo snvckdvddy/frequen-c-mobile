@@ -1,60 +1,88 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Image,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import type { Track } from '../../types';
+import { OracleModeCard } from '../../components/room/OracleModeCard';
 import TacticalGridBackground from '../session-v2/components/TacticalGridBackground';
 import { tacticalTokens } from '../session-v2/theme/tacticalTokens';
+import type { SearchHudSource } from '../../hooks/useSearch';
+import type { SearchDiagnostics, SearchProviderState } from '../../services/api';
 
-type SourceKey = 'spotify' | 'soundcloud';
+type ProviderKey = SearchHudSource | 'apple' | 'tidal';
+type SearchMode = 'database' | 'oracle';
 
-const SOURCE_META: Record<SourceKey, { label: string; color: string }> = {
-  spotify: { label: 'SPT', color: '#1DB954' },
-  soundcloud: { label: 'SC', color: '#FF5500' },
+const PROVIDER_ORDER: ProviderKey[] = ['spotify', 'soundcloud', 'apple', 'tidal'];
+
+const PROVIDER_META: Record<ProviderKey, { label: string; color: string; status: 'live' | 'soon' }> = {
+  spotify: { label: 'SPT', color: '#1DB954', status: 'live' },
+  soundcloud: { label: 'SC', color: '#FF5500', status: 'live' },
+  apple: { label: 'APL', color: '#F5F5F7', status: 'soon' },
+  tidal: { label: 'TDL', color: '#D8FFF7', status: 'soon' },
 };
 
-function getSourceKey(track: Track): SourceKey | null {
+function isSourceKey(key: ProviderKey): key is SearchHudSource {
+  return key === 'spotify' || key === 'soundcloud';
+}
+
+function getSourceKey(track: Track): SearchHudSource | null {
   if (track.source === 'spotify') return 'spotify';
   if (track.source === 'soundcloud') return 'soundcloud';
   return null;
+}
+
+function getAvailabilitySources(track: Track): SearchHudSource[] {
+  const sources = track.availableSources || [track.source];
+  return sources.filter((source): source is SearchHudSource => source === 'spotify' || source === 'soundcloud');
 }
 
 export interface SearchHudOverlayProps {
   visible: boolean;
   query: string;
   onQueryChange: (value: string) => void;
+  sources: Record<SearchHudSource, boolean>;
+  onSourcesChange: Dispatch<SetStateAction<Record<SearchHudSource, boolean>>>;
   results: Track[];
+  fallbackUsed?: boolean;
+  providerStates: Record<SearchHudSource, SearchProviderState>;
+  diagnostics?: SearchDiagnostics | null;
   isSearching: boolean;
   queuedTrackIds: string[];
   onClose: () => void;
   onPatchTrack: (track: Track) => void;
+  onAddSuggestion?: (title: string, artist: string) => void;
 }
 
 export function SearchHudOverlay({
   visible,
   query,
   onQueryChange,
+  sources,
+  onSourcesChange,
   results,
+  fallbackUsed = false,
+  providerStates,
+  diagnostics,
   isSearching,
   queuedTrackIds,
   onClose,
   onPatchTrack,
+  onAddSuggestion,
 }: SearchHudOverlayProps) {
-  const [sources, setSources] = useState<Record<SourceKey, boolean>>({
-    spotify: true,
-    soundcloud: true,
-  });
+  const [searchMode, setSearchMode] = useState<SearchMode>('database');
   const [patchedId, setPatchedId] = useState<string | null>(null);
+  const activeSourceCount = Object.values(sources).filter(Boolean).length;
+  const isDevRuntime = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
 
   const filtered = useMemo(() => {
     return results.filter((t) => {
@@ -64,8 +92,90 @@ export function SearchHudOverlay({
     });
   }, [results, sources]);
 
-  const toggleSource = (key: SourceKey) => {
-    setSources((prev) => ({ ...prev, [key]: !prev[key] }));
+  const providerIssues = useMemo(() => {
+    if (!diagnostics || !query.trim()) {
+      return [] as Array<{ source: SearchHudSource; message: string }>;
+    }
+
+    return (['spotify', 'soundcloud'] as const)
+      .filter((source) => sources[source] && diagnostics.providers[source].state === 'error')
+      .map((source) => {
+        const diagnostic = diagnostics.providers[source];
+        let message = diagnostic.message || 'Search unavailable.';
+
+        if (diagnostic.code === 'APP_SUBSCRIPTION_REQUIRED') {
+          message = 'Spotify Development Mode is blocking search. The app owner account needs Premium, or the app needs Extended Access.';
+        } else if (diagnostic.code === 'TOKEN_EXPIRED') {
+          message = `${PROVIDER_META[source].label} token expired. Reconnect this provider.`;
+        } else if (diagnostic.code === 'UPSTREAM_AUTH_ERROR' || diagnostic.code === 'ENDPOINT_AUTH_ERROR') {
+          message = `${PROVIDER_META[source].label} rejected the stored auth during live search.`;
+        } else if (diagnostic.code === 'BACKEND_CONFIG_MISSING') {
+          message = `${PROVIDER_META[source].label} backend config is incomplete.`;
+        } else if (diagnostic.code === 'NETWORK_ERROR') {
+          message = `${PROVIDER_META[source].label} search could not reach the backend.`;
+        }
+
+        return { source, message };
+      });
+  }, [diagnostics, query, sources]);
+
+  const getProviderStatusLabel = (key: ProviderKey) => {
+    if (!isSourceKey(key)) {
+      return 'SOON';
+    }
+
+    if (!sources[key]) {
+      return 'OFF';
+    }
+
+    if (!query.trim()) {
+      if (providerStates[key] === 'unpatched') {
+        return 'UNPATCHED';
+      }
+      if (providerStates[key] === 'error') {
+        return 'UNAVAILABLE';
+      }
+      return diagnostics?.authSnapshot[key]?.connected ? 'CONNECTED' : 'READY';
+    }
+
+    if (providerStates[key] === 'unpatched') {
+      return 'UNPATCHED';
+    }
+
+    if (providerStates[key] === 'off') {
+      return 'READY';
+    }
+
+    const state = providerStates[key];
+    if (state === 'direct') return 'DIRECT';
+    if (state === 'empty') return 'NO MATCH';
+    if (state === 'error') {
+      const diagnosticCode = diagnostics?.providers[key]?.code;
+      if (diagnosticCode === 'APP_SUBSCRIPTION_REQUIRED') return 'BLOCKED';
+      if (diagnosticCode === 'TOKEN_EXPIRED') return 'RECONNECT';
+      return 'UNAVAILABLE';
+    }
+    return 'READY';
+  };
+
+  useEffect(() => {
+    if (!isDevRuntime || !query.trim() || searchMode !== 'database') {
+      return;
+    }
+
+    console.log(`[SearchTruth][hud] ${JSON.stringify({
+      query,
+      renderedLabels: {
+        spotify: getProviderStatusLabel('spotify'),
+        soundcloud: getProviderStatusLabel('soundcloud'),
+      },
+      providerStates,
+      diagnostics,
+    })}`);
+  }, [diagnostics, isDevRuntime, providerStates, query, searchMode, sources.spotify, sources.soundcloud]);
+
+  const toggleSource = (key: SearchHudSource) => {
+    onSourcesChange((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handlePatch = (track: Track) => {
@@ -78,8 +188,8 @@ export function SearchHudOverlay({
   };
 
   const renderRow = ({ item }: { item: Track }) => {
-    const sourceKey = getSourceKey(item);
-    const source = sourceKey ? SOURCE_META[sourceKey] : null;
+    const isOpenCatalog = item.resultOrigin === 'open' || getSourceKey(item) === null;
+    const availabilitySources = getAvailabilitySources(item);
     const inQueue = queuedTrackIds.includes(item.id) || (item.sourceId ? queuedTrackIds.includes(item.sourceId) : false);
     const isPatched = patchedId === item.id;
 
@@ -94,7 +204,7 @@ export function SearchHudOverlay({
           pressed && !inQueue && !isPatched && styles.pressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={inQueue ? `${item.title} already in queue` : `Patch ${item.title} by ${item.artist}`}
+        accessibilityLabel={inQueue ? `${item.title} already in queue` : `Add ${item.title} by ${item.artist}`}
       >
         <View style={styles.trackArt}>
           {item.albumArt ? <Image source={{ uri: item.albumArt }} style={styles.trackArtImg} /> : null}
@@ -109,15 +219,31 @@ export function SearchHudOverlay({
           </Text>
         </View>
 
-        {source ? (
-          <View style={[styles.sourceBadge, { borderColor: source.color }]}>
-            <Text style={[styles.sourceBadgeText, { color: source.color }]}>{source.label}</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.costCell}>
-          <Text style={[styles.costText, (isPatched || !inQueue) && styles.costTextActive]}>
-            {inQueue ? 'IN QUEUE' : isPatched ? 'PATCHED ✓' : '-5V'}
+        <View style={styles.trackRail}>
+          {availabilitySources.length > 0 || isOpenCatalog ? (
+            <View style={styles.tagCluster}>
+              {availabilitySources.map((availabilitySource) => {
+                const meta = PROVIDER_META[availabilitySource];
+                return (
+                  <View
+                    key={`${item.id}-${availabilitySource}`}
+                    style={[styles.tagBadge, { borderColor: meta.color, backgroundColor: `${meta.color}10` }]}
+                  >
+                    <Text style={[styles.tagBadgeText, { color: meta.color }]}>{meta.label}</Text>
+                  </View>
+                );
+              })}
+              {isOpenCatalog ? (
+                <View style={styles.originChip}>
+                  <Text style={styles.originChipText}>OPEN</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : (
+            <View style={styles.tagClusterSpacer} />
+          )}
+          <Text style={[styles.costText, styles.costTextActive]}>
+            {inQueue ? 'IN QUEUE' : isPatched ? 'ADDED ✓' : 'ADD'}
           </Text>
         </View>
       </Pressable>
@@ -127,8 +253,7 @@ export function SearchHudOverlay({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
-        <TacticalGridBackground opacity={0.35} />
+        <TacticalGridBackground opacity={0.12} />
 
         <View style={styles.panel}>
           <View style={styles.header}>
@@ -142,64 +267,176 @@ export function SearchHudOverlay({
           </View>
 
           <View style={styles.inputZone}>
-            <View style={styles.searchBar}>
-              <View style={styles.cursor} />
-              <TextInput
-                value={query}
-                onChangeText={onQueryChange}
-                placeholder="TYPE TO SEARCH"
-                placeholderTextColor={tacticalTokens.colors.textDim}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                selectionColor={tacticalTokens.colors.white}
-                style={styles.searchInput}
-                returnKeyType="search"
-              />
-            </View>
-
-            <View style={styles.sourceRow}>
-              {(['spotify', 'soundcloud'] as const).map((key) => {
-                const meta = SOURCE_META[key];
-                const active = sources[key];
+            <View style={styles.modeRow}>
+              {([
+                ['database', 'DATABASE'],
+                ['oracle', 'ORACLE'],
+              ] as const).map(([mode, label]) => {
+                const active = searchMode === mode;
                 return (
                   <Pressable
-                    key={key}
-                    onPress={() => toggleSource(key)}
+                    key={mode}
+                    onPress={() => setSearchMode(mode)}
                     style={({ pressed }) => [
-                      styles.sourceBtn,
-                      active && { borderColor: meta.color, backgroundColor: `${meta.color}22` },
+                      styles.modeBtn,
+                      active && styles.modeBtnActive,
                       pressed && styles.pressed,
                     ]}
                   >
-                    <View style={[styles.sourceDot, { backgroundColor: active ? meta.color : tacticalTokens.colors.textDim }]} />
-                    <Text style={[styles.sourceText, active && { color: meta.color }]}>{`[ ${meta.label} ]`}</Text>
+                    <Text style={[styles.modeText, active && styles.modeTextActive]}>{label}</Text>
                   </Pressable>
                 );
               })}
             </View>
-          </View>
 
-          <View style={styles.resultsHeader}>
-            <Text style={styles.resultsLabel}>TOP RESULTS ( -5V COST )</Text>
-          </View>
-
-          {isSearching ? (
-            <View style={styles.loading}>
-              <ActivityIndicator color={tacticalTokens.colors.acid} />
-            </View>
-          ) : (
-            <FlatList
-              data={filtered}
-              keyExtractor={(t) => t.id}
-              renderItem={renderRow}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.results}
-              ListEmptyComponent={
-                <View style={styles.empty}>
-                  <Text style={styles.emptyText}>NO MATCHES // REFINE QUERY</Text>
+            {searchMode === 'database' ? (
+              <>
+                <View style={styles.searchBar}>
+                  <View style={styles.cursor} />
+                  <TextInput
+                    value={query}
+                    onChangeText={onQueryChange}
+                    placeholder="TYPE TO SEARCH"
+                    placeholderTextColor={tacticalTokens.colors.textDim}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    selectionColor={tacticalTokens.colors.white}
+                    style={styles.searchInput}
+                    returnKeyType="search"
+                  />
                 </View>
-              }
-            />
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.sourceRow}
+                >
+                  {PROVIDER_ORDER.map((key) => {
+                    const meta = PROVIDER_META[key];
+                    const active = isSourceKey(key) ? sources[key] : false;
+                    const interactive = isSourceKey(key);
+                    return (
+                      <Pressable
+                        key={key}
+                        onPress={() => {
+                          if (!interactive) return;
+                          toggleSource(key);
+                        }}
+                        disabled={!interactive}
+                        style={({ pressed }) => [
+                          styles.providerBtn,
+                          interactive && styles.providerBtnLive,
+                          active && { borderColor: meta.color, backgroundColor: `${meta.color}22` },
+                          interactive &&
+                            (providerStates[key as SearchHudSource] === 'error' ||
+                              providerStates[key as SearchHudSource] === 'unpatched') &&
+                            styles.providerBtnOffline,
+                          !interactive && styles.providerBtnSoon,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <View style={styles.providerBtnTop}>
+                          <View
+                            style={[
+                              styles.sourceDot,
+                              { backgroundColor: active || !interactive ? meta.color : tacticalTokens.colors.textDim },
+                            ]}
+                          />
+                          <Text style={[styles.sourceText, (active || !interactive) && { color: meta.color }]}>
+                            {`[ ${meta.label} ]`}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.providerStateText,
+                            !interactive && [styles.providerStateTextSoon, { color: meta.color }],
+                            interactive &&
+                              (providerStates[key as SearchHudSource] === 'error' ||
+                                providerStates[key as SearchHudSource] === 'unpatched') &&
+                              styles.providerStateTextOffline,
+                          ]}
+                        >
+                          {getProviderStatusLabel(key)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            ) : (
+              <View style={styles.oracleWrap}>
+                <OracleModeCard
+                  preferredSources={(Object.entries(sources) as Array<[SearchHudSource, boolean]>)
+                    .filter(([, enabled]) => enabled)
+                    .map(([source]) => source)}
+                  onAddResolvedTrack={onPatchTrack}
+                  onAddTrack={(title, artist) => {
+                    onAddSuggestion?.(title, artist);
+                  }}
+                />
+              </View>
+            )}
+          </View>
+
+          {searchMode === 'database' && (
+            <>
+              <View style={styles.resultsHeader}>
+                <Text style={styles.resultsLabel}>TOP RESULTS</Text>
+              </View>
+
+              {fallbackUsed && query.trim().length > 0 && filtered.length > 0 ? (
+                <View style={styles.fallbackBanner}>
+                  <Text style={styles.fallbackBannerText}>
+                    {filtered.some((track) => track.resultOrigin === 'direct')
+                      ? 'DIRECT + OPEN CATALOG RESULTS'
+                      : 'OPEN CATALOG FALLBACK ACTIVE'}
+                  </Text>
+                </View>
+              ) : null}
+
+              {providerIssues.map((issue) => (
+                <View key={issue.source} style={styles.issueBanner}>
+                  <Text style={styles.issueBannerText}>{issue.message}</Text>
+                </View>
+              ))}
+
+              {isDevRuntime && query.trim().length > 0 && diagnostics ? (
+                <View style={styles.debugPanel}>
+                  <Text style={styles.debugTitle}>TRUTH PATH</Text>
+                  {(['spotify', 'soundcloud'] as const).map((source) => {
+                    const providerDebug = diagnostics.providers[source];
+                    return (
+                      <Text key={source} style={styles.debugLine}>
+                        {`${PROVIDER_META[source].label} CONN:${providerDebug.connected ? 'Y' : 'N'} HTTP:${providerDebug.httpStatus ?? '-'} UP:${providerDebug.upstreamStatus ?? '-'} STATE:${providerDebug.state.toUpperCase()} CODE:${providerDebug.code}`}
+                      </Text>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              {isSearching ? (
+                <View style={styles.loading}>
+                  <ActivityIndicator color={tacticalTokens.colors.acid} />
+                </View>
+              ) : (
+                <FlatList
+                  data={filtered}
+                  keyExtractor={(t) => t.id}
+                  renderItem={renderRow}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.results}
+                  ListEmptyComponent={
+                    <View style={styles.empty}>
+                      <Text style={styles.emptyText}>
+                        {activeSourceCount === 0
+                          ? 'ARM A LIVE PROVIDER // ENABLE SPT OR SC'
+                          : 'NO MATCHES // REFINE QUERY'}
+                      </Text>
+                    </View>
+                  }
+                />
+              )}
+            </>
           )}
 
           <View style={styles.keyboardMock}>
@@ -216,13 +453,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: tacticalTokens.spacing.xl,
-    backgroundColor: 'rgba(0,0,0,0.25)',
+    backgroundColor: 'rgba(0,0,0,0.94)',
   },
   panel: {
-    height: '88%',
+    height: '90%',
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: '#030303',
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -231,7 +469,7 @@ const styles = StyleSheet.create({
     padding: tacticalTokens.spacing.xl,
     borderBottomWidth: 1,
     borderBottomColor: tacticalTokens.colors.border,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: '#050505',
   },
   hTitle: {
     fontFamily: tacticalTokens.fonts.display,
@@ -258,11 +496,39 @@ const styles = StyleSheet.create({
     borderRadius: tacticalTokens.radius.sharp,
   },
   inputZone: {
-    padding: tacticalTokens.spacing.xl,
-    gap: tacticalTokens.spacing.md,
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingTop: tacticalTokens.spacing.lg,
+    paddingBottom: tacticalTokens.spacing.md,
+    gap: tacticalTokens.spacing.sm,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: tacticalTokens.spacing.sm,
+  },
+  modeBtn: {
+    flex: 1,
+    minHeight: 38,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeBtnActive: {
+    borderColor: tacticalTokens.colors.white,
+    backgroundColor: tacticalTokens.colors.white,
+  },
+  modeText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 10,
+    color: tacticalTokens.colors.textDim,
+    letterSpacing: 1.4,
+  },
+  modeTextActive: {
+    color: tacticalTokens.colors.void,
   },
   searchBar: {
-    minHeight: 52,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 2,
@@ -287,32 +553,62 @@ const styles = StyleSheet.create({
   },
   sourceRow: {
     flexDirection: 'row',
-    gap: tacticalTokens.spacing.sm,
+    gap: tacticalTokens.spacing.xs,
+    paddingRight: tacticalTokens.spacing.sm,
   },
-  sourceBtn: {
-    flex: 1,
+  providerBtn: {
     minHeight: 40,
+    minWidth: 78,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.matte,
+    paddingHorizontal: tacticalTokens.spacing.xs + 2,
+    paddingVertical: tacticalTokens.spacing.xs - 1,
+    justifyContent: 'center',
+    gap: 2,
+  },
+  providerBtnLive: {
+    backgroundColor: tacticalTokens.colors.matte,
+  },
+  providerBtnOffline: {
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+  },
+  providerBtnSoon: {
+    opacity: 0.62,
+  },
+  providerBtnTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: tacticalTokens.spacing.sm,
+    gap: tacticalTokens.spacing.xs,
   },
   sourceDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
   },
   sourceText: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: 10,
+    fontSize: 9,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.2,
+  },
+  providerStateText: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: 6.5,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 0.9,
+    textAlign: 'center',
+  },
+  providerStateTextSoon: {
+    color: tacticalTokens.colors.textSoft,
+  },
+  providerStateTextOffline: {
     color: tacticalTokens.colors.textDim,
-    letterSpacing: 1.4,
   },
   resultsHeader: {
     paddingHorizontal: tacticalTokens.spacing.xl,
-    paddingBottom: tacticalTokens.spacing.sm,
+    paddingBottom: tacticalTokens.spacing.xs + 2,
   },
   resultsLabel: {
     fontFamily: tacticalTokens.fonts.monoBold,
@@ -323,25 +619,81 @@ const styles = StyleSheet.create({
     borderBottomColor: tacticalTokens.colors.border,
     paddingBottom: tacticalTokens.spacing.xs,
   },
+  fallbackBanner: {
+    marginHorizontal: tacticalTokens.spacing.xl,
+    marginBottom: tacticalTokens.spacing.xs + 2,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: tacticalTokens.spacing.xs + 2,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+  },
+  fallbackBannerText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 8,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 0.9,
+  },
+  issueBanner: {
+    marginHorizontal: tacticalTokens.spacing.xl,
+    marginBottom: tacticalTokens.spacing.xs + 2,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: tacticalTokens.spacing.xs + 2,
+    borderWidth: 1,
+    borderColor: '#5C3024',
+    backgroundColor: 'rgba(92, 48, 36, 0.26)',
+  },
+  issueBannerText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 8,
+    color: '#F8C5B3',
+    letterSpacing: 0.6,
+  },
+  debugPanel: {
+    marginHorizontal: tacticalTokens.spacing.xl,
+    marginBottom: tacticalTokens.spacing.xs + 2,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: tacticalTokens.spacing.xs + 2,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: '#060606',
+    gap: 2,
+  },
+  debugTitle: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 8,
+    color: tacticalTokens.colors.acid,
+    letterSpacing: 1,
+  },
+  debugLine: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: 7,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 0.6,
+  },
   loading: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  oracleWrap: {
+    minHeight: 320,
   },
   results: {
     paddingHorizontal: tacticalTokens.spacing.xl,
     paddingBottom: tacticalTokens.spacing.xl,
   },
   trackRow: {
-    minHeight: 64,
+    minHeight: 50,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.void,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: tacticalTokens.spacing.sm,
-    gap: tacticalTokens.spacing.md,
-    marginTop: tacticalTokens.spacing.sm,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingVertical: tacticalTokens.spacing.xs - 1,
+    gap: tacticalTokens.spacing.xs + 2,
+    marginTop: tacticalTokens.spacing.xs + 1,
   },
   trackRowDisabled: {
     opacity: 0.55,
@@ -351,8 +703,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(57, 255, 20, 0.10)',
   },
   trackArt: {
-    width: 48,
-    height: 48,
+    width: 38,
+    height: 38,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.matte,
@@ -368,36 +720,67 @@ const styles = StyleSheet.create({
   },
   trackTitle: {
     fontFamily: tacticalTokens.fonts.display,
-    fontSize: 14,
+    fontSize: 11,
     color: tacticalTokens.colors.white,
     textTransform: 'uppercase',
   },
   trackArtist: {
-    marginTop: 2,
+    marginTop: 1,
     fontFamily: tacticalTokens.fonts.mono,
-    fontSize: 10,
-    color: tacticalTokens.colors.textDim,
+    fontSize: 7,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 0.4,
   },
-  sourceBadge: {
-    borderWidth: 1,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: tacticalTokens.radius.sharp,
-  },
-  sourceBadgeText: {
-    fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: 9,
-    letterSpacing: 1.2,
-  },
-  costCell: {
-    width: 76,
+  trackRail: {
+    width: 72,
     alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    alignSelf: 'stretch',
+    paddingVertical: 1,
+  },
+  tagCluster: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 3,
+    minHeight: 15,
+  },
+  tagClusterSpacer: {
+    minHeight: 15,
+  },
+  tagBadge: {
+    borderWidth: 1,
+    minWidth: 20,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagBadgeText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 6,
+    letterSpacing: 0.7,
+  },
+  originChip: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.borderGhost,
+    backgroundColor: tacticalTokens.colors.matteGhost,
+    minWidth: 24,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+    alignItems: 'center',
+  },
+  originChipText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 5.5,
+    letterSpacing: 0.6,
+    color: tacticalTokens.colors.textMuted,
   },
   costText: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: 10,
+    fontSize: 8,
     color: tacticalTokens.colors.textDim,
-    letterSpacing: 1.1,
+    letterSpacing: 0.9,
   },
   costTextActive: {
     color: tacticalTokens.colors.ice,
@@ -417,7 +800,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   keyboardMock: {
-    height: 120,
+    height: 72,
     borderTopWidth: 1,
     borderTopColor: tacticalTokens.colors.border,
     backgroundColor: '#0A0A0A',
