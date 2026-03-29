@@ -205,8 +205,12 @@ export async function loadTrack(
     emitProgress();
     startTimerFallback(trackId, durationSec);
   } else {
-    // No preview URL — timer simulation for mock data
-    startTimerFallback(trackId, durationSec);
+    // No preview URL — signal error instead of silently faking playback.
+    // Timer fallback only exists for mock/demo data; real tracks with no URL
+    // should surface a visible error so the user knows what happened.
+    console.log('[PlaybackEngine] No audio URL available — skipping timer fallback');
+    state = { ...state, isLoading: false, error: 'No audio available' };
+    emitProgress();
   }
 }
 

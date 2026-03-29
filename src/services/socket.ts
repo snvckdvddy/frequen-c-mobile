@@ -15,10 +15,10 @@ import { USE_MOCKS, SOCKET_URL } from './config';
 // ─── Mock Event Bus ─────────────────────────────────────────
 // Simple pub/sub for local mock events.
 
-type MockHandler = (...args: any[]) => void;
+type MockHandler = (...args: unknown[]) => void;
 const mockListeners: Map<string, Set<MockHandler>> = new Map();
 
-function mockEmit(event: string, ...args: any[]) {
+function mockEmit(event: string, ...args: unknown[]) {
   const handlers = mockListeners.get(event);
   if (handlers) {
     handlers.forEach((fn) => fn(...args));
@@ -99,7 +99,7 @@ export async function connectSocket(): Promise<Socket | null> {
 
   socket = io(SOCKET_URL, {
     auth: { token },
-    transports: ['polling', 'websocket'],
+    transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 15,
     reconnectionDelay: 1000,
@@ -436,9 +436,9 @@ export function onSessionEvent<K extends keyof SessionSocketEvents>(
     mockOn(event, handler as MockHandler);
     return () => mockOff(event, handler as MockHandler);
   }
-  socket?.on(event as string, handler as any);
+  socket?.on(event as string, handler as (...args: unknown[]) => void);
   return () => {
-    socket?.off(event as string, handler as any);
+    socket?.off(event as string, handler as (...args: unknown[]) => void);
   };
 }
 
