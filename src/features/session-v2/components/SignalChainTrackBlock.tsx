@@ -1,6 +1,7 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../../../theme/theme';
+import { getSourceColor, getSourceLabel } from '../../../design/tokens/sourceColors';
 import type { SignalChainItem, SignalChainVisualMode } from '../types';
 
 interface SignalChainTrackBlockProps {
@@ -197,9 +198,16 @@ export function SignalChainTrackBlock({
             <Text style={[styles.title, { color: visuals.titleColor }]} numberOfLines={1}>
               {titleLabel}
             </Text>
-            <Text style={[styles.meta, { color: visuals.metaColor }]} numberOfLines={1}>
-              PATCHED BY @{patchedBy}
-            </Text>
+            <View style={styles.metaRow}>
+              <View style={[styles.sourceBadge, { borderColor: getSourceColor(item.track.source) }]}>
+                <Text style={[styles.sourceLabel, { color: getSourceColor(item.track.source) }]}>
+                  {getSourceLabel(item.track.source)}
+                </Text>
+              </View>
+              <Text style={[styles.meta, { color: visuals.metaColor }]} numberOfLines={1}>
+                @{patchedBy}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -330,13 +338,30 @@ const styles = StyleSheet.create({
     color: theme.colors.textPure,
     textTransform: 'uppercase',
   },
-  meta: {
+  metaRow: {
     marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sourceBadge: {
+    borderWidth: 1,
+    borderRadius: 2,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+  sourceLabel: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 7,
+    letterSpacing: 0.8,
+  },
+  meta: {
     fontFamily: theme.fonts.mono,
     fontSize: 8,
     color: theme.colors.textDim,
     textTransform: 'uppercase',
     letterSpacing: 1,
+    flexShrink: 1,
   },
   approvalTower: {
     width: 64,

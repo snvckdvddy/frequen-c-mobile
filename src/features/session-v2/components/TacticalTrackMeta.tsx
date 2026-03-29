@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import type { QueueTrack } from '../../../types';
 import { tacticalTokens } from '../theme/tacticalTokens';
+import { getSourceColor, getSourceLabel } from '../../../design/tokens/sourceColors';
 
 interface TacticalTrackMetaProps {
   track: QueueTrack | null;
@@ -35,7 +36,13 @@ export function TacticalTrackMeta({
         </Text>
         <View style={styles.footerRow}>
           <View style={[styles.patchBadge, compact && styles.patchBadgeCompact, idle && styles.patchBadgeIdle]}>
-            <View style={[styles.patchIndicator, idle && styles.patchIndicatorIdle]} />
+            {!idle && track?.source ? (
+              <View style={[styles.patchIndicator, { backgroundColor: getSourceColor(track.source) }]}>
+                <Text style={styles.sourceTag}>{getSourceLabel(track.source)}</Text>
+              </View>
+            ) : (
+              <View style={[styles.patchIndicator, idle && styles.patchIndicatorIdle]} />
+            )}
             <Text style={[styles.patchLabel, idle && styles.patchLabelIdle]}>
               {idle ? 'PATCH' : 'PATCHED'}
             </Text>
@@ -150,13 +157,22 @@ const styles = StyleSheet.create({
     backgroundColor: tacticalTokens.colors.matteGhost,
   },
   patchIndicator: {
-    width: 10,
+    minWidth: 10,
     height: 10,
     backgroundColor: tacticalTokens.colors.white,
     marginRight: tacticalTokens.spacing.xs + 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   patchIndicatorIdle: {
     backgroundColor: tacticalTokens.colors.textSoft,
+  },
+  sourceTag: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: 6,
+    color: tacticalTokens.colors.void,
+    letterSpacing: 0.5,
+    paddingHorizontal: 2,
   },
   patchLabel: {
     fontFamily: tacticalTokens.fonts.mono,

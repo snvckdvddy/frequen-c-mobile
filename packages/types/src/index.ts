@@ -168,6 +168,12 @@ export interface Track {
   resultOrigin?: 'direct' | 'open';
   /** All services this track was found on during cross-service dedup */
   availableSources?: TrackSource[];
+  /** Beats per minute (from Spotify audio-features or equivalent) */
+  bpm?: number;
+  /** Musical key (e.g. 'Cm', 'F#', Camelot notation) */
+  key?: string;
+  /** Audio format or codec (e.g. 'MP3', 'AAC', 'FLAC') */
+  format?: string;
 }
 
 export interface Reaction {
