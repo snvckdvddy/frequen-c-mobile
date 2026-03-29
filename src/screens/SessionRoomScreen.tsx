@@ -79,6 +79,8 @@ import { QUEUE_ACTIONS, type ContextMenuAction } from '../components/ui/TrackCon
 import { Skeleton, TrackCardSkeleton } from '../components/ui/Skeleton';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { useCV } from '../hooks/useCV';
+import { usePresenceListeners } from '../hooks/usePresenceListeners';
+import { useHostPlaybackEngine } from '../hooks/useHostPlaybackEngine';
 import { useVoltageSag } from '../hooks/useVoltageSag';
 import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
 import PowerRoutingSheet, { type PowerMove, type PowerMoveId } from '../features/power-routing/PowerRoutingSheet';
@@ -381,81 +383,8 @@ export function SessionRoomScreen() {
 
 
 
-  // ─── Listen heartbeat (1 CV per minute of active listening) ──
-  useEffect(() => {
-    if (!sessionId) return;
-    const interval = setInterval(() => {
-      listenHeartbeat(sessionId);
-    }, 60_000); // Every 60 seconds
-    return () => clearInterval(interval);
-  }, [sessionId]);
-
-  // ─── Listener presence (join/leave events) ──────────────
-  useEffect(() => {
-    const unsubs = [
-      onSessionEvent('participant-joined', (participant: Listener) => {
-        setListeners((prev) => {
-          if (prev.some((l) => l.userId === participant.userId)) return prev;
-          return [...prev, participant];
-        });
-        const toast: ToastMessage = {
-          id: `join_${participant.userId}_${Date.now()}`,
-          text: `${participant.username} joined`,
-          type: 'join',
-        };
-        setToasts((prev) => [...prev, toast]);
-        setTimeout(() => {
-          setToasts((prev) => prev.filter((t) => t.id !== toast.id));
-        }, 3000);
-        if (participant.userId !== user?.id && session?.name) {
-          notifyParticipantJoined(participant.username, session.name, sessionId).catch(() => { });
-        }
-      }),
-      onSessionEvent('participant-left', (data: { userId: string }) => {
-        setListeners((prev) => {
-          const leaving = prev.find((l) => l.userId === data.userId);
-          if (leaving) {
-            const toast: ToastMessage = {
-              id: `leave_${data.userId}_${Date.now()}`,
-              text: `${leaving.username} left`,
-              type: 'leave',
-            };
-            setToasts((p) => [...p, toast]);
-            setTimeout(() => {
-              setToasts((p) => p.filter((t) => t.id !== toast.id));
-            }, 3000);
-          }
-          return prev.filter((l) => l.userId !== data.userId);
-        });
-      }),
-    ];
-    return () => unsubs.forEach((fn) => fn());
-  }, []);
-
-  // ─── Mock: simulate someone joining after 5s (mock mode only) ──
-  useEffect(() => {
-    if (!session) return;
-    // Only run fake joiners in mock mode — real server handles participants
-    if (!USE_MOCKS) return;
-    const timer = setTimeout(() => {
-      const mockJoiner: Listener = {
-        userId: 'usr_sim_' + Date.now(),
-        username: ['zara', 'finn', 'rio', 'ivy', 'sage'][Math.floor(Math.random() * 5)],
-      };
-      setListeners((prev) => {
-        if (prev.some((l) => l.username === mockJoiner.username)) return prev;
-        return [...prev, mockJoiner];
-      });
-      const toast: ToastMessage = {
-        id: `join_${mockJoiner.userId}`,
-        text: `${mockJoiner.username} joined`,
-        type: 'join',
-      };
-      setToasts((prev) => [...prev, toast]);
-      setTimeout(() => setToasts((p) => p.filter((t) => t.id !== toast.id)), 3000);
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [session?.id]);
+  // ─── Presence: heartbeat, join/leave events, mock joiner ──
+  usePresenceListeners({ sessionId, userId: user?.id, session, setListeners, setToasts });
 
   useEffect(() => {
     const unsubs = [
@@ -600,48 +529,16 @@ export function SessionRoomScreen() {
 
   // ─── Playback engine ────────────────────────────────────
   // Host-output model: only the host device plays audio and signals track-end.
-  // Non-host devices receive queue/playback state via socket events.
-  // Hoisted here (ahead of "Derived values" section) because playback effects need it.
   const isHost = user?.id === session?.hostId;
 
-  useEffect(() => {
-    if (!isHost) return;
-    const unsub = onProgress((s) => setPlayback(s));
-    return () => { unsub(); stopPlayback(); };
-  }, [setPlayback, isHost]);
-
-  const currentTrackRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!isHost) return;
-
-    const nowPlaying = queue[0] || null;
-    if (nowPlaying && nowPlaying.id !== currentTrackRef.current) {
-      currentTrackRef.current = nowPlaying.id;
-      loadTrack(nowPlaying.id, nowPlaying.duration || 30, nowPlaying.previewUrl, nowPlaying.sourceId, nowPlaying.source);
-      if (user?.connectedServices?.lastfm?.connected) {
-        api.integrations.updateNowPlaying(
-          nowPlaying.title,
-          nowPlaying.artist,
-          nowPlaying.duration,
-        ).catch(() => {});
-      }
-    } else if (!nowPlaying && currentTrackRef.current) {
-      currentTrackRef.current = null;
-      stopPlayback();
-    }
-  }, [queue, isHost, user?.connectedServices?.lastfm?.connected]);
-
-  useEffect(() => {
-    // Only the host signals track-end to the backend. Without this guard,
-    // every connected user would emit 'track-ended', advancing the queue
-    // multiple times per track.
-    if (!isHost) return;
-    const unsub = onTrackEnd(() => {
-      advanceQueue();
-      trackEnded(sessionId);
-    });
-    return unsub;
-  }, [advanceQueue, sessionId, isHost]);
+  useHostPlaybackEngine({
+    isHost: !!isHost,
+    queue,
+    sessionId,
+    setPlayback,
+    advanceQueue,
+    lastfmConnected: !!user?.connectedServices?.lastfm?.connected,
+  });
 
   // ─── Handlers ─────────────────────────────────────────
   // Queueing is intentionally passive/free in Session V2.
