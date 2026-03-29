@@ -61,6 +61,7 @@ export function ServiceSelectorPills({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={styles.scrollView}
       contentContainerStyle={styles.container}
     >
       {SERVICES.map((svc) => {
@@ -122,6 +123,9 @@ export function ServiceSelectorPills({
 // ─── Styles ─────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  scrollView: {
+    flexGrow: 0,  // Prevent stretching to fill flex parent
+  },
   container: {
     flexDirection: 'row',
     paddingHorizontal: 16,
