@@ -30,19 +30,16 @@ import { Text, SafeScreen, RoomModeBadge, ErrorState, showToast } from '../compo
 import { useAuth } from '../contexts/AuthContext';
 import api, { searchApi } from '../services/api';
 import {
-  addToQueue, voteTrack, sendReaction, skipTrack, removeTrack, voteSkip, trackEnded,
+  addToQueue, voteTrack, sendReaction, skipTrack, voteSkip,
   approveTrackEvent, rejectTrackEvent, changeModeEvent, endSessionEvent,
-  updateBehaviors, spendCV, duelVote, submitForecast, phantomPower,
-  overdrive, phaseCancel, listenHeartbeat, joinSession, leaveSession, startForecast, startDuel,
-  onSessionEvent
+  updateBehaviors, joinSession, leaveSession,
 } from '../services/socket';
 import {
   addTrackToQueue, applyVote, skipCurrentTrack, moveTrack as moveTrackEngine,
   approveTrack as approveTrackEngine, rejectTrack as rejectTrackEngine,
 } from '../services/queueEngine';
 import {
-  loadTrack, onProgress, onTrackEnd, stop as stopPlayback,
-  togglePlayPause, type PlaybackState,
+  loadTrack, stop as stopPlayback, togglePlayPause,
 } from '../services/playbackEngine';
 import { USE_MOCKS } from '../services/config';
 import { JoinLeaveToast, ListenerDrawer, type ToastMessage } from '../components/ListenerPresence';
@@ -60,10 +57,7 @@ import { palette } from '../design/tokens/materials';
 import { colors } from '../design/tokens/colors';
 import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
 import { notifyParticipantJoined, notifyTrackChanged } from '../services/notifications';
-import {
-  GameLayerOverlays,
-  type DuelState, type ForecastState, type ResonanceState, type TransientState, type ReverbTailEntry,
-} from '../components/room';
+import { GameLayerOverlays } from '../components/room';
 import type { Session, QueueTrack, Track, RoomMode, Listener, RoomBehaviors } from '../types';
 import { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } from '../types';
 // QueueTrackCard moved to QueueSheet component
@@ -74,6 +68,7 @@ import { ConnectionBanner } from '../components/ConnectionBanner';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useAppState } from '../hooks/useAppState';
 import { getGlobalLimiter } from '../utils/rateLimiter';
+import { logger } from '../utils/logger';
 import { TrackContextMenu } from '../components/ui';
 import { QUEUE_ACTIONS, type ContextMenuAction } from '../components/ui/TrackContextMenu';
 import { Skeleton, TrackCardSkeleton } from '../components/ui/Skeleton';
@@ -265,7 +260,7 @@ export function SessionRoomScreen() {
         showToast(`No match found for ${title} by ${artist}.`, 'warning', '!');
       }
     } catch (err: unknown) {
-      console.warn('[AI Suggestion] Search failed:', err instanceof Error ? err.message : String(err));
+      logger.warn('session', 'AI suggestion search failed', err instanceof Error ? err.message : String(err));
       notifyError();
       showToast('Failed to search suggested track.', 'error', '!');
     }
@@ -299,7 +294,7 @@ export function SessionRoomScreen() {
       tapLight();
       sendReaction(sessionId, trackId, user.id, type);
     } else {
-      console.warn(`Invalid reaction type received: ${type}`);
+      logger.warn('session', `Invalid reaction type received: ${type}`);
     }
   }, [user, sessionId]);
 
@@ -312,7 +307,7 @@ export function SessionRoomScreen() {
     const retryTrack = queue[0];
     if (!retryTrack) return;
     loadTrack(retryTrack.id, retryTrack.duration || 30, retryTrack.previewUrl, retryTrack.sourceId, retryTrack.source).catch((err) => {
-      console.warn('[SessionRoom] Playback retry failed:', err);
+      logger.warn('session', 'Playback retry failed', err);
     });
   }, [queue]);
 
@@ -454,7 +449,7 @@ export function SessionRoomScreen() {
   const handleLeaveRoom = useCallback(() => {
     if (!user || !session) return;
     setLeavePromptOpen(true);
-  }, [user, session, sessionId, navigation, clearActiveSession]);
+  }, [user, session]);
 
   const handleConfirmLeaveRoom = useCallback(() => {
     if (!user || !session) return;

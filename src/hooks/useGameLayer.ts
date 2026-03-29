@@ -532,7 +532,7 @@ export function useGameLayer({
       return;
     }
     setPendingPowerPrompt({ type: 'overdrive', trackId });
-  }, [user, session, sessionId, cv]);
+  }, [user, session, cv]);
 
   const handlePhaseCancel = useCallback(() => {
     if (!user || !session) return;
@@ -543,7 +543,7 @@ export function useGameLayer({
       return;
     }
     setPendingPowerPrompt({ type: 'phase_cancel' });
-  }, [user, session, sessionId, cv]);
+  }, [user, session, cv]);
 
   const handlePowerMove = useCallback((moveType: PowerMoveId) => {
     const track = queue[0];
