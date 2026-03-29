@@ -79,7 +79,7 @@ import { QUEUE_ACTIONS, type ContextMenuAction } from '../components/ui/TrackCon
 import { Skeleton, TrackCardSkeleton } from '../components/ui/Skeleton';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { useCV } from '../hooks/useCV';
-import { useGameLayer, type PendingPowerPrompt } from '../hooks/useGameLayer';
+import { useGameLayer } from '../hooks/useGameLayer';
 import { usePresenceListeners } from '../hooks/usePresenceListeners';
 import { useHostPlaybackEngine } from '../hooks/useHostPlaybackEngine';
 import { useVoltageSag } from '../hooks/useVoltageSag';
@@ -95,7 +95,7 @@ import TacticalWaveform from '../features/session-v2/components/TacticalWaveform
 import TacticalTransportDeck from '../features/session-v2/components/TacticalTransportDeck';
 import TacticalReactionMatrix from '../features/session-v2/components/TacticalReactionMatrix';
 import TacticalSystemPreferencesPanel from '../features/session-v2/components/TacticalSystemPreferencesPanel';
-import TacticalActionPrompt from '../features/session-v2/components/TacticalActionPrompt';
+import SessionRoomPrompts from '../features/session-v2/components/SessionRoomPrompts';
 import SignalChainSheetV2 from '../features/session-v2/components/SignalChainSheetV2';
 import SearchHudOverlay from '../features/search-hud/SearchHudOverlay';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
@@ -804,94 +804,20 @@ export function SessionRoomScreen() {
             />
           )}
 
-          {sharePromptOpen && (
-            <TacticalActionPrompt
-              visible
-              eyebrow="SYS.FREQ // SHARE BUS"
-              title="SHARE ROOM"
-              description="Distribute the room link or open an in-room QR handoff."
-              onClose={() => setSharePromptOpen(false)}
-              actions={[
-                {
-                  label: 'Show QR Code',
-                  description: 'Display the room join code as a tactical QR overlay.',
-                  icon: 'qr-code-outline',
-                  onPress: () => {
-                    setSharePromptOpen(false);
-                    setShowQR(true);
-                  },
-                },
-                {
-                  label: 'Share Link',
-                  description: 'Open the native share sheet with the room deep link.',
-                  icon: 'share-social-outline',
-                  onPress: handleShareLink,
-                },
-              ]}
-            />
-          )}
-
-          {leavePromptOpen && (
-            <TacticalActionPrompt
-              visible
-              eyebrow={user?.id === session.hostId ? 'SYS.FREQ // HOST EXIT' : 'SYS.FREQ // EXIT BUS'}
-              title={user?.id === session.hostId ? 'END SESSION' : 'LEAVE ROOM'}
-              description={
-                user?.id === session.hostId
-                  ? 'This will close the room for everyone and terminate the active session.'
-                  : `Exit "${session.name}" and return to the room list.`
-              }
-              onClose={() => setLeavePromptOpen(false)}
-              actions={[
-                {
-                  label: user?.id === session.hostId ? 'Stay Online' : 'Stay In Room',
-                  description: 'Dismiss this prompt and continue in the session.',
-                  icon: 'arrow-undo-outline',
-                  onPress: () => setLeavePromptOpen(false),
-                },
-                {
-                  label: user?.id === session.hostId ? 'End Session' : 'Leave Room',
-                  description: user?.id === session.hostId
-                    ? 'Close the room for everyone connected right now.'
-                    : 'Disconnect from this session and leave the room.',
-                  icon: 'exit-outline',
-                  tone: 'danger',
-                  onPress: handleConfirmLeaveRoom,
-                },
-              ]}
-            />
-          )}
-
-          {gameLayer.powerMoves.pendingPrompt && (
-            <TacticalActionPrompt
-              visible
-              eyebrow={gameLayer.powerMoves.pendingPrompt.type === 'overdrive' ? 'SYS.FREQ // POWER ROUTE' : 'SYS.FREQ // SHIELD BUS'}
-              title={gameLayer.powerMoves.pendingPrompt.type === 'overdrive' ? 'CONFIRM OVERDRIVE' : 'CONFIRM PHASE CANCEL'}
-              description={
-                gameLayer.powerMoves.pendingPrompt.type === 'overdrive'
-                  ? 'Spend 25 CV to force the targeted track to the top of the queue.'
-                  : 'Spend 15 CV to block the next skip in this room.'
-              }
-              onClose={() => gameLayer.powerMoves.setPendingPrompt(null)}
-              actions={[
-                {
-                  label: 'Cancel',
-                  description: 'Dismiss this power route request.',
-                  icon: 'close-outline',
-                  onPress: () => gameLayer.powerMoves.setPendingPrompt(null),
-                },
-                {
-                  label: gameLayer.powerMoves.pendingPrompt.type === 'overdrive' ? 'Spend 25 CV' : 'Spend 15 CV',
-                  description: gameLayer.powerMoves.pendingPrompt.type === 'overdrive'
-                    ? 'Execute Overdrive on the targeted track.'
-                    : 'Activate Phase Cancel for the room.',
-                  icon: gameLayer.powerMoves.pendingPrompt.type === 'overdrive' ? 'flash-outline' : 'shield-outline',
-                  tone: 'danger',
-                  onPress: gameLayer.powerMoves.handleConfirm,
-                },
-              ]}
-            />
-          )}
+          <SessionRoomPrompts
+            sharePromptOpen={sharePromptOpen}
+            onCloseShare={() => setSharePromptOpen(false)}
+            onShowQR={() => setShowQR(true)}
+            onShareLink={handleShareLink}
+            leavePromptOpen={leavePromptOpen}
+            isHost={!!isHost}
+            sessionName={session.name}
+            onCloseLeave={() => setLeavePromptOpen(false)}
+            onConfirmLeave={handleConfirmLeaveRoom}
+            pendingPowerPrompt={gameLayer.powerMoves.pendingPrompt}
+            onClosePower={() => gameLayer.powerMoves.setPendingPrompt(null)}
+            onConfirmPower={gameLayer.powerMoves.handleConfirm}
+          />
 
           {/* ─── QR Code Modal ─────────────────────────────── */}
           {showQR && (
