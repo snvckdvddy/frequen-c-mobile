@@ -9,5 +9,6 @@
       "@frequen-c/types": ["packages/types/src/index.ts"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", "src/**/*"]
+  "include": ["**/*.ts", "**/*.tsx", "src/**/*"],
+  "exclude": ["src/screens/_archive"]
 }

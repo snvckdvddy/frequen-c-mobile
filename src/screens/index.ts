@@ -9,5 +9,3 @@ export { ProfileScreen } from './ProfileScreen';
 export { CreateSessionScreen } from './CreateSessionScreen';
 export { JoinSessionScreen } from './JoinSessionScreen';
 export { SessionRoomScreen } from './SessionRoomScreen';
-export { SearchScreen } from './SearchScreen';
-export { LibraryScreen } from './LibraryScreen';
