@@ -314,71 +314,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [tidalResponse]);
 
-  const completeSpotifyAuth = useCallback(async (url: string) => {
-    const error = getUrlQueryParam(url, 'error');
-    const errorDescription = getUrlQueryParam(url, 'error_description');
-    if (error) {
-      showToast(friendlyProviderError('Spotify', errorDescription || error), 'error');
-      return true;
-    }
-
-    const code = getUrlQueryParam(url, 'code');
-    const returnedState = getUrlQueryParam(url, 'state');
-    if (!code) return false;
-    if (!request?.state || returnedState !== request.state) {
-      showToast(friendlyProviderError('Spotify', 'state mismatch'), 'error');
-      return true;
-    }
-    if (!request.codeVerifier || !request.redirectUri || !state.token) {
-      showToast('Spotify auth state expired. Start the patch flow again.', 'error');
-      return true;
-    }
-
-    try {
-      await authApi.connectSpotify(code, request.codeVerifier, request.redirectUri);
-      const { user } = await authApi.me();
-      dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
-      showToast('Spotify patched', 'success');
-    } catch (err) {
-      const detail = extractProviderErrorDetail(err);
-      console.error('Failed to connect Spotify on backend:', detail || err);
-      showToast(friendlyProviderError('Spotify', detail), 'error');
-    }
-    return true;
-  }, [request, state.token]);
-
-  const completeTidalAuth = useCallback(async (url: string) => {
-    const error = getUrlQueryParam(url, 'error');
-    const errorDescription = getUrlQueryParam(url, 'error_description');
-    if (error) {
-      showToast(friendlyProviderError('Tidal', errorDescription || error), 'error');
-      return true;
-    }
-
-    const code = getUrlQueryParam(url, 'code');
-    const returnedState = getUrlQueryParam(url, 'state');
-    if (!code) return false;
-    if (!tidalRequest?.state || returnedState !== tidalRequest.state) {
-      showToast(friendlyProviderError('Tidal', 'state mismatch'), 'error');
-      return true;
-    }
-    if (!tidalRequest.redirectUri || !state.token) {
-      showToast('Tidal auth state expired. Start the patch flow again.', 'error');
-      return true;
-    }
-
-    try {
-      await authApi.connectTidal(code, tidalRequest.codeVerifier || '', tidalRequest.redirectUri);
-      const { user } = await authApi.me();
-      dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
-      showToast('Tidal patched', 'success');
-    } catch (err) {
-      const detail = extractProviderErrorDetail(err);
-      console.error('Failed to connect Tidal on backend:', detail || err);
-      showToast(friendlyProviderError('Tidal', detail), 'error');
-    }
-    return true;
-  }, [tidalRequest, state.token]);
+  // completeSpotifyAuth and completeTidalAuth removed — Spotify/Tidal auth
+  // is now fully handled by promptAsync → useEffect([response/tidalResponse]).
+  // The old functions were dead code after the fix in commit bf84f9e.
 
   const completeLastfmAuth = useCallback(async (url: string) => {
     const error = getUrlQueryParam(url, 'error');

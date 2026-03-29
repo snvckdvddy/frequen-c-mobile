@@ -599,6 +599,8 @@ export function SessionRoomScreen() {
   }, [forecastState.active, forecastState.timeRemaining, forecastState.lastResult, forecastState.candidates, resetForecastState]);
 
   // ─── Playback engine ────────────────────────────────────
+  const isHostDevice = user?.id === session?.hostId;
+
   useEffect(() => {
     const unsub = onProgress((s) => setPlayback(s));
     return () => { unsub(); stopPlayback(); };
@@ -606,6 +608,10 @@ export function SessionRoomScreen() {
 
   const currentTrackRef = useRef<string | null>(null);
   useEffect(() => {
+    // Only the host device should play audio — the host-output playback model
+    // means one device drives the speaker. Non-host users see queue/UI only.
+    if (!isHostDevice) return;
+
     const nowPlaying = queue[0] || null;
     if (nowPlaying && nowPlaying.id !== currentTrackRef.current) {
       currentTrackRef.current = nowPlaying.id;
@@ -621,7 +627,7 @@ export function SessionRoomScreen() {
       currentTrackRef.current = null;
       stopPlayback();
     }
-  }, [queue, user?.connectedServices?.lastfm?.connected]);
+  }, [queue, isHostDevice, user?.connectedServices?.lastfm?.connected]);
 
   useEffect(() => {
     const unsub = onTrackEnd(() => {
@@ -635,7 +641,7 @@ export function SessionRoomScreen() {
   // Queueing is intentionally passive/free in Session V2.
   // Do not attach CV spend, tactical prompts, or power-routing costs to baseline add-to-queue.
   const handleAddTrack = useCallback((track: Track) => {
-    if (!user || !session) return false;
+    if (!user || !session || !sessionId) return false;
     if (!getGlobalLimiter().canDo('addTrack')) return false;
     const queueTrack: QueueTrack = {
       ...track,

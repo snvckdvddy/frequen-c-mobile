@@ -198,6 +198,9 @@ export function addToQueue(sessionId: string, track: QueueTrack): void {
     mockEmit('track-added', track);
     return;
   }
+  if (!socket?.connected) {
+    console.warn(`[Socket] addToQueue called but socket is ${socket ? 'disconnected' : 'null'} — track "${track.title}" will NOT be queued`);
+  }
   socket?.emit('add-to-queue', { sessionId, track });
 }
 

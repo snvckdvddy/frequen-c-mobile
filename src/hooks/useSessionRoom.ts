@@ -46,28 +46,31 @@ function normalizeCurrentTrack(
 ): QueueTrack | null {
   if (!track) return null;
 
-  const rawAddedBy = (track as any).addedBy;
+  // Track and QueueTrack share shape at runtime (server sends both as plain objects).
+  // Cast once to access QueueTrack-only fields safely with fallback defaults.
+  const qt = track as QueueTrack;
+
+  const rawAddedBy = qt.addedBy;
   const addedById =
-    (track as any).addedById ||
+    qt.addedById ||
     rawAddedBy?.userId ||
-    rawAddedBy?.id ||
     fallbackAddedById;
 
   const addedBy = rawAddedBy
     ? {
-        userId: rawAddedBy.userId || rawAddedBy.id || addedById,
+        userId: rawAddedBy.userId || addedById,
         username: rawAddedBy.username || "",
       }
     : undefined;
 
   return {
-    ...(track as QueueTrack),
+    ...qt,
     ...(addedBy ? { addedBy } : {}),
     addedById,
-    addedAt: (track as any).addedAt || fallbackAddedAt,
-    votes: (track as any).votes ?? 0,
-    voltageBoost: (track as any).voltageBoost ?? 0,
-    reactions: (track as any).reactions ?? [],
+    addedAt: qt.addedAt || fallbackAddedAt,
+    votes: qt.votes ?? 0,
+    voltageBoost: qt.voltageBoost ?? 0,
+    reactions: qt.reactions ?? [],
   };
 }
 
@@ -278,8 +281,15 @@ export function useSessionRoom(sessionId: string) {
         let lastQueue: QueueTrack[] = initialQueue;
         setQueue(buildLiveQueue(lastCurrentTrack, initialQueue));
 
-        await connectSocket();
+        const sock = await connectSocket();
         if (!mounted) return;
+
+        // Surface socket connection issues — socket?.emit() silently no-ops
+        // if socket is null, so a failed connection means queue ops do nothing.
+        if (!sock && !USE_MOCKS) {
+          console.warn('[useSessionRoom] Socket connection returned null — queue operations will not work');
+          showToast('Live connection failed. Queue updates may not work.', 'warning', '!');
+        }
 
         socketUnsubsRef.current = [
           onSessionEvent("queue-updated", (newQueue) => {
@@ -415,8 +425,8 @@ export function useSessionRoom(sessionId: string) {
         if (user) {
           joinSession(sessionId, user.id, user.username);
         }
-      } catch (err: any) {
-        const message = err?.message || "Could not load session.";
+      } catch (err: unknown) {
+        const message = (err instanceof Error ? err.message : null) || "Could not load session.";
         if (!mounted) return;
         setError(message);
         const isTransientInfraError =
