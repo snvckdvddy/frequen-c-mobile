@@ -1,10 +1,11 @@
-import { Track, Playlist } from '../../types';
+import { Track, Playlist, TrackSource } from '../../types';
 
 export interface MusicServiceAdapter {
     /**
-     * Identifies the service this adapter handles
+     * Identifies the service this adapter handles.
+     * Must match a TrackSource value so the type system catches missing adapters.
      */
-    readonly serviceName: 'spotify' | 'soundcloud' | 'tidal' | 'appleMusic';
+    readonly serviceName: TrackSource;
 
     /**
      * Search for tracks on this service
@@ -22,6 +23,11 @@ export interface MusicServiceAdapter {
      * Checks if this service is currently authenticated/connected
      */
     isConnected(): boolean;
+
+    /**
+     * Update internal connected state (called by orchestrator when auth context changes)
+     */
+    setConnected(status: boolean): void;
 
     // ─── Library Access (optional — not all adapters support these yet) ───
 

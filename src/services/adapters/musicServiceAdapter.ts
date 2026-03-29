@@ -2,7 +2,34 @@ import { MusicServiceAdapter } from './types';
 import { spotifyAdapter } from './spotifyAdapter';
 import { soundcloudAdapter } from './soundcloudAdapter';
 import { tidalAdapter } from './tidalAdapter';
+import { appleMusicAdapter, youtubeAdapter, itunesAdapter } from './stubAdapter';
 import { ConnectedServices, TrackSource } from '../../types';
+
+// ─── Sync helper ─────────────────────────────────────────────
+// Centralizes connected-state sync so every public function uses
+// the same logic and no adapter is accidentally skipped.
+
+function syncConnectedState(connectedServices: ConnectedServices | undefined): void {
+    const cs = connectedServices;
+    spotifyAdapter.setConnected(!!cs?.spotify?.connected);
+    soundcloudAdapter.setConnected(!!cs?.soundcloud?.connected);
+    tidalAdapter.setConnected(!!cs?.tidal?.connected);
+    appleMusicAdapter.setConnected(!!cs?.appleMusic?.connected);
+    // youtube & itunes have no auth flow — always disconnected
+    youtubeAdapter.setConnected(false);
+    itunesAdapter.setConnected(false);
+}
+
+// ─── Complete adapter map (covers every TrackSource) ─────────
+
+const adapterMap: Record<TrackSource, MusicServiceAdapter> = {
+    spotify: spotifyAdapter,
+    soundcloud: soundcloudAdapter,
+    tidal: tidalAdapter,
+    appleMusic: appleMusicAdapter,
+    youtube: youtubeAdapter,
+    itunes: itunesAdapter,
+};
 
 /**
  * Derive the list of connected TrackSource keys from the auth context.
@@ -19,30 +46,16 @@ export function getConnectedSources(connectedServices: ConnectedServices | undef
 }
 
 export function getActiveAdapter(connectedServices: ConnectedServices | undefined): MusicServiceAdapter {
+    syncConnectedState(connectedServices);
+
     if (!connectedServices) {
-        spotifyAdapter.setConnected(false);
-        soundcloudAdapter.setConnected(false);
-        tidalAdapter.setConnected(false);
         return spotifyAdapter; // Safe fallback since disconnected returns empty
     }
 
-    // Sync internal state with the global AuthContext payload
-    spotifyAdapter.setConnected(!!connectedServices.spotify?.connected);
-    soundcloudAdapter.setConnected(!!connectedServices.soundcloud?.connected);
-    tidalAdapter.setConnected(!!connectedServices.tidal?.connected);
-
     // Priority Routing: Tidal > Spotify > SoundCloud
-    if (tidalAdapter.isConnected()) {
-        return tidalAdapter;
-    }
-
-    if (spotifyAdapter.isConnected()) {
-        return spotifyAdapter;
-    }
-
-    if (soundcloudAdapter.isConnected()) {
-        return soundcloudAdapter;
-    }
+    if (tidalAdapter.isConnected()) return tidalAdapter;
+    if (spotifyAdapter.isConnected()) return spotifyAdapter;
+    if (soundcloudAdapter.isConnected()) return soundcloudAdapter;
 
     // Default fallback returns empty responses safely due to the !isConnected checks inside the adapters
     return spotifyAdapter;
@@ -60,18 +73,7 @@ export function getAdapterForSource(
     source: TrackSource | undefined,
     connectedServices: ConnectedServices | undefined,
 ): MusicServiceAdapter {
-    // Sync state so .isConnected() is fresh
-    if (connectedServices) {
-        spotifyAdapter.setConnected(!!connectedServices.spotify?.connected);
-        soundcloudAdapter.setConnected(!!connectedServices.soundcloud?.connected);
-        tidalAdapter.setConnected(!!connectedServices.tidal?.connected);
-    }
-
-    const adapterMap: Record<string, MusicServiceAdapter> = {
-        spotify: spotifyAdapter,
-        soundcloud: soundcloudAdapter,
-        tidal: tidalAdapter,
-    };
+    syncConnectedState(connectedServices);
 
     const target = source ? adapterMap[source] : undefined;
     if (target?.isConnected()) return target;
@@ -86,17 +88,13 @@ export function getAdapterForSource(
  * not just the highest-priority one.
  */
 export function getAllConnectedAdapters(connectedServices: ConnectedServices | undefined): MusicServiceAdapter[] {
-    if (!connectedServices) return [];
-
-    // Sync internal state
-    spotifyAdapter.setConnected(!!connectedServices.spotify?.connected);
-    soundcloudAdapter.setConnected(!!connectedServices.soundcloud?.connected);
-    tidalAdapter.setConnected(!!connectedServices.tidal?.connected);
+    syncConnectedState(connectedServices);
 
     const adapters: MusicServiceAdapter[] = [];
     if (soundcloudAdapter.isConnected()) adapters.push(soundcloudAdapter);
     if (spotifyAdapter.isConnected()) adapters.push(spotifyAdapter);
     if (tidalAdapter.isConnected()) adapters.push(tidalAdapter);
+    if (appleMusicAdapter.isConnected()) adapters.push(appleMusicAdapter);
 
     return adapters;
 }
