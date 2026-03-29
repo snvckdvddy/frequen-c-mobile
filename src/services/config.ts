@@ -41,3 +41,13 @@ export const AI_USE_REAL_BACKEND = USE_REAL_AI;
 // Backend base URLs: env override > local dev (if configured) > production
 export const API_BASE_URL = API_BASE_OVERRIDE || LOCAL_API_URL || PROD_API_URL;
 export const SOCKET_URL = SOCKET_BASE_OVERRIDE || LOCAL_SOCKET_URL || PROD_SOCKET_URL;
+
+// Startup diagnostics — visible in Expo logs to catch env misconfigurations
+console.log('[Config]', {
+  USE_MOCKS,
+  BYPASS_AUTH,
+  API_BASE_URL,
+  SOCKET_URL,
+  raw_USE_MOCKS: process.env.EXPO_PUBLIC_USE_MOCKS,
+  raw_BYPASS_AUTH: process.env.EXPO_PUBLIC_BYPASS_AUTH,
+});
