@@ -66,6 +66,26 @@ export const palette = {
   chromeBorder: 'rgba(255, 255, 255, 0.10)',   // Slightly brighter on dark indigo
   chromeHighlight: 'rgba(255, 255, 255, 0.05)',
   chromeTint: '#C0DFFF',   // Subtle cool highlight for glass/chrome borders
+
+  // ─── Signal chain UI (tactical visualization) ─────
+  // Unique accent colors for the signal chain / tactical game shell.
+  // These don't replace the core palette — they extend it for
+  // the hardware visualization aesthetic.
+  acid: '#52F03A',         // Neon green — Open Floor mode indicator
+  guide: '#C6A57A',        // Warm beige — tutorial/help hints
+  guideSoft: '#9F8666',    // Muted beige — secondary guide elements
+  hotPink: '#F04A72',      // Vivid pink-red — spotlight/destructive tactical
+  pureBlack: '#000000',    // True black — signal chain void
+  pureWhite: '#FFFFFF',    // True white — max contrast text/icons
+
+  // ─── Neutral grays (signal chain surfaces) ────────
+  // Hardware-aesthetic neutrals without cool-indigo tint.
+  // Used across tactical UI and general screens.
+  matte: '#111111',        // Card bg — pure dark
+  matteGhost: '#101010',   // Near-invisible surface
+  borderHard: '#333333',   // Solid mid-gray border
+  borderSoft: '#222222',   // Soft dark border
+  borderGhost: '#2A2A2A',  // Ghost border — barely visible
 } as const;
 
 // ─── Glow Configs ────────────────────────────────────────────

@@ -1,27 +1,51 @@
+/**
+ * Tactical Design Tokens — Signal Chain Visualization
+ * ─────────────────────────────────────────────────────────────
+ * Re-export layer over the canonical palette (design/tokens/materials).
+ *
+ * This file preserves the `tacticalTokens.colors.xxx` access pattern
+ * used by 40+ components while ensuring all color values flow from
+ * the single source of truth in materials.ts.
+ *
+ * NEW CODE should import directly from `design/tokens/materials`
+ * instead of using this file. This layer exists for backward compat.
+ */
+
+import { palette, withAlpha } from '../../../design/tokens/materials';
+import { fontFamily } from '../../../design/tokens/typography';
 import type { RoomMode } from '../../../types';
 import type { SignalChainVisualMode } from '../types';
 
 export const tacticalTokens = {
   colors: {
-    void: '#000000',
-    matte: '#111111',
-    matteRaised: '#1A1A1A',
-    gridLine: '#1A1A1A',
-    border: '#333333',
-    borderSoft: '#222222',
-    acid: '#52F03A',
-    orange: '#F05A2A',
-    white: '#FFFFFF',
-    textDim: '#666666',
-    textMuted: '#8A8A8A',
-    textSoft: '#767676',
-    ice: '#2AD2E3',
-    hotPink: '#F04A72',
-    guide: '#C6A57A',
-    guideSoft: '#9F8666',
-    borderGhost: '#2A2A2A',
-    matteGhost: '#101010',
-    overlay: 'rgba(0, 0, 0, 0.78)',
+    // ─── Surfaces (canonical System C values) ──────────
+    void: palette.pureBlack,
+    matte: palette.matte,
+    matteRaised: palette.steel,
+    gridLine: palette.steel,
+    matteGhost: palette.matteGhost,
+
+    // ─── Borders ────────────────────────────────────────
+    border: palette.borderHard,
+    borderSoft: palette.borderSoft,
+    borderGhost: palette.borderGhost,
+
+    // ─── Accent colors (canonical palette values) ──────
+    acid: palette.acid,
+    orange: palette.orange,
+    ice: palette.ice,
+    hotPink: palette.hotPink,
+
+    // ─── Text hierarchy ────────────────────────────────
+    white: palette.pureWhite,
+    textDim: palette.textDim,
+    textMuted: palette.textSecondary,
+    textSoft: palette.slate,
+
+    // ─── Specialty ─────────────────────────────────────
+    guide: palette.guide,
+    guideSoft: palette.guideSoft,
+    overlay: withAlpha(palette.pureBlack, 0.78),
   },
   radius: {
     none: 0,
@@ -42,9 +66,9 @@ export const tacticalTokens = {
     cell: 20,
   },
   fonts: {
-    display: 'ChakraPetch-Bold',
-    mono: 'SpaceMono-Regular',
-    monoBold: 'SpaceMono-Bold',
+    display: fontFamily.displayBold,
+    mono: fontFamily.mono,
+    monoBold: fontFamily.monoBold,
   },
   fontSize: {
     sys: 10,
