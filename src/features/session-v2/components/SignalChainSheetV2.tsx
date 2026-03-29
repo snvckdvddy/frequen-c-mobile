@@ -26,6 +26,8 @@ import SignalChainAddBlock from './SignalChainAddBlock';
 import SignalChainTrackBlock from './SignalChainTrackBlock';
 import { tacticalTokens } from '../theme/tacticalTokens';
 import { theme } from '../../../theme/theme';
+import { getSourceColor, getSourceLabel } from '../../../design/tokens/sourceColors';
+import type { TrackSource } from '../../../types';
 
 interface SignalChainSheetV2Props {
   visible: boolean;
@@ -71,15 +73,12 @@ function formatLogId(index: number) {
 }
 
 function formatPatchedBy(track: QueueTrack): string {
-  const anyTrack = track as any;
-  const addedBy = anyTrack?.addedBy;
-  if (typeof addedBy === 'string') return addedBy;
-  if (addedBy && typeof addedBy === 'object') {
-    if (typeof addedBy.username === 'string') return addedBy.username;
-    if (typeof addedBy.name === 'string') return addedBy.name;
+  const addedBy = track.addedBy;
+  if (addedBy && typeof addedBy === 'object' && typeof addedBy.username === 'string') {
+    return addedBy.username;
   }
-  if (typeof anyTrack?.addedByUsername === 'string') return anyTrack.addedByUsername;
-  return anyTrack?.artist || 'SYSTEM';
+  // Fallback to track artist when addedBy is missing (e.g. system-queued tracks)
+  return track.artist || 'SYSTEM';
 }
 
 function SearchResultRow({
@@ -133,20 +132,16 @@ function SearchResultRow({
                 key={`${track.id}-${availabilitySource}`}
                 style={[
                   styles.searchTagBadge,
-                  availabilitySource === 'spotify'
-                    ? styles.searchTagBadgeSpotify
-                    : styles.searchTagBadgeSoundcloud,
+                  { borderColor: getSourceColor(availabilitySource as TrackSource) },
                 ]}
               >
                 <Text
                   style={[
                     styles.searchTagText,
-                    availabilitySource === 'spotify'
-                      ? styles.searchTagTextSpotify
-                      : styles.searchTagTextSoundcloud,
+                    { color: getSourceColor(availabilitySource as TrackSource) },
                   ]}
                 >
-                  {availabilitySource === 'spotify' ? 'SPT' : 'SC'}
+                  {getSourceLabel(availabilitySource as TrackSource)}
                 </Text>
               </View>
             ))}
@@ -916,24 +911,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchTagBadgeSpotify: {
-    borderColor: '#1DB954',
-    backgroundColor: 'rgba(29, 185, 84, 0.08)',
-  },
-  searchTagBadgeSoundcloud: {
-    borderColor: '#FF5500',
-    backgroundColor: 'rgba(255, 85, 0, 0.08)',
-  },
   searchTagText: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys - 1,
     letterSpacing: 0.7,
-  },
-  searchTagTextSpotify: {
-    color: '#1DB954',
-  },
-  searchTagTextSoundcloud: {
-    color: '#FF5500',
   },
   searchEmpty: {
     minHeight: 132,
