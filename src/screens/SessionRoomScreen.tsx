@@ -599,18 +599,20 @@ export function SessionRoomScreen() {
   }, [forecastState.active, forecastState.timeRemaining, forecastState.lastResult, forecastState.candidates, resetForecastState]);
 
   // ─── Playback engine ────────────────────────────────────
-  const isHostDevice = user?.id === session?.hostId;
+  // Host-output model: only the host device plays audio and signals track-end.
+  // Non-host devices receive queue/playback state via socket events.
+  // Hoisted here (ahead of "Derived values" section) because playback effects need it.
+  const isHost = user?.id === session?.hostId;
 
   useEffect(() => {
+    if (!isHost) return;
     const unsub = onProgress((s) => setPlayback(s));
     return () => { unsub(); stopPlayback(); };
-  }, [setPlayback]);
+  }, [setPlayback, isHost]);
 
   const currentTrackRef = useRef<string | null>(null);
   useEffect(() => {
-    // Only the host device should play audio — the host-output playback model
-    // means one device drives the speaker. Non-host users see queue/UI only.
-    if (!isHostDevice) return;
+    if (!isHost) return;
 
     const nowPlaying = queue[0] || null;
     if (nowPlaying && nowPlaying.id !== currentTrackRef.current) {
@@ -627,15 +629,19 @@ export function SessionRoomScreen() {
       currentTrackRef.current = null;
       stopPlayback();
     }
-  }, [queue, isHostDevice, user?.connectedServices?.lastfm?.connected]);
+  }, [queue, isHost, user?.connectedServices?.lastfm?.connected]);
 
   useEffect(() => {
+    // Only the host signals track-end to the backend. Without this guard,
+    // every connected user would emit 'track-ended', advancing the queue
+    // multiple times per track.
+    if (!isHost) return;
     const unsub = onTrackEnd(() => {
       advanceQueue();
       trackEnded(sessionId);
     });
     return unsub;
-  }, [advanceQueue, sessionId]);
+  }, [advanceQueue, sessionId, isHost]);
 
   // ─── Handlers ─────────────────────────────────────────
   // Queueing is intentionally passive/free in Session V2.
@@ -1042,8 +1048,8 @@ export function SessionRoomScreen() {
   }, [clearSearch]);
 
   // ─── Derived values ────────────────────────────────────
+  // isHost is declared above (playback engine section) — needed before effects.
   const currentTrack: QueueTrack | null = queue[0] || null;
-  const isHost = user?.id === session?.hostId;
   const sessionBehaviors = session?.behaviors || DEFAULT_BEHAVIORS;
   const canStartDuel = !!isHost
     && sessionBehaviors.duelEnabled

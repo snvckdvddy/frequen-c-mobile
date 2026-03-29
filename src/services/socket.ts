@@ -169,6 +169,19 @@ export function disconnectSocket(): void {
   setHealth({ status: 'disconnected', lastError: null, reconnectAttempt: 0 });
 }
 
+// ─── Guarded Emit ───────────────────────────────────────────
+// All real-mode emits go through this helper. It warns (and drops) when the
+// socket is null or disconnected, preventing the silent no-op that socket?.emit()
+// would otherwise produce.
+
+function guardedEmit(event: string, payload: Record<string, unknown>): void {
+  if (!socket?.connected) {
+    console.warn(`[Socket] '${event}' dropped — socket is ${socket ? 'disconnected' : 'null'}`);
+    return;
+  }
+  socket.emit(event, payload);
+}
+
 // ─── Session Events ─────────────────────────────────────────
 
 export function joinSession(sessionId: string, userId: string, username: string): void {
@@ -176,18 +189,18 @@ export function joinSession(sessionId: string, userId: string, username: string)
     console.log(`[Socket:Mock] ${username} joined session ${sessionId}`);
     return;
   }
-  socket?.emit('join-session', { sessionId, userId, username });
+  guardedEmit('join-session', { sessionId, userId, username });
 }
 
 export function leaveSession(sessionId: string, userId: string): void {
   if (USE_MOCKS) return;
-  socket?.emit('leave-session', { sessionId });
+  guardedEmit('leave-session', { sessionId });
 }
 
 /** Permanently leave a session (removes membership). Use for "Leave Room" button. */
 export function quitSession(sessionId: string, userId: string): void {
   if (USE_MOCKS) return;
-  socket?.emit('quit-session', { sessionId, userId });
+  guardedEmit('quit-session', { sessionId, userId });
 }
 
 // ─── Queue Events ───────────────────────────────────────────
@@ -198,10 +211,7 @@ export function addToQueue(sessionId: string, track: QueueTrack): void {
     mockEmit('track-added', track);
     return;
   }
-  if (!socket?.connected) {
-    console.warn(`[Socket] addToQueue called but socket is ${socket ? 'disconnected' : 'null'} — track "${track.title}" will NOT be queued`);
-  }
-  socket?.emit('add-to-queue', { sessionId, track });
+  guardedEmit('add-to-queue', { sessionId, track });
 }
 
 export function voteTrack(
@@ -214,7 +224,7 @@ export function voteTrack(
     mockEmit('vote-cast', { trackId, userId, direction });
     return;
   }
-  socket?.emit('vote-track', { sessionId, trackId, direction });
+  guardedEmit('vote-track', { sessionId, trackId, direction });
 }
 
 export function skipTrack(sessionId: string, userId?: string): void {
@@ -222,7 +232,7 @@ export function skipTrack(sessionId: string, userId?: string): void {
     mockEmit('track-skipped', { userId });
     return;
   }
-  socket?.emit('skip-track', { sessionId });
+  guardedEmit('skip-track', { sessionId });
 }
 
 export function removeTrack(sessionId: string, trackId: string): void {
@@ -230,13 +240,13 @@ export function removeTrack(sessionId: string, trackId: string): void {
     mockEmit('track-removed', { trackId });
     return;
   }
-  socket?.emit('remove-track', { sessionId, trackId });
+  guardedEmit('remove-track', { sessionId, trackId });
 }
 
 /** Notify backend that the current track finished playing (auto-advance). */
 export function trackEnded(sessionId: string): void {
   if (USE_MOCKS) return;
-  socket?.emit('track-ended', { sessionId });
+  guardedEmit('track-ended', { sessionId });
 }
 
 // ─── Spotlight Mode Events (approve / reject suggestions) ───
@@ -246,7 +256,7 @@ export function approveTrackEvent(sessionId: string, trackId: string, track: Que
     mockEmit('track-approved', { trackId, track });
     return;
   }
-  socket?.emit('approve-track', { sessionId, trackId, track });
+  guardedEmit('approve-track', { sessionId, trackId, track });
 }
 
 export function rejectTrackEvent(sessionId: string, trackId: string): void {
@@ -254,7 +264,7 @@ export function rejectTrackEvent(sessionId: string, trackId: string): void {
     mockEmit('track-rejected', { trackId });
     return;
   }
-  socket?.emit('reject-track', { sessionId, trackId });
+  guardedEmit('reject-track', { sessionId, trackId });
 }
 
 // ─── End Session (host ends room for everyone) ──────────
@@ -264,7 +274,7 @@ export function endSessionEvent(sessionId: string): void {
     mockEmit('session-ended', { sessionId });
     return;
   }
-  socket?.emit('end-session', { sessionId });
+  guardedEmit('end-session', { sessionId });
 }
 
 // ─── Mode / Behavior Events ─────────────────────────────────
@@ -275,7 +285,7 @@ export function changeModeEvent(sessionId: string, newMode: string): void {
     mockEmit('mode-changed', { sessionId, roomMode: newMode });
     return;
   }
-  socket?.emit('change-mode', { sessionId, roomMode: newMode });
+  guardedEmit('change-mode', { sessionId, roomMode: newMode });
 }
 
 /** Update individual behavioral toggles live (host-only). */
@@ -284,7 +294,7 @@ export function updateBehaviors(sessionId: string, behaviors: Partial<RoomBehavi
     mockEmit('behaviors-updated', { sessionId, behaviors });
     return;
   }
-  socket?.emit('update-behaviors', { sessionId, behaviors });
+  guardedEmit('update-behaviors', { sessionId, behaviors });
 }
 
 // ─── Skip-Vote Events ────────────────────────────────────────
@@ -295,7 +305,7 @@ export function voteSkip(sessionId: string): void {
     mockEmit('skip-vote-update', { sessionId, votes: 1, threshold: 2, participants: 3, voters: ['mock'] });
     return;
   }
-  socket?.emit('vote-skip', { sessionId });
+  guardedEmit('vote-skip', { sessionId });
 }
 
 // ─── Reaction Events ────────────────────────────────────────
@@ -310,7 +320,7 @@ export function sendReaction(
     mockEmit('reaction-local', { trackId, userId, type });
     return;
   }
-  socket?.emit('reaction', { sessionId, trackId, userId, type });
+  guardedEmit('reaction', { sessionId, trackId, userId, type });
 }
 
 // ─── Chat Events ────────────────────────────────────────────
@@ -336,7 +346,7 @@ export function sendChatMessage(
     mockEmit('chat-message', msg);
     return;
   }
-  socket?.emit('chat-message', { sessionId, userId, username, text });
+  guardedEmit('chat-message', { sessionId, userId, username, text });
 }
 
 // ─── Listener Types ─────────────────────────────────────────
@@ -455,7 +465,7 @@ export function spendCV(
     mockEmit('cv:spend', { userId, amount: cost, moveType });
     return;
   }
-  socket?.emit('cv:spend', { sessionId, userId, moveType });
+  guardedEmit('cv:spend', { sessionId, userId, moveType });
 }
 
 /** Trigger a Phantom Power boost (+48V) on a track */
@@ -466,7 +476,7 @@ export function phantomPower(sessionId: string, trackId: string, userId: string)
     mockEmit('queue-updated', []); // In real mode, server would send updated queue
     return;
   }
-  socket?.emit('phantom-power', { sessionId, trackId, userId });
+  guardedEmit('phantom-power', { sessionId, trackId, userId });
 }
 
 /** Overdrive — force a track to the top of the queue (25 CV) */
@@ -476,7 +486,7 @@ export function overdrive(sessionId: string, trackId: string, userId: string): v
     mockEmit('queue-updated', []);
     return;
   }
-  socket?.emit('overdrive', { sessionId, trackId, userId });
+  guardedEmit('overdrive', { sessionId, trackId, userId });
 }
 
 /** Phase Cancel — block the next skip in the session (15 CV) */
@@ -485,7 +495,7 @@ export function phaseCancel(sessionId: string, userId: string): void {
     mockEmit('cv:spend', { userId, amount: 15, moveType: 'phase_cancel' });
     return;
   }
-  socket?.emit('phase-cancel', { sessionId, userId });
+  guardedEmit('phase-cancel', { sessionId, userId });
 }
 
 /** Start a Crossfader Duel between two tracks */
@@ -496,7 +506,7 @@ export function startDuel(
     // Duel start would be server-initiated in production
     return;
   }
-  socket?.emit('duel:start', { sessionId, trackAId, trackBId, duration });
+  guardedEmit('duel:start', { sessionId, trackAId, trackBId, duration });
 }
 
 /** Vote in a Crossfader Duel */
@@ -505,7 +515,7 @@ export function duelVote(sessionId: string, userId: string, side: 'a' | 'b'): vo
     mockEmit('duel:vote', { userId, side });
     return;
   }
-  socket?.emit('duel:vote', { sessionId, userId, side });
+  guardedEmit('duel:vote', { sessionId, userId, side });
 }
 
 /** Submit a Frequency Forecast prediction */
@@ -513,7 +523,7 @@ export function submitForecast(sessionId: string, userId: string, trackId: strin
   if (USE_MOCKS) {
     return;
   }
-  socket?.emit('forecast:predict', { sessionId, userId, trackId });
+  guardedEmit('forecast:predict', { sessionId, userId, trackId });
 }
 
 /** Start a Frequency Forecast round (host only) */
@@ -521,13 +531,13 @@ export function startForecast(sessionId: string): void {
   if (USE_MOCKS) {
     return;
   }
-  socket?.emit('forecast:start', { sessionId });
+  guardedEmit('forecast:start', { sessionId });
 }
 
 /** Send listen heartbeat (called every 60s while in an active session) */
 export function listenHeartbeat(sessionId: string): void {
   if (USE_MOCKS) return;
-  socket?.emit('listen:heartbeat', { sessionId });
+  guardedEmit('listen:heartbeat', { sessionId });
 }
 
 export default {
