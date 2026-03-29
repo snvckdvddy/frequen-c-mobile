@@ -12,7 +12,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Animated, Dimensions,
-  PanResponder, Modal, Image, Pressable,
+  PanResponder, Modal, Image, Pressable, type DimensionValue,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, ReactionBar } from './ui';
@@ -27,6 +27,7 @@ import type { QueueTrack } from '../types';
 // ─── Design System: Rack × Chrome visual language ──────────
 import { LEDReadout } from '../design/components';
 import { palette } from '../design/tokens/materials';
+import { getSourceColor } from '../design/tokens/sourceColors';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const ART_SIZE = SCREEN_W - spacing.screenPadding * 2;        // Convergence §1.5 — deviceWidth - 48pt
@@ -140,6 +141,8 @@ export function NowPlayingSheet({
     [track, onReact],
   );
 
+  const sourceColor = getSourceColor(track?.source);
+
   if (!track) return null;
 
   const combinedTranslateY = Animated.add(slideAnim, dragOffset);
@@ -235,13 +238,13 @@ export function NowPlayingSheet({
             <View
               style={[
                 styles.scrubberFill,
-                { width: `${(playback.progress * 100).toFixed(1)}%` as any },
+                { width: `${(playback.progress * 100).toFixed(1)}%` as unknown as DimensionValue, backgroundColor: sourceColor },
               ]}
             />
             <View
               style={[
                 styles.scrubberThumb,
-                { left: `${(playback.progress * 100).toFixed(1)}%` as any },
+                { left: `${(playback.progress * 100).toFixed(1)}%` as unknown as DimensionValue, backgroundColor: sourceColor },
               ]}
             />
           </TouchableOpacity>

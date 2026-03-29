@@ -13,6 +13,7 @@ import { View, StyleSheet, TouchableOpacity, Image, Pressable } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './ui';
 import { palette } from '../design/tokens/materials';
+import { getSourceColor } from '../design/tokens/sourceColors';
 import { spacing } from '../theme/spacing';
 import type { QueueTrack, Track, RoomMode, RoomBehaviors } from '../types';
 import { DEFAULT_BEHAVIORS } from '../types';
@@ -49,6 +50,7 @@ export function QueueTrackCard({
 }: QueueTrackCardProps) {
   const borderColor = isNowPlaying ? palette.green : palette.chromeBorder;
   const bg = isNowPlaying ? palette.green + '10' : palette.steel;
+  const sourceAccent = getSourceColor(track.source);
   const isOwn = track.addedById === userId;
   const votes = track.votes ?? 0;
   const userVote = userId ? (track.votedBy?.[userId] ?? 0) : 0;
@@ -69,7 +71,7 @@ export function QueueTrackCard({
       accessibilityHint={onLongPress ? 'Long press for track options' : undefined}
       style={({ pressed }) => [
         trackStyles.card,
-        { borderColor, backgroundColor: bg },
+        { borderColor, backgroundColor: bg, borderLeftColor: sourceAccent, borderLeftWidth: 3 },
         pressed && { opacity: 0.85 },
       ]}
     >
@@ -238,7 +240,7 @@ const trackStyles = StyleSheet.create({
     backgroundColor: palette.steel,
   },
   dragHandle: {
-    width: 28, height: '100%' as any, alignItems: 'center', justifyContent: 'center',
+    width: 28, height: '100%' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
     marginRight: 4, opacity: 0.6,
   },
   art: {

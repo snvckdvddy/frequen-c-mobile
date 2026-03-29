@@ -141,15 +141,24 @@ export async function loadTrack(
   if (!resolveId.startsWith('itunes_')) {
     try {
       const adapter = getAdapterForSource(source, currentServices);
+      const adapterName = adapter.serviceName ?? 'unknown';
+      console.log(`[PlaybackEngine] Resolving stream: source=${source ?? 'none'}, adapter=${adapterName}, connected=${adapter.isConnected()}, resolveId=${resolveId}`);
       if (adapter.isConnected()) {
         const freshUrl = await adapter.getStreamUrl(resolveId);
         if (freshUrl) {
+          console.log(`[PlaybackEngine] Got fresh URL from ${adapterName} (${freshUrl.slice(0, 80)}…)`);
           previewUrl = freshUrl;
+        } else {
+          console.log(`[PlaybackEngine] ${adapterName}.getStreamUrl returned empty — using original previewUrl`);
         }
+      } else {
+        console.log(`[PlaybackEngine] ${adapterName} not connected — using original previewUrl`);
       }
     } catch (err) {
       console.log('[PlaybackEngine] Adapter failed to fetch fresh stream:', err);
     }
+  } else {
+    console.log(`[PlaybackEngine] iTunes track — skipping adapter resolution`);
   }
 
   await ensureAudioMode();

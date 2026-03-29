@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatTime, type PlaybackState } from '../services/playbackEngine';
 import type { QueueTrack } from '../types';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
+import { getSourceColor } from '../design/tokens/sourceColors';
 
 export const MINI_PLAYER_HEIGHT = 64;
 
@@ -24,7 +25,7 @@ export interface MiniPlayerProps {
   canSkip?: boolean;
 }
 
-function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+function MonoText(props: { children: React.ReactNode; style?: import('react-native').StyleProp<import('react-native').TextStyle>; numberOfLines?: number }) {
   return <Text {...props} />;
 }
 
@@ -38,6 +39,7 @@ export function MiniPlayer({
 }: MiniPlayerProps) {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const glowOpacity = useRef(new Animated.Value(0.35)).current;
+  const sourceColor = getSourceColor(track.source);
 
   useEffect(() => {
     Animated.timing(progressAnim, {
@@ -67,8 +69,8 @@ export function MiniPlayer({
   return (
     <View style={styles.shell}>
       <View style={styles.progressTrack}>
-        <Animated.View style={[styles.progressFill, { width: progressWidth as any }]} />
-        {playback.isPlaying ? <Animated.View style={[styles.progressGlow, { opacity: glowOpacity }]} /> : null}
+        <Animated.View style={[styles.progressFill, { width: progressWidth as unknown as import('react-native').DimensionValue, backgroundColor: sourceColor }]} />
+        {playback.isPlaying ? <Animated.View style={[styles.progressGlow, { opacity: glowOpacity, backgroundColor: sourceColor }]} /> : null}
       </View>
 
       <View style={styles.content}>
