@@ -8,6 +8,7 @@
 import { mockUser, mockSessions, mockQueue, mockSearchResults, mockUsers, mockDelay } from './mockData';
 import { User, Session, Track, MockUser, ConnectedServices } from '../types';
 import { USE_MOCKS, AI_USE_REAL_BACKEND } from './config';
+import { logger } from '../utils/logger';
 
 // Re-export from fetchClient so existing consumers don't break
 export { apiFetch, getStoredToken, storeToken, clearToken, ApiError } from './fetchClient';
@@ -272,7 +273,7 @@ function logSearchTruth(scope: string, diagnostics: SearchDiagnostics) {
       soundcloud: {},
     });
 
-  console.log(`[SearchTruth][${scope}] ${JSON.stringify({
+  logger.debug('api', `SearchTruth[${scope}]`, {
     query: diagnostics.query,
     requestedSources: diagnostics.requestedSources,
     authSnapshot: diagnostics.authSnapshot,
@@ -280,7 +281,7 @@ function logSearchTruth(scope: string, diagnostics: SearchDiagnostics) {
     directMatchCount: diagnostics.directMatchCount,
     openFallbackCount: diagnostics.openFallbackCount,
     fallbackUsed: diagnostics.fallbackUsed,
-  })}`);
+  });
 }
 
 export function getIdleSearchProviderStates(): Record<SearchHudProvider, SearchProviderState> {
@@ -467,7 +468,7 @@ export const authApi = {
   /** Register push notification token with the backend */
   registerPushToken: async (pushToken: string) => {
     if (USE_MOCKS) {
-      console.log('[API:Mock] Push token registered:', pushToken.slice(0, 30) + '...');
+      logger.debug('api', 'Mock: Push token registered', pushToken.slice(0, 30) + '...');
       return { message: 'Push token saved' };
     }
     return apiFetch<{ message: string }>('/auth/push-token', {

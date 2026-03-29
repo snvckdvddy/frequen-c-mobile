@@ -1,6 +1,7 @@
 import { MusicServiceAdapter } from './types';
 import { Track } from '../../types';
 import { apiFetch } from '../fetchClient';
+import { logger } from '../../utils/logger';
 
 class TidalAdapter implements MusicServiceAdapter {
     serviceName = 'tidal' as const;
@@ -24,7 +25,7 @@ class TidalAdapter implements MusicServiceAdapter {
                 throw e;
             }
             if (!options?.silent) {
-                console.log('TidalAdapter search unavailable:', e);
+                logger.warn('tidal', 'Search unavailable', e);
             }
             return [];
         }
@@ -35,7 +36,7 @@ class TidalAdapter implements MusicServiceAdapter {
             const res = await apiFetch<{ url: string }>(`/auth/tidal/stream/${trackId}`);
             return res.url;
         } catch (e) {
-            console.log('TidalAdapter getStreamUrl unavailable:', e);
+            logger.warn('tidal', 'getStreamUrl unavailable', e);
             return '';
         }
     }

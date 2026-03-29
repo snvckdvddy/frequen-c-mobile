@@ -8,6 +8,7 @@
 
 import { MusicServiceAdapter } from './types';
 import { Track, TrackSource } from '../../types';
+import { logger } from '../../utils/logger';
 
 type StubSource = 'appleMusic' | 'youtube' | 'itunes';
 
@@ -18,12 +19,12 @@ function createStubAdapter(name: StubSource): MusicServiceAdapter {
         serviceName: name as TrackSource,
 
         search(_query: string): Promise<Track[]> {
-            console.log(`[${name}Adapter] Search not implemented yet`);
+            logger.debug('stub', `${name} search not implemented yet`);
             return Promise.resolve([]);
         },
 
         getStreamUrl(_trackId: string): Promise<string> {
-            console.log(`[${name}Adapter] Playback not supported yet — no stream URL available`);
+            logger.debug('stub', `${name} playback not supported yet — no stream URL available`);
             return Promise.resolve('');
         },
 

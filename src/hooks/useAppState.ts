@@ -13,6 +13,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { reconnectSocket, getSocketHealth } from '../services/socket';
+import { logger } from '../utils/logger';
 
 interface UseAppStateOptions {
   /** Called when app returns to foreground. Use to re-join session, refetch state, etc. */
@@ -31,12 +32,12 @@ export function useAppState(options: UseAppStateOptions = {}) {
 
       // Foreground return: inactive/background → active
       if (prevState.match(/inactive|background/) && nextState === 'active') {
-        console.log('[AppState] Returned to foreground');
+        logger.info('appState', 'Returned to foreground');
 
         // Reconnect socket if it's not currently connected
         const health = getSocketHealth();
         if (health.status !== 'connected') {
-          console.log('[AppState] Socket not connected, reconnecting...');
+          logger.info('appState', 'Socket not connected, reconnecting...');
           await reconnectSocket();
         }
 
@@ -45,7 +46,7 @@ export function useAppState(options: UseAppStateOptions = {}) {
 
       // Backgrounding: active → background
       if (prevState === 'active' && nextState.match(/inactive|background/)) {
-        console.log('[AppState] Going to background');
+        logger.debug('appState', 'Going to background');
         onBackground?.();
       }
 

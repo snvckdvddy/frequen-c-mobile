@@ -11,11 +11,12 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { palette } from '../design/tokens/materials';
+import { logger } from '../utils/logger';
 
 // In Expo SDK 53+, literally importing `expo-notifications` in Expo Go on Android causes a fatal crash.
 // We conditionally require it only if we're NOT in Expo Go.
 const isExpoGo = Constants.appOwnership === 'expo';
-let Notifications: any = null;
+let Notifications: typeof import('expo-notifications') | null = null;
 
 if (!isExpoGo) {
   Notifications = require('expo-notifications');
@@ -46,14 +47,14 @@ export async function registerForPushNotifications(): Promise<string | null> {
   /*
   // Push notifications only work on physical devices
   if (!Device.isDevice) {
-    console.log('[Notifications] Must use physical device for push notifications');
+    logger.info('notifications', 'Must use physical device for push notifications');
     return null;
   }
 
   // SECURITY FIX: In Expo SDK 53+, calling push notification channel and token APIs inside Expo Go will hard crash the app.
   // We must bypass the entire registration flow if running in Expo Go.
   if (isExpoGo || !Notifications) {
-    console.log('[Notifications] PUSH MOCKED: Expo Go (SDK 53) no longer supports native remote push testing.');
+    logger.info('notifications', 'PUSH MOCKED: Expo Go (SDK 53) no longer supports native remote push testing.');
     return 'ExponentPushToken[mock-dev-token]';
   }
 
@@ -68,7 +69,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   if (finalStatus !== 'granted') {
-    console.log('[Notifications] Permission not granted');
+    logger.info('notifications', 'Permission not granted');
     return null;
   }
 
@@ -94,10 +95,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId: undefined, // Will use EAS projectId from app.json when configured
     });
-    console.log('[Notifications] Push token:', tokenData.data);
+    logger.info('notifications', 'Push token:', tokenData.data);
     return tokenData.data;
   } catch (err) {
-    console.error('[Notifications] Failed to get push token:', err);
+    logger.error('notifications', 'Failed to get push token', err);
     return null;
   }
   */
@@ -169,7 +170,7 @@ export function onNotificationResponse(
   if (isExpoGo || !Notifications) return () => { };
 
   const subscription = Notifications.addNotificationResponseReceivedListener(
-    (response: any) => {
+    (response: { notification: { request: { content: { data: Record<string, unknown> } } } }) => {
       const data = response.notification.request.content.data;
       if (data?.sessionId && typeof data.sessionId === 'string') {
         handler(data.sessionId);

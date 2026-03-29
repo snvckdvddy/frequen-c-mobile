@@ -14,6 +14,7 @@ import { Audio, AVPlaybackStatus, AVPlaybackStatusSuccess } from 'expo-av';
 import { getAdapterForSource } from './adapters/musicServiceAdapter';
 import { currentServices } from './api';
 import { TrackSource } from '../types';
+import { logger } from '../utils/logger';
 
 export interface PlaybackState {
   isPlaying: boolean;
@@ -142,23 +143,23 @@ export async function loadTrack(
     try {
       const adapter = getAdapterForSource(source, currentServices);
       const adapterName = adapter.serviceName ?? 'unknown';
-      console.log(`[PlaybackEngine] Resolving stream: source=${source ?? 'none'}, adapter=${adapterName}, connected=${adapter.isConnected()}, resolveId=${resolveId}`);
+      logger.debug('playback', 'Resolving stream', { source: source ?? 'none', adapter: adapterName, connected: adapter.isConnected(), resolveId });
       if (adapter.isConnected()) {
         const freshUrl = await adapter.getStreamUrl(resolveId);
         if (freshUrl) {
-          console.log(`[PlaybackEngine] Got fresh URL from ${adapterName} (${freshUrl.slice(0, 80)}…)`);
+          logger.debug('playback', `Got fresh URL from ${adapterName}`, freshUrl.slice(0, 80));
           previewUrl = freshUrl;
         } else {
-          console.log(`[PlaybackEngine] ${adapterName}.getStreamUrl returned empty — using original previewUrl`);
+          logger.debug('playback', `${adapterName}.getStreamUrl returned empty — using original previewUrl`);
         }
       } else {
-        console.log(`[PlaybackEngine] ${adapterName} not connected — using original previewUrl`);
+        logger.debug('playback', `${adapterName} not connected — using original previewUrl`);
       }
     } catch (err) {
-      console.log('[PlaybackEngine] Adapter failed to fetch fresh stream:', err);
+      logger.warn('playback', 'Adapter failed to fetch fresh stream', err);
     }
   } else {
-    console.log(`[PlaybackEngine] iTunes track — skipping adapter resolution`);
+    logger.debug('playback', 'iTunes track — skipping adapter resolution');
   }
 
   await ensureAudioMode();
@@ -204,12 +205,12 @@ export async function loadTrack(
         return; // success — exit the function
       } catch (err) {
         lastErr = err;
-        console.log(`[PlaybackEngine] Audio load attempt ${attempt + 1}/${MAX_RETRIES + 1} failed:`, err);
+        logger.warn('playback', `Audio load attempt ${attempt + 1}/${MAX_RETRIES + 1} failed`, err);
       }
     }
     // All retries exhausted — fall through to timer simulation
     const msg = lastErr instanceof Error ? lastErr.message : 'Audio load failed';
-    console.log('[PlaybackEngine] Audio load failed after retries, using timer fallback');
+    logger.warn('playback', 'Audio load failed after retries, using timer fallback');
     state = { ...state, isLoading: false, error: msg };
     emitProgress();
     startTimerFallback(trackId, durationSec);
@@ -217,7 +218,7 @@ export async function loadTrack(
     // No preview URL — signal error instead of silently faking playback.
     // Timer fallback only exists for mock/demo data; real tracks with no URL
     // should surface a visible error so the user knows what happened.
-    console.log('[PlaybackEngine] No audio URL available — skipping timer fallback');
+    logger.info('playback', 'No audio URL available — skipping timer fallback');
     state = { ...state, isLoading: false, error: 'No audio available' };
     emitProgress();
   }

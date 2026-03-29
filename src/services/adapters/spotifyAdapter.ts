@@ -2,6 +2,7 @@ import { MusicServiceAdapter } from './types';
 import { Track } from '../../types';
 import { apiFetch } from '../fetchClient';
 import { searchItunes } from '../itunesSearch';
+import { logger } from '../../utils/logger';
 
 class SpotifyAdapter implements MusicServiceAdapter {
     serviceName = 'spotify' as const;
@@ -26,7 +27,7 @@ class SpotifyAdapter implements MusicServiceAdapter {
                 throw e;
             }
             if (!options?.silent) {
-                console.log('SpotifyAdapter search unavailable:', e);
+                logger.warn('spotify', 'Search unavailable', e);
             }
             return [];
         }
@@ -44,7 +45,7 @@ class SpotifyAdapter implements MusicServiceAdapter {
             // This keeps playback working without the user ever noticing the source swap.
             return this.fallbackToItunes(res.track.title, res.track.artist);
         } catch (e) {
-            console.log('SpotifyAdapter getStreamUrl unavailable:', e);
+            logger.warn('spotify', 'getStreamUrl unavailable', e);
             return '';
         }
     }

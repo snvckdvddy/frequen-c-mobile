@@ -11,6 +11,7 @@ import { io, Socket } from 'socket.io-client';
 import { getStoredToken } from './api';
 import type { QueueTrack, Participant, Session, Reaction, ChatMessage, Track, RoomBehaviors } from '../types';
 import { USE_MOCKS, SOCKET_URL } from './config';
+import { logger } from '../utils/logger';
 
 // ─── Mock Event Bus ─────────────────────────────────────────
 // Simple pub/sub for local mock events.
@@ -78,7 +79,7 @@ let socket: Socket | null = null;
 
 export async function connectSocket(): Promise<Socket | null> {
   if (USE_MOCKS) {
-    console.log('[Socket] Mock mode — no server connection.');
+    logger.info('socket', 'Mock mode — no server connection.');
     setHealth({ status: 'connected', lastError: null, reconnectAttempt: 0 });
     return null;
   }
@@ -109,12 +110,12 @@ export async function connectSocket(): Promise<Socket | null> {
   });
 
   socket.on('connect', () => {
-    console.log('[Socket] Connected:', socket?.id);
+    logger.info('socket', 'Connected', socket?.id);
     setHealth({ status: 'connected', lastError: null, reconnectAttempt: 0 });
   });
 
   socket.on('disconnect', (reason) => {
-    console.log('[Socket] Disconnected:', reason);
+    logger.info('socket', 'Disconnected', reason);
     const isIntentional = reason === 'io client disconnect';
     setHealth({
       status: isIntentional ? 'disconnected' : 'reconnecting',
@@ -123,22 +124,22 @@ export async function connectSocket(): Promise<Socket | null> {
   });
 
   socket.on('connect_error', (err) => {
-    console.log('[Socket] Connection unavailable:', err.message);
+    logger.warn('socket', 'Connection unavailable', err.message);
     setHealth({ status: 'reconnecting', lastError: err.message });
   });
 
   socket.io.on('reconnect_attempt', (attempt: number) => {
-    console.log(`[Socket] Reconnect attempt ${attempt}/15`);
+    logger.debug('socket', `Reconnect attempt ${attempt}/15`);
     setHealth({ status: 'reconnecting', reconnectAttempt: attempt });
   });
 
   socket.io.on('reconnect', () => {
-    console.log('[Socket] Reconnected successfully');
+    logger.info('socket', 'Reconnected successfully');
     setHealth({ status: 'connected', lastError: null, reconnectAttempt: 0 });
   });
 
   socket.io.on('reconnect_failed', () => {
-    console.log('[Socket] All reconnect attempts exhausted');
+    logger.error('socket', 'All reconnect attempts exhausted');
     setHealth({ status: 'disconnected', lastError: 'Connection lost. Please check your network.' });
   });
 
@@ -198,11 +199,11 @@ export function disconnectSocket(): void {
 
 function guardedEmit(event: string, payload: Record<string, unknown>): void {
   if (!socket) {
-    console.warn(`[Socket] '${event}' dropped — socket is null (not initialized)`);
+    logger.warn('socket', `'${event}' dropped — socket is null (not initialized)`);
     return;
   }
   if (!socket.connected) {
-    console.warn(`[Socket] '${event}' buffered — socket is ${healthState.status}, will send on connect`);
+    logger.warn('socket', `'${event}' buffered — socket is ${healthState.status}, will send on connect`);
   }
   socket.emit(event, payload);
 }
@@ -211,7 +212,7 @@ function guardedEmit(event: string, payload: Record<string, unknown>): void {
 
 export function joinSession(sessionId: string, userId: string, username: string): void {
   if (USE_MOCKS) {
-    console.log(`[Socket:Mock] ${username} joined session ${sessionId}`);
+    logger.debug('socket', `Mock: ${username} joined session ${sessionId}`);
     return;
   }
   guardedEmit('join-session', { sessionId, userId, username });

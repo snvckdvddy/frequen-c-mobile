@@ -1,6 +1,7 @@
 import { MusicServiceAdapter } from './types';
 import { Track, Playlist } from '../../types';
 import { apiFetch } from '../fetchClient';
+import { logger } from '../../utils/logger';
 
 class SoundCloudAdapter implements MusicServiceAdapter {
     serviceName = 'soundcloud' as const;
@@ -25,7 +26,7 @@ class SoundCloudAdapter implements MusicServiceAdapter {
                 throw e;
             }
             if (!options?.silent) {
-                console.log('SoundCloudAdapter search unavailable:', e);
+                logger.warn('soundcloud', 'Search unavailable', e);
             }
             return [];
         }
@@ -36,7 +37,7 @@ class SoundCloudAdapter implements MusicServiceAdapter {
             const res = await apiFetch<{ url: string }>(`/auth/soundcloud/stream/${trackId}`);
             return res.url;
         } catch (e) {
-            console.log('SoundCloudAdapter getStreamUrl unavailable:', e);
+            logger.warn('soundcloud', 'getStreamUrl unavailable', e);
             return '';
         }
     }
@@ -49,7 +50,7 @@ class SoundCloudAdapter implements MusicServiceAdapter {
             const res = await apiFetch<{ playlists: Playlist[] }>('/auth/soundcloud/playlists');
             return res.playlists;
         } catch (e) {
-            console.log('SoundCloudAdapter getUserPlaylists unavailable:', e);
+            logger.warn('soundcloud', 'getUserPlaylists unavailable', e);
             return [];
         }
     }
@@ -60,7 +61,7 @@ class SoundCloudAdapter implements MusicServiceAdapter {
             const res = await apiFetch<{ tracks: Track[] }>(`/auth/soundcloud/playlists/${playlistId}/tracks`);
             return res.tracks;
         } catch (e) {
-            console.log('SoundCloudAdapter getPlaylistTracks unavailable:', e);
+            logger.warn('soundcloud', 'getPlaylistTracks unavailable', e);
             return [];
         }
     }
@@ -71,7 +72,7 @@ class SoundCloudAdapter implements MusicServiceAdapter {
             const res = await apiFetch<{ tracks: Track[] }>('/auth/soundcloud/likes');
             return res.tracks;
         } catch (e) {
-            console.log('SoundCloudAdapter getLikedTracks unavailable:', e);
+            logger.warn('soundcloud', 'getLikedTracks unavailable', e);
             return [];
         }
     }

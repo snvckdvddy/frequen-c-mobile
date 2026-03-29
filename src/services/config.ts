@@ -7,6 +7,7 @@
 
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import { logger } from '../utils/logger';
 
 const readEnv = (value: string | undefined): string | undefined => {
   const trimmed = value?.trim();
@@ -43,7 +44,7 @@ export const API_BASE_URL = API_BASE_OVERRIDE || LOCAL_API_URL || PROD_API_URL;
 export const SOCKET_URL = SOCKET_BASE_OVERRIDE || LOCAL_SOCKET_URL || PROD_SOCKET_URL;
 
 // Startup diagnostics — visible in Expo logs to catch env misconfigurations
-console.log('[Config]', {
+logger.info('config', 'Environment', {
   USE_MOCKS,
   BYPASS_AUTH,
   API_BASE_URL,
