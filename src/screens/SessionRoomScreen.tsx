@@ -1301,8 +1301,10 @@ export function SessionRoomScreen() {
                     setSearchHudOpen(true);
                   });
                 } else {
-                  // Android handles stacked modals fine — use in-sheet search
-                  setSearchInSheet(true);
+                  // Android handles stacked Modals fine — open SearchHudOverlay
+                  // on top of the queue sheet. When search is dismissed, user
+                  // lands right back in the queue with zero navigation cost.
+                  setSearchHudOpen(true);
                 }
               }}
               onCloseSearch={handleCancelSearch}
