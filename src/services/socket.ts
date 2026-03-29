@@ -142,6 +142,24 @@ export async function connectSocket(): Promise<Socket | null> {
     setHealth({ status: 'disconnected', lastError: 'Connection lost. Please check your network.' });
   });
 
+  // Wait for the initial connection (or first error) before returning.
+  // This ensures callers like useSessionRoom can rely on socket.connected
+  // being true before issuing joinSession. Timeout prevents hanging forever.
+  const sock = socket;
+  await new Promise<void>((resolve) => {
+    if (sock.connected) { resolve(); return; }
+    const onConnect = () => { cleanup(); resolve(); };
+    const onError = () => { cleanup(); resolve(); };
+    const timer = setTimeout(() => { cleanup(); resolve(); }, 10000);
+    function cleanup() {
+      sock.off('connect', onConnect);
+      sock.off('connect_error', onError);
+      clearTimeout(timer);
+    }
+    sock.once('connect', onConnect);
+    sock.once('connect_error', onError);
+  });
+
   return socket;
 }
 
@@ -170,14 +188,21 @@ export function disconnectSocket(): void {
 }
 
 // ─── Guarded Emit ───────────────────────────────────────────
-// All real-mode emits go through this helper. It warns (and drops) when the
-// socket is null or disconnected, preventing the silent no-op that socket?.emit()
-// would otherwise produce.
+// All real-mode emits go through this helper. When socket is null (never
+// created), the event is dropped with a warning. When socket exists but
+// isn't connected yet (handshake in flight, reconnecting), we still call
+// socket.emit() — socket.io's built-in buffering queues the event and
+// delivers it once the connection completes. This is critical: joinSession
+// is called immediately after connectSocket() returns, before the handshake
+// finishes, so dropping events here would prevent room membership.
 
 function guardedEmit(event: string, payload: Record<string, unknown>): void {
-  if (!socket?.connected) {
-    console.warn(`[Socket] '${event}' dropped — socket is ${socket ? 'disconnected' : 'null'}`);
+  if (!socket) {
+    console.warn(`[Socket] '${event}' dropped — socket is null (not initialized)`);
     return;
+  }
+  if (!socket.connected) {
+    console.warn(`[Socket] '${event}' buffered — socket is ${healthState.status}, will send on connect`);
   }
   socket.emit(event, payload);
 }
