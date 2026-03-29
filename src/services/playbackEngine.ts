@@ -11,8 +11,9 @@
  */
 
 import { Audio, AVPlaybackStatus, AVPlaybackStatusSuccess } from 'expo-av';
-import { getActiveAdapter } from './adapters/musicServiceAdapter';
+import { getAdapterForSource } from './adapters/musicServiceAdapter';
 import { currentServices } from './api';
+import { TrackSource } from '../types';
 
 export interface PlaybackState {
   isPlaying: boolean;
@@ -127,16 +128,21 @@ async function unloadCurrent(): Promise<void> {
 export async function loadTrack(
   trackId: string,
   durationSec: number,
-  previewUrl?: string
+  previewUrl?: string,
+  sourceId?: string,
+  source?: TrackSource,
 ): Promise<void> {
 
   // Dynamically fetch fresh stream URLs via the Service Adapter layer.
-  // Skip for iTunes tracks (already have direct preview URL) or when no adapter is connected.
-  if (!trackId.startsWith('itunes_')) {
+  // Use sourceId (the real service track ID) — trackId is the internal queue
+  // entry ID ("qt_abc123") which streaming APIs don't understand.
+  // Skip for iTunes tracks (already have direct preview URL).
+  const resolveId = sourceId || trackId;
+  if (!resolveId.startsWith('itunes_')) {
     try {
-      const adapter = getActiveAdapter(currentServices);
+      const adapter = getAdapterForSource(source, currentServices);
       if (adapter.isConnected()) {
-        const freshUrl = await adapter.getStreamUrl(trackId);
+        const freshUrl = await adapter.getStreamUrl(resolveId);
         if (freshUrl) {
           previewUrl = freshUrl;
         }

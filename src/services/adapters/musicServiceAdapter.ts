@@ -49,6 +49,38 @@ export function getActiveAdapter(connectedServices: ConnectedServices | undefine
 }
 
 /**
+ * Returns the adapter that owns a specific track source.
+ * Use for playback — routes to the correct service instead of the
+ * highest-priority connected one.
+ *
+ * Falls back to getActiveAdapter if the source adapter isn't connected
+ * (e.g. another user queued a Tidal track but you only have Spotify).
+ */
+export function getAdapterForSource(
+    source: TrackSource | undefined,
+    connectedServices: ConnectedServices | undefined,
+): MusicServiceAdapter {
+    // Sync state so .isConnected() is fresh
+    if (connectedServices) {
+        spotifyAdapter.setConnected(!!connectedServices.spotify?.connected);
+        soundcloudAdapter.setConnected(!!connectedServices.soundcloud?.connected);
+        tidalAdapter.setConnected(!!connectedServices.tidal?.connected);
+    }
+
+    const adapterMap: Record<string, MusicServiceAdapter> = {
+        spotify: spotifyAdapter,
+        soundcloud: soundcloudAdapter,
+        tidal: tidalAdapter,
+    };
+
+    const target = source ? adapterMap[source] : undefined;
+    if (target?.isConnected()) return target;
+
+    // Source adapter unavailable — fall back to priority routing
+    return getActiveAdapter(connectedServices);
+}
+
+/**
  * Returns ALL connected adapters — used for library browsing where
  * the user should see playlists from every service they've linked,
  * not just the highest-priority one.

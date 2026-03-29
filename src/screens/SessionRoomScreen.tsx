@@ -609,7 +609,7 @@ export function SessionRoomScreen() {
     const nowPlaying = queue[0] || null;
     if (nowPlaying && nowPlaying.id !== currentTrackRef.current) {
       currentTrackRef.current = nowPlaying.id;
-      loadTrack(nowPlaying.id, nowPlaying.duration || 30, nowPlaying.previewUrl);
+      loadTrack(nowPlaying.id, nowPlaying.duration || 30, nowPlaying.previewUrl, nowPlaying.sourceId, nowPlaying.source);
       if (user?.connectedServices?.lastfm?.connected) {
         api.integrations.updateNowPlaying(
           nowPlaying.title,
@@ -710,7 +710,7 @@ export function SessionRoomScreen() {
   const handleRetryPlayback = useCallback(() => {
     const retryTrack = queue[0];
     if (!retryTrack) return;
-    loadTrack(retryTrack.id, retryTrack.duration || 30, retryTrack.previewUrl).catch((err) => {
+    loadTrack(retryTrack.id, retryTrack.duration || 30, retryTrack.previewUrl, retryTrack.sourceId, retryTrack.source).catch((err) => {
       console.warn('[SessionRoom] Playback retry failed:', err);
     });
   }, [queue]);
