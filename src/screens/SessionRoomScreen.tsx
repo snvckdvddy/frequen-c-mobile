@@ -1292,6 +1292,10 @@ export function SessionRoomScreen() {
               keyboardHeight={keyboardHeight}
               onClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
               onOpenSearch={() => {
+                // Close the queue Modal before opening the search Modal.
+                // iOS only supports one active Modal — stacking causes
+                // touch/keyboard failures on the second Modal.
+                setQueueSheetOpen(false);
                 setSearchInSheet(false);
                 setSearchHudOpen(true);
               }}

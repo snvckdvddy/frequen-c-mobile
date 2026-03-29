@@ -6,7 +6,7 @@
  * offering a direct patch action when possible.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -21,7 +21,7 @@ import { Text } from '../ui';
 import { aiApi, searchApi, type QueueTrackInput, type SonicAestheticResult } from '../../services/api';
 import { tacticalTokens } from '../../features/session-v2/theme/tacticalTokens';
 import { theme } from '../../theme/theme';
-import { useManualMode } from '../../hooks/useManualMode';
+
 
 interface SonicAestheticCardProps {
   queue: QueueTrackInput[];
@@ -205,23 +205,15 @@ export function SonicAestheticCard({
   onAddSuggestion,
   onAddResolvedTrack,
 }: SonicAestheticCardProps) {
-  const { readManual } = useManualMode();
   const [result, setResult] = useState<SonicAestheticResult | null>(null);
   const [resolvedTrack, setResolvedTrack] = useState<Track | null>(null);
   const [loading, setLoading] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
-  const [manualInfoOpen, setManualInfoOpen] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const ready = queue.length >= 2;
-
-  useEffect(() => {
-    if (!readManual) {
-      setManualInfoOpen(false);
-    }
-  }, [readManual]);
 
   const analyze = useCallback(async () => {
     if (!ready) return;
@@ -247,14 +239,15 @@ export function SonicAestheticCard({
       try {
         const match = await resolveSuggestedTrack(data);
         setResolvedTrack(match);
-      } catch (resolveErr: any) {
-        console.warn('[SonicAesthetic:Resolve]', resolveErr?.message || String(resolveErr));
+      } catch (resolveErr: unknown) {
+        console.warn('[SonicAesthetic:Resolve]', resolveErr instanceof Error ? resolveErr.message : String(resolveErr));
       } finally {
         setResolving(false);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Unable to profile room aesthetic');
-      console.warn('[SonicAesthetic]', err?.message || String(err));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to profile room aesthetic';
+      setError(message);
+      console.warn('[SonicAesthetic]', message);
     } finally {
       setLoading(false);
     }
@@ -281,141 +274,49 @@ export function SonicAestheticCard({
     onAddSuggestion?.(result.nextTrack, result.nextArtist);
   }, [onAddResolvedTrack, onAddSuggestion, resolvedTrack, result]);
 
-  return (
-    <View style={styles.module}>
-      <View style={styles.moduleHeader}>
-        <View style={styles.moduleHeaderText}>
-          <Text style={styles.moduleEyebrow}>AI LAYER</Text>
-          <Text style={styles.moduleTitle}>SONIC AESTHETIC</Text>
-        </View>
-        <View style={styles.moduleHeaderActions}>
-          {readManual ? (
-            <Pressable
-              onPress={() => setManualInfoOpen((prev) => !prev)}
-              style={({ pressed }) => [
-                styles.manualButton,
-                manualInfoOpen && styles.manualButtonActive,
-                pressed && styles.pressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={manualInfoOpen ? 'Hide sonic aesthetic helper' : 'Show sonic aesthetic helper'}
-            >
-              <View style={styles.manualButtonDot} />
-            </Pressable>
-          ) : null}
-          <AnalyzeButton onPress={analyze} loading={loading} disabled={!ready} compact />
-        </View>
+  // ── Compact idle: just the button. Expands only when a result exists. ──
+  if (!result || dismissed) {
+    return (
+      <View style={styles.compactRow}>
+        <AnalyzeButton onPress={analyze} loading={loading} disabled={!ready} compact />
+        {error ? (
+          <Text style={styles.compactError} numberOfLines={1}>{error.toUpperCase()}</Text>
+        ) : null}
       </View>
+    );
+  }
 
-      {readManual && manualInfoOpen ? (
-        <View style={styles.manualHintRail}>
-          <Text style={styles.manualHintTitle}>WHAT THIS DOES</Text>
-          <Text style={styles.manualHintText}>
-            Sonic Aesthetic reads the current queue mood and suggests one editorial next patch that fits the room.
-          </Text>
-        </View>
-      ) : null}
-
-      {!ready ? (
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoTitle}>LOAD 2 TRACKS TO PROFILE THE ROOM</Text>
-          <Text style={styles.infoCopy}>QUEUE NEEDS ENOUGH SIGNAL TO MAP A CURATION LINE.</Text>
-        </View>
-      ) : null}
-
-      {error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error.toUpperCase()}</Text>
-        </View>
-      ) : null}
-
-      {result && !dismissed ? (
-        <Animated.View
-          style={[
-            styles.cardAnimatedWrap,
+  // ── Expanded: result card with dismiss ──
+  return (
+    <Animated.View
+      style={[
+        styles.cardAnimatedWrap,
+        {
+          opacity: fadeAnim,
+          transform: [
             {
-              opacity: fadeAnim,
-              transform: [
-                {
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [10, 0],
-                  }),
-                },
-              ],
+              translateY: fadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [10, 0],
+              }),
             },
-          ]}
-        >
-          <SonicAestheticResultCard
-            result={result}
-            resolvedTrack={resolvedTrack}
-            resolving={resolving}
-            onAddSuggestion={handleAddSuggestion}
-            onAddResolvedTrack={resolvedTrack && onAddResolvedTrack ? onAddResolvedTrack : undefined}
-            onDismiss={dismiss}
-          />
-        </Animated.View>
-      ) : null}
-    </View>
+          ],
+        },
+      ]}
+    >
+      <SonicAestheticResultCard
+        result={result}
+        resolvedTrack={resolvedTrack}
+        resolving={resolving}
+        onAddSuggestion={handleAddSuggestion}
+        onAddResolvedTrack={resolvedTrack && onAddResolvedTrack ? onAddResolvedTrack : undefined}
+        onDismiss={dismiss}
+      />
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  module: {
-    marginBottom: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderLight,
-    backgroundColor: theme.colors.matteGhost,
-    padding: theme.spacing.md,
-  },
-  moduleHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.md,
-  },
-  moduleHeaderText: {
-    flex: 1,
-  },
-  moduleHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    marginRight: theme.spacing.sm,
-  },
-  moduleEyebrow: {
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.textMuted,
-    letterSpacing: 2,
-  },
-  moduleTitle: {
-    marginTop: 4,
-    fontFamily: tacticalTokens.fonts.display,
-    fontSize: tacticalTokens.fontSize.label,
-    color: tacticalTokens.colors.ice,
-  },
-  manualButton: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: tacticalTokens.colors.guide,
-    backgroundColor: tacticalTokens.colors.matte,
-    marginTop: 2,
-    marginRight: 2,
-  },
-  manualButtonActive: {
-    backgroundColor: tacticalTokens.colors.matteGhost,
-  },
-  manualButtonDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: tacticalTokens.colors.guide,
-  },
   analyzeBtn: {
     minHeight: 34,
     paddingHorizontal: 12,
@@ -456,56 +357,6 @@ const styles = StyleSheet.create({
   },
   analyzeBtnTextDisabled: {
     color: tacticalTokens.colors.textDim,
-  },
-  infoBlock: {
-    marginTop: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.borderGhost,
-    backgroundColor: theme.colors.matteGrey,
-    padding: theme.spacing.md,
-  },
-  infoTitle: {
-    fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.small,
-    color: tacticalTokens.colors.white,
-    letterSpacing: 1.4,
-  },
-  infoCopy: {
-    marginTop: theme.spacing.xs,
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.textMuted,
-    letterSpacing: 1.2,
-  },
-  manualHintRail: {
-    marginTop: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: tacticalTokens.colors.guideSoft,
-    backgroundColor: tacticalTokens.colors.matteGhost,
-    padding: theme.spacing.md,
-  },
-  manualHintTitle: {
-    fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.guide,
-    letterSpacing: 1.5,
-  },
-  manualHintText: {
-    marginTop: theme.spacing.xs,
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.guideSoft,
-    lineHeight: 18,
-    letterSpacing: 1,
-  },
-  errorContainer: {
-    marginTop: theme.spacing.sm,
-  },
-  errorText: {
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.orange,
-    letterSpacing: 1.2,
   },
   cardAnimatedWrap: {
     marginTop: theme.spacing.md,
@@ -675,6 +526,19 @@ const styles = StyleSheet.create({
   },
   addBtnTextDisabled: {
     color: tacticalTokens.colors.textDim,
+  },
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  compactError: {
+    flex: 1,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 1.2,
   },
 });
 
