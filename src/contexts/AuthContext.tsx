@@ -435,8 +435,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const handleIncomingAuthUrl = useCallback(async (url: string) => {
     if (!url || lastHandledAuthUrlRef.current === url) return false;
 
+    // Claim the URL immediately to prevent concurrent handlers from double-processing
+    lastHandledAuthUrlRef.current = url;
+
     if (await handleSoundcloudRedirect(url)) {
-      lastHandledAuthUrlRef.current = url;
       pendingAuthProviderRef.current = null;
       return true;
     }
@@ -444,26 +446,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const pendingProvider = pendingAuthProviderRef.current;
     let handled = false;
 
-    if (pendingProvider === 'spotify') {
-      handled = await completeSpotifyAuth(url);
-    } else if (pendingProvider === 'tidal') {
-      handled = await completeTidalAuth(url);
+    // Spotify/Tidal are handled by promptAsync → useEffect([response/tidalResponse]).
+    // Skip them here to prevent double code exchange.
+    if (pendingProvider === 'spotify' || pendingProvider === 'tidal') {
+      return false;
     } else if (pendingProvider === 'lastfm') {
       handled = await completeLastfmAuth(url);
     } else {
-      handled =
-        (await completeSpotifyAuth(url)) ||
-        (await completeTidalAuth(url)) ||
-        (await completeLastfmAuth(url));
+      // No pending provider — try Last.fm as fallback
+      // (Spotify/Tidal are handled by their useEffect watchers)
+      handled = await completeLastfmAuth(url);
     }
 
     if (handled) {
-      lastHandledAuthUrlRef.current = url;
       pendingAuthProviderRef.current = null;
     }
 
     return handled;
-  }, [completeLastfmAuth, completeSpotifyAuth, completeTidalAuth, handleSoundcloudRedirect]);
+  }, [completeLastfmAuth, handleSoundcloudRedirect]);
 
   useEffect(() => {
     const sub = Linking.addEventListener('url', ({ url }) => {
