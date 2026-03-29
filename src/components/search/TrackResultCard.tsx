@@ -10,6 +10,7 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Text } from '../ui';
 import { palette } from '../../design/tokens/materials';
+import { getSourceColor } from '../../design/tokens/sourceColors';
 import { spacing } from '../../theme/spacing';
 import { tapLight } from '../../utils/haptics';
 import type { Track } from '../../types';
@@ -46,7 +47,7 @@ export function TrackResultCard({
   onAddToRoom,
 }: TrackResultCardProps) {
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { borderLeftWidth: 3, borderLeftColor: getSourceColor(track.source) }]}>
       {/* Album art */}
       {track.albumArt ? (
         <Image source={{ uri: track.albumArt }} style={styles.art} accessible={false} />

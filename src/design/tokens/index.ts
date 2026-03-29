@@ -9,3 +9,4 @@ export * from './typography';
 export * from './materials';
 export * from './elevation';
 export * from './animation';
+export * from './sourceColors';

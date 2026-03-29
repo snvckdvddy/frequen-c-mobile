@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 100,
-    backgroundColor: tacticalTokens.colors.ice,
+    // backgroundColor set dynamically via sourceColor inline style
   },
   content: {
     flex: 1,

@@ -33,12 +33,3 @@ export function getSourceColor(source: TrackSource | undefined): string {
   return sourceColors[source] ?? palette.ice;
 }
 
-/**
- * Get the brand color at reduced opacity (for backgrounds/tints).
- * Returns a hex + alpha string like '#1DB95420'.
- */
-export function getSourceTint(source: TrackSource | undefined, alphaHex = '15'): string {
-  const color = getSourceColor(source);
-  // palette.slate and palette.ice already have full hex — safe to append
-  return `${color}${alphaHex}`;
-}
