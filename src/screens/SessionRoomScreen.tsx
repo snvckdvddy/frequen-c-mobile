@@ -1292,12 +1292,18 @@ export function SessionRoomScreen() {
               keyboardHeight={keyboardHeight}
               onClose={() => { setQueueSheetOpen(false); setSearchInSheet(false); }}
               onOpenSearch={() => {
-                // Close the queue Modal before opening the search Modal.
-                // iOS only supports one active Modal — stacking causes
-                // touch/keyboard failures on the second Modal.
-                setQueueSheetOpen(false);
-                setSearchInSheet(false);
-                setSearchHudOpen(true);
+                if (Platform.OS === 'ios') {
+                  // iOS only supports one active Modal — close queue first,
+                  // then defer search open to avoid native modal overlap.
+                  setQueueSheetOpen(false);
+                  setSearchInSheet(false);
+                  requestAnimationFrame(() => {
+                    setSearchHudOpen(true);
+                  });
+                } else {
+                  // Android handles stacked modals fine — use in-sheet search
+                  setSearchInSheet(true);
+                }
               }}
               onCloseSearch={handleCancelSearch}
               onQueryChange={setQuery}
