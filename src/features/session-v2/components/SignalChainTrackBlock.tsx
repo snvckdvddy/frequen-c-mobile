@@ -1,7 +1,8 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { theme } from '../../../theme/theme';
+import { withAlpha } from '../../../design/tokens/materials';
 import { getSourceColor, getSourceLabel } from '../../../design/tokens/sourceColors';
+import { tacticalTokens } from '../theme/tacticalTokens';
 import type { SignalChainItem, SignalChainVisualMode } from '../types';
 
 interface SignalChainTrackBlockProps {
@@ -13,72 +14,63 @@ interface SignalChainTrackBlockProps {
   onReject: (trackId: string) => void;
 }
 
-function withAlpha(hex: string, alpha: number): string {
-  const normalized = hex.replace('#', '');
-  const bigint = parseInt(normalized, 16);
-  const r = (bigint >> 16) & 255;
-  const g = (bigint >> 8) & 255;
-  const b = bigint & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
 function getBlockVisuals(item: SignalChainItem, mode: SignalChainVisualMode) {
   if (item.isPending) {
     return {
-      borderColor: theme.colors.textSoft,
-      stripColor: theme.colors.void,
-      backgroundColor: withAlpha(theme.colors.void, 0.92),
+      borderColor: tacticalTokens.colors.textSoft,
+      stripColor: tacticalTokens.colors.void,
+      backgroundColor: withAlpha(tacticalTokens.colors.void, 0.92),
       opacity: 0.92,
       borderStyle: 'dashed' as const,
-      titleColor: theme.colors.textDim,
-      metaColor: theme.colors.textSoft,
+      titleColor: tacticalTokens.colors.textDim,
+      metaColor: tacticalTokens.colors.textSoft,
     };
   }
 
   if (mode === 'campfire' && item.isCurrent) {
     return {
-      borderColor: theme.colors.electricOrange,
-      stripColor: theme.colors.electricOrange,
-      backgroundColor: theme.colors.matteGrey,
+      borderColor: tacticalTokens.colors.orange,
+      stripColor: tacticalTokens.colors.orange,
+      backgroundColor: tacticalTokens.colors.matte,
       opacity: 1,
       borderStyle: 'solid' as const,
-      titleColor: theme.colors.textPure,
-      metaColor: theme.colors.textMuted,
+      titleColor: tacticalTokens.colors.white,
+      metaColor: tacticalTokens.colors.textMuted,
     };
   }
 
   if (mode === 'openFloor' && item.voteHeat === 'high') {
     return {
-      borderColor: theme.colors.acidGreen,
-      stripColor: theme.colors.acidGreen,
-      backgroundColor: theme.colors.matteGrey,
+      borderColor: tacticalTokens.colors.acid,
+      stripColor: tacticalTokens.colors.acid,
+      backgroundColor: tacticalTokens.colors.matte,
       opacity: 1,
       borderStyle: 'solid' as const,
-      titleColor: theme.colors.textPure,
-      metaColor: theme.colors.textMuted,
+      titleColor: tacticalTokens.colors.white,
+      metaColor: tacticalTokens.colors.textMuted,
     };
   }
 
   if (mode === 'openFloor' && item.voteHeat === 'low') {
     return {
-      borderColor: theme.colors.borderLight,
-      stripColor: theme.colors.void,
-      backgroundColor: theme.colors.matteGrey,
+      borderColor: tacticalTokens.colors.border,
+      stripColor: tacticalTokens.colors.void,
+      backgroundColor: tacticalTokens.colors.matte,
       opacity: 0.4,
       borderStyle: 'solid' as const,
-      titleColor: theme.colors.textPure,
-      metaColor: theme.colors.textSoft,
+      titleColor: tacticalTokens.colors.white,
+      metaColor: tacticalTokens.colors.textSoft,
     };
   }
 
   return {
-    borderColor: theme.colors.borderLight,
-    stripColor: theme.colors.void,
-    backgroundColor: theme.colors.matteGrey,
+    borderColor: tacticalTokens.colors.border,
+    stripColor: tacticalTokens.colors.void,
+    backgroundColor: tacticalTokens.colors.matte,
     opacity: 1,
     borderStyle: 'solid' as const,
-    titleColor: theme.colors.textPure,
-    metaColor: theme.colors.textMuted,
+    titleColor: tacticalTokens.colors.white,
+    metaColor: tacticalTokens.colors.textMuted,
   };
 }
 
@@ -94,10 +86,10 @@ function VoteTower({
   onDownvote: () => void;
 }) {
   const countColor = voteHeat === 'high'
-    ? theme.colors.acidGreen
+    ? tacticalTokens.colors.acid
     : voteHeat === 'low'
-      ? theme.colors.hotPink
-      : theme.colors.textPure;
+      ? tacticalTokens.colors.hotPink
+      : tacticalTokens.colors.white;
 
   return (
     <View style={styles.voteTower}>
@@ -160,7 +152,7 @@ export function SignalChainTrackBlock({
             styles.indexStrip,
             {
               backgroundColor: visuals.stripColor,
-              borderRightColor: item.isPending ? theme.colors.textDim : theme.colors.borderLight,
+              borderRightColor: item.isPending ? tacticalTokens.colors.textDim : tacticalTokens.colors.border,
               borderStyle: item.isPending ? 'dashed' : 'solid',
             },
           ]}
@@ -170,10 +162,10 @@ export function SignalChainTrackBlock({
               styles.indexText,
               {
                 color:
-                  visuals.stripColor === theme.colors.electricOrange ||
-                  visuals.stripColor === theme.colors.acidGreen
-                    ? theme.colors.void
-                    : theme.colors.textDim,
+                  visuals.stripColor === tacticalTokens.colors.orange ||
+                  visuals.stripColor === tacticalTokens.colors.acid
+                    ? tacticalTokens.colors.void
+                    : tacticalTokens.colors.textDim,
               },
             ]}
           >
@@ -219,7 +211,7 @@ export function SignalChainTrackBlock({
               accessibilityRole="button"
               accessibilityLabel={`Approve ${item.track.title}`}
             >
-              <Text style={[styles.approvalGlyph, { color: theme.colors.acidGreen }]}>✓</Text>
+              <Text style={[styles.approvalGlyph, { color: tacticalTokens.colors.acid }]}>✓</Text>
             </Pressable>
             <Pressable
               onPress={() => onReject(item.track.id)}
@@ -227,7 +219,7 @@ export function SignalChainTrackBlock({
               accessibilityRole="button"
               accessibilityLabel={`Reject ${item.track.title}`}
             >
-              <Text style={[styles.approvalGlyph, { color: theme.colors.hotPink }]}>✕</Text>
+              <Text style={[styles.approvalGlyph, { color: tacticalTokens.colors.hotPink }]}>✕</Text>
             </Pressable>
           </View>
         ) : null}
@@ -247,7 +239,7 @@ export function SignalChainTrackBlock({
           pointerEvents="none"
           style={[
             styles.patchCable,
-            { backgroundColor: item.isCurrent ? theme.colors.electricOrange : theme.colors.borderLight },
+            { backgroundColor: item.isCurrent ? tacticalTokens.colors.orange : tacticalTokens.colors.border },
           ]}
         />
       ) : null}
@@ -258,19 +250,19 @@ export function SignalChainTrackBlock({
 const styles = StyleSheet.create({
   wrapper: {
     position: 'relative',
-    marginBottom: theme.spacing.sm,
+    marginBottom: tacticalTokens.spacing.sm,
   },
   wrapperCampfire: {
-    marginBottom: theme.spacing.xs,
+    marginBottom: tacticalTokens.spacing.xs,
   },
   wrapperOpenFloor: {
-    marginBottom: theme.spacing.sm,
+    marginBottom: tacticalTokens.spacing.sm,
   },
   block: {
     minHeight: 60,
     flexDirection: 'row',
     alignItems: 'stretch',
-    backgroundColor: theme.colors.matteGrey,
+    backgroundColor: tacticalTokens.colors.matte,
     borderWidth: 1,
     borderRadius: 0,
     overflow: 'hidden',
@@ -283,29 +275,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: 1,
-    backgroundColor: theme.colors.void,
+    backgroundColor: tacticalTokens.colors.void,
   },
   indexText: {
-    fontFamily: theme.fonts.mono,
+    fontFamily: tacticalTokens.fonts.mono,
     fontSize: 9,
-    color: theme.colors.textDim,
+    color: tacticalTokens.colors.textDim,
     transform: [{ rotate: '-90deg' }],
   },
   content: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.xs + 2,
+    paddingHorizontal: tacticalTokens.spacing.xs + 2,
     paddingVertical: 6,
-    gap: theme.spacing.xs,
+    gap: tacticalTokens.spacing.xs,
     overflow: 'hidden',
   },
   artBlock: {
     width: 32,
     height: 32,
     borderWidth: 1,
-    borderColor: theme.colors.borderLight,
-    backgroundColor: theme.colors.matteGrey,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
     flexShrink: 0,
     overflow: 'hidden',
   },
@@ -325,17 +317,17 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   blockLabel: {
-    fontFamily: theme.fonts.mono,
+    fontFamily: tacticalTokens.fonts.mono,
     fontSize: 8,
-    color: theme.colors.textDim,
+    color: tacticalTokens.colors.textDim,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
   title: {
-    fontFamily: theme.fonts.display,
+    fontFamily: tacticalTokens.fonts.display,
     fontSize: 13,
     lineHeight: 15,
-    color: theme.colors.textPure,
+    color: tacticalTokens.colors.white,
     textTransform: 'uppercase',
   },
   metaRow: {
@@ -351,14 +343,14 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   sourceLabel: {
-    fontFamily: theme.fonts.mono,
+    fontFamily: tacticalTokens.fonts.mono,
     fontSize: 7,
     letterSpacing: 0.8,
   },
   meta: {
-    fontFamily: theme.fonts.mono,
+    fontFamily: tacticalTokens.fonts.mono,
     fontSize: 8,
-    color: theme.colors.textDim,
+    color: tacticalTokens.colors.textDim,
     textTransform: 'uppercase',
     letterSpacing: 1,
     flexShrink: 1,
@@ -367,7 +359,7 @@ const styles = StyleSheet.create({
     width: 64,
     flexDirection: 'row',
     borderLeftWidth: 1,
-    borderLeftColor: theme.colors.borderLight,
+    borderLeftColor: tacticalTokens.colors.border,
   },
   approvalCell: {
     width: 32,
@@ -375,26 +367,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   approveCell: {
-    backgroundColor: withAlpha(theme.colors.acidGreen, 0.1),
+    backgroundColor: withAlpha(tacticalTokens.colors.acid, 0.1),
   },
   rejectCell: {
-    backgroundColor: withAlpha(theme.colors.hotPink, 0.1),
+    backgroundColor: withAlpha(tacticalTokens.colors.hotPink, 0.1),
     borderLeftWidth: 1,
-    borderLeftColor: theme.colors.borderLight,
+    borderLeftColor: tacticalTokens.colors.border,
   },
   approvalPressed: {
     opacity: 0.9,
   },
   approvalGlyph: {
-    fontFamily: theme.fonts.monoBold,
+    fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: 16,
   },
   voteTower: {
     width: 44,
     flexDirection: 'column',
     borderLeftWidth: 1,
-    borderLeftColor: theme.colors.borderLight,
-    backgroundColor: theme.colors.void,
+    borderLeftColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
   },
   voteCell: {
     minHeight: 18,
@@ -402,12 +394,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   voteCellPressed: {
-    backgroundColor: withAlpha(theme.colors.textPure, 0.08),
+    backgroundColor: withAlpha(tacticalTokens.colors.white, 0.08),
   },
   voteGlyph: {
-    fontFamily: theme.fonts.monoBold,
+    fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: 11,
-    color: theme.colors.textMuted,
+    color: tacticalTokens.colors.textMuted,
   },
   voteCountCell: {
     minHeight: 26,
@@ -415,11 +407,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: theme.colors.borderLight,
-    backgroundColor: theme.colors.void,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
   },
   voteCount: {
-    fontFamily: theme.fonts.monoBold,
+    fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: 15,
   },
   patchCable: {

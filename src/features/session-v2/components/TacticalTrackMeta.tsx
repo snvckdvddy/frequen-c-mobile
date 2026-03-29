@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     marginRight: tacticalTokens.spacing.sm,
   },
   railIdle: {
-    minHeight: 70,
+    backgroundColor: tacticalTokens.colors.borderGhost,
   },
   content: {
     flex: 1,

@@ -69,11 +69,20 @@ export function getActiveAdapter(connectedServices: ConnectedServices | undefine
  * Falls back to getActiveAdapter if the source adapter isn't connected
  * (e.g. another user queued a Tidal track but you only have Spotify).
  */
+// Preview-only sources use direct URLs — no adapter resolution needed.
+const PREVIEW_ONLY_SOURCES: TrackSource[] = ['itunes', 'youtube'];
+
 export function getAdapterForSource(
     source: TrackSource | undefined,
     connectedServices: ConnectedServices | undefined,
 ): MusicServiceAdapter {
     syncConnectedState(connectedServices);
+
+    // iTunes/YouTube tracks carry their own preview URL — return the stub
+    // directly so we don't fire a useless request against a real service API.
+    if (source && PREVIEW_ONLY_SOURCES.includes(source)) {
+        return adapterMap[source];
+    }
 
     const target = source ? adapterMap[source] : undefined;
     if (target?.isConnected()) return target;

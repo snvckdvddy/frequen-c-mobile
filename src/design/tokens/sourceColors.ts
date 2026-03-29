@@ -30,7 +30,7 @@ export const sourceLabels: Record<TrackSource, string> = {
   appleMusic: 'AM',
   tidal:      'TIDAL',
   youtube:    'YT',
-  itunes:     'iTUNES',
+  itunes:     'ITUNES',
 };
 
 // ─── ServiceIcon key mapping ────────────────────────────────
