@@ -11,10 +11,10 @@
  * Font files must be loaded via expo-font before use.
  * See: src/design/fonts/ for .ttf files.
  *
- * NOTE: Outfit is a variable font (.ttf) loaded as 'Outfit'.
- * RN doesn't support fontWeight on custom fonts natively —
- * we load the variable font once and rely on the weight axis.
- * For guaranteed weight control, we may split into static instances later.
+ * NOTE: RN doesn't support fontWeight on custom fonts — each weight
+ * needs its own .ttf file and fontFamily name. Outfit was originally
+ * a variable font but caused SIGBUS crashes on iOS; now uses static
+ * instances (Outfit-Regular, Outfit-Medium, Outfit-Bold).
  */
 
 // ─── Font Families ──────────────────────────────────────────
@@ -144,7 +144,7 @@ export const textStyle = {
     letterSpacing: letterSpacing.wide,
   },
 
-  // Label tier — Inter Bold, uppercase, wide tracking
+  // Label tier — Outfit Bold, uppercase, wide tracking
   moduleLabel: {
     fontFamily: fontFamily.label,
     fontSize: fontSize.sm,
@@ -160,7 +160,7 @@ export const textStyle = {
     textTransform: 'uppercase' as const,
   },
 
-  // Body tier — Inter Regular
+  // Body tier — Outfit Regular
   bodyPrimary: {
     fontFamily: fontFamily.body,
     fontSize: fontSize.md,

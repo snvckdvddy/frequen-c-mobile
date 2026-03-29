@@ -9,7 +9,7 @@
  *   if (!fontsLoaded) return <SplashScreen />;
  */
 
-import { useFonts } from 'expo-font';
+import { useFonts, FontSource } from 'expo-font';
 import { fontAssets } from './tokens/typography';
 
 /**
@@ -17,7 +17,7 @@ import { fontAssets } from './tokens/typography';
  * Returns [loaded: boolean, error: Error | null].
  */
 export function useDesignFonts() {
-  return useFonts(fontAssets as Record<string, any>);
+  return useFonts(fontAssets as Record<string, FontSource>);
 }
 
 /**
