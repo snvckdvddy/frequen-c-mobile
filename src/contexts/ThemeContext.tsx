@@ -65,11 +65,19 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isVoltageSag, setIsVoltageSag] = useState(false);
 
   useEffect(() => {
+    let subscription: { remove: () => void } | null = null;
+
     const checkBattery = async () => {
       try {
         const level = await Battery.getBatteryLevelAsync();
         setBatteryLevel(level);
         setIsVoltageSag(level > 0 && level <= SAG_THRESHOLD);
+
+        // Only subscribe if the initial call succeeded (native module exists)
+        subscription = Battery.addBatteryLevelListener(({ batteryLevel: lvl }) => {
+          setBatteryLevel(lvl);
+          setIsVoltageSag(lvl <= SAG_THRESHOLD);
+        });
       } catch {
         // Battery API not available (simulator, web) — no sag
         setBatteryLevel(null);
@@ -77,12 +85,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     checkBattery();
 
-    const subscription = Battery.addBatteryLevelListener(({ batteryLevel: lvl }) => {
-      setBatteryLevel(lvl);
-      setIsVoltageSag(lvl <= SAG_THRESHOLD);
-    });
-
-    return () => subscription.remove();
+    return () => subscription?.remove();
   }, []);
 
   // Sync Voltage Sag state to playback engine for audio degradation

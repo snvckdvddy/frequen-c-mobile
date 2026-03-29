@@ -6,14 +6,19 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { API_BASE_URL } from './config';
 
 // ─── Token helpers ──────────────────────────────────────────
+// expo-secure-store is not available on web — fall back to
+// localStorage for dev/testing. Production mobile always uses SecureStore.
 
 const TOKEN_KEY = 'frequenc_auth_token';
+const isWeb = Platform.OS === 'web';
 
 export async function getStoredToken(): Promise<string | null> {
   try {
+    if (isWeb) return localStorage.getItem(TOKEN_KEY);
     return await SecureStore.getItemAsync(TOKEN_KEY);
   } catch {
     return null;
@@ -21,11 +26,22 @@ export async function getStoredToken(): Promise<string | null> {
 }
 
 export async function storeToken(token: string): Promise<void> {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  try {
+    if (isWeb) { localStorage.setItem(TOKEN_KEY, token); return; }
+    await SecureStore.setItemAsync(TOKEN_KEY, token);
+  } catch {
+    // SecureStore unavailable (web fallback also failed) — non-fatal
+    console.warn('[fetchClient] Token storage unavailable');
+  }
 }
 
 export async function clearToken(): Promise<void> {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  try {
+    if (isWeb) { localStorage.removeItem(TOKEN_KEY); return; }
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+  } catch {
+    // Non-fatal
+  }
 }
 
 // ─── Error Class ────────────────────────────────────────────
