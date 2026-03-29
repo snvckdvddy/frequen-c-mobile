@@ -706,19 +706,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       showToast('Spotify auth is still loading. Try again in a moment.', 'info');
       return;
     }
-    // 🔧 DEBUG — copy this URI into Spotify Developer Dashboard → Redirect URIs
-    console.log('[Auth] Spotify redirectUri:', request?.redirectUri);
-    console.log('[Auth] Auth runtime:', authDiagnostics.appOwnership);
     try {
       pendingAuthProviderRef.current = 'spotify';
-      const authUrl = request.url || await request.makeAuthUrlAsync(discovery);
-      showToast('Complete Spotify sign-in in the browser. You can switch to Duo/Auth apps and return when finished.', 'info');
-      await Linking.openURL(authUrl);
+      const result = await promptAsync();
+      if (result?.type === 'dismiss' || result?.type === 'cancel') {
+        showToast('Spotify sign-in cancelled.', 'info');
+        pendingAuthProviderRef.current = null;
+      }
+      // Success/error handled by the useEffect watching `response`
     } catch (error) {
       showToast(friendlyProviderError('Spotify', (error as Error)?.message), 'error');
-      throw error;
+      pendingAuthProviderRef.current = null;
     }
-  }, [request, authDiagnostics]);
+  }, [request, promptAsync, authDiagnostics]);
 
   const connectSoundcloud = useCallback(async () => {
     if (BYPASS_AUTH) {
@@ -732,10 +732,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const redirectUri = authDiagnostics.soundcloudRedirectUri;
-    // 🔧 DEBUG — register this exact URI in SoundCloud Developer App → Redirect URI
-    console.log('[Auth] SoundCloud redirectUri:', redirectUri);
     const sessionReturnUrl = authDiagnostics.soundcloudSessionReturnUrl;
-    console.log('[Auth] SoundCloud sessionReturnUrl:', sessionReturnUrl);
     const stateParam = encodeURIComponent(
       JSON.stringify({
         userId: state.user.id,
@@ -746,12 +743,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       pendingAuthProviderRef.current = 'soundcloud';
-      showToast('Complete SoundCloud sign-in in the browser. You can switch to Duo/Auth apps and return when finished.', 'info');
-      await Linking.openURL(authUrl);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, 'frequenc://');
+      if (result.type === 'success' && result.url) {
+        await handleIncomingAuthUrl(result.url);
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        showToast('SoundCloud sign-in cancelled.', 'info');
+        pendingAuthProviderRef.current = null;
+      }
     } catch (error) {
       showToast(friendlyAuthError('SoundCloud', (error as Error)?.message), 'error');
+      pendingAuthProviderRef.current = null;
     }
-  }, [state.user, authDiagnostics]);
+  }, [state.user, authDiagnostics, handleIncomingAuthUrl]);
 
   const connectTidal = useCallback(async () => {
     if (BYPASS_AUTH) {
@@ -769,19 +772,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       showToast('Tidal auth is still loading. Try again in a moment.', 'info');
       return;
     }
-    // 🔧 DEBUG — copy this URI into Tidal Developer Portal → Redirect URIs
-    console.log('[Auth] Tidal redirectUri:', tidalRequest?.redirectUri);
-    console.log('[Auth] Auth runtime:', authDiagnostics.appOwnership);
     try {
       pendingAuthProviderRef.current = 'tidal';
-      const authUrl = tidalRequest.url || await tidalRequest.makeAuthUrlAsync(tidalDiscovery);
-      showToast('Complete Tidal sign-in in the browser. You can switch to Duo/Auth apps and return when finished.', 'info');
-      await Linking.openURL(authUrl);
+      const result = await promptTidalAsync();
+      if (result?.type === 'dismiss' || result?.type === 'cancel') {
+        showToast('Tidal sign-in cancelled.', 'info');
+        pendingAuthProviderRef.current = null;
+      }
+      // Success/error handled by the useEffect watching `tidalResponse`
     } catch (error) {
       showToast(friendlyProviderError('Tidal', (error as Error)?.message), 'error');
-      throw error;
+      pendingAuthProviderRef.current = null;
     }
-  }, [tidalRequest, authDiagnostics]);
+  }, [tidalRequest, promptTidalAsync, authDiagnostics]);
 
   const connectLastfm = useCallback(async () => {
     if (BYPASS_AUTH) {
@@ -795,18 +798,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const redirectUri = authDiagnostics.lastfmRedirectUri;
-    // 🔧 DEBUG — Last.fm callback URI (no portal registration needed, but good to verify)
-    console.log('[Auth] Last.fm redirectUri:', redirectUri);
     const authUrl = `https://www.last.fm/api/auth/?api_key=${apiKey}&cb=${encodeURIComponent(redirectUri)}`;
 
     try {
       pendingAuthProviderRef.current = 'lastfm';
-      showToast('Complete Last.fm sign-in in the browser and return to the app when finished.', 'info');
-      await Linking.openURL(authUrl);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, 'frequenc://');
+      if (result.type === 'success' && result.url) {
+        await handleIncomingAuthUrl(result.url);
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        showToast('Last.fm sign-in cancelled.', 'info');
+        pendingAuthProviderRef.current = null;
+      }
     } catch (error) {
       showToast(friendlyProviderError('Last.fm', (error as Error)?.message), 'error');
+      pendingAuthProviderRef.current = null;
     }
-  }, [state.user, authDiagnostics]);
+  }, [state.user, authDiagnostics, handleIncomingAuthUrl]);
 
   const disconnectService = useCallback(async (provider: DisconnectableProvider) => {
     if (!state.user || !state.token) return;
