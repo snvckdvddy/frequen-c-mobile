@@ -21,23 +21,29 @@
 
 export const fontFamily = {
   display: 'ChakraPetch-SemiBold',
+  displayMedium: 'ChakraPetch-Medium',
+  displayRegular: 'ChakraPetch-Regular',
   displayBold: 'ChakraPetch-Bold',
   mono: 'SpaceMono-Regular',
   monoBold: 'SpaceMono-Bold',
-  label: 'Outfit',           // Used with fontWeight: '700' + uppercase
-  body: 'Outfit',            // Used with fontWeight: '400' or '500'
+  label: 'Outfit-Bold',      // Label text: uppercase, wide tracking
+  body: 'Outfit-Regular',    // Body text: descriptions, chat
+  bodyMedium: 'Outfit-Medium', // Emphasized body text
 } as const;
 
 // Map for expo-font require() calls
 export const fontAssets = {
-  // Temporary aliases until regular/medium font files are added.
-  'ChakraPetch-Regular': require('../fonts/ChakraPetch-SemiBold.ttf'),
-  'ChakraPetch-Medium': require('../fonts/ChakraPetch-SemiBold.ttf'),
+  'ChakraPetch-Regular': require('../fonts/ChakraPetch-Regular.ttf'),
+  'ChakraPetch-Medium': require('../fonts/ChakraPetch-Medium.ttf'),
   'ChakraPetch-SemiBold': require('../fonts/ChakraPetch-SemiBold.ttf'),
   'ChakraPetch-Bold': require('../fonts/ChakraPetch-Bold.ttf'),
   'SpaceMono-Regular': require('../fonts/SpaceMono-Regular.ttf'),
   'SpaceMono-Bold': require('../fonts/SpaceMono-Bold.ttf'),
-  'Outfit': require('../fonts/SpaceMono-Regular.ttf'), // Temporarily changed from Outfit-Variable.ttf to fix SIGBUS crash
+  // Static instances replace the variable font that caused SIGBUS crashes on iOS
+  'Outfit': require('../fonts/Outfit-Regular.ttf'),
+  'Outfit-Regular': require('../fonts/Outfit-Regular.ttf'),
+  'Outfit-Medium': require('../fonts/Outfit-Medium.ttf'),
+  'Outfit-Bold': require('../fonts/Outfit-Bold.ttf'),
 } as const;
 
 // ─── Type Scale (px) ────────────────────────────────────────
