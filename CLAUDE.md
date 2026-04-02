@@ -66,7 +66,7 @@ Visual language: **Rack x Chrome** — `VoidSurface`, `TacticalGridBackground`, 
 2. **Plan** — Implementation plan with bite-sized tasks, exact file paths, expected output
 3. **Execute** — Follow the plan task by task
 
-Custom skills in `.skills/skills/`: `brainstorming`, `writing-plans`, `api-design-principles`, `ux-product-manager`
+Custom skills in `../_skills/`: `brainstorming`, `writing-plans`, `api-design-principles`, `ux-product-manager`
 
 **Maintenance/approved plans** can proceed directly without the brainstorming gate.
 

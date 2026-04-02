@@ -8,6 +8,7 @@ module.exports = {
   moduleNameMapper: {
     '^@frequen-c/types$': '<rootDir>/packages/types/src/index.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^expo-secure-store$': '<rootDir>/src/__mocks__/expo-secure-store.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
