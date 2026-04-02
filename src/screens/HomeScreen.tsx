@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, ErrorState } from '../components/ui';
@@ -30,7 +32,7 @@ interface HomeScreenProps {
   onOpenProfile?: () => void;
   onOpenFriends?: () => void;
   onOpenActivityFeed?: () => void;
-  onViewAllFlightCases?: () => void;
+  onViewAllLibrary?: () => void;
 }
 
 function SectionHeader({
@@ -74,7 +76,7 @@ function TextMono({
   numberOfLines,
 }: {
   children: React.ReactNode;
-  style?: any;
+  style?: StyleProp<TextStyle>;
   numberOfLines?: number;
 }) {
   return (
@@ -130,10 +132,10 @@ function EmptyActivePatch({
         <TextMono style={styles.ghostEyebrow}>NO LIVE PATCH</TextMono>
         <TextMono style={styles.ghostTitle}>ARM A ROOM TO START TRANSMISSION</TextMono>
         <View style={styles.ghostActions}>
-          <Pressable onPress={onCreateSession} style={({ pressed }) => [styles.ghostActionButton, pressed && styles.pressed]}>
+          <Pressable onPress={onCreateSession} accessibilityRole="button" accessibilityLabel="Create a room" style={({ pressed }) => [styles.ghostActionButton, pressed && styles.pressed]}>
             <TextMono style={styles.ghostActionLabel}>CREATE</TextMono>
           </Pressable>
-          <Pressable onPress={onJoinSession} style={({ pressed }) => [styles.ghostActionButton, pressed && styles.pressed]}>
+          <Pressable onPress={onJoinSession} accessibilityRole="button" accessibilityLabel="Join a room" style={({ pressed }) => [styles.ghostActionButton, pressed && styles.pressed]}>
             <TextMono style={styles.ghostActionLabel}>JOIN</TextMono>
           </Pressable>
         </View>
@@ -243,7 +245,7 @@ export function HomeScreen({
   onOpenProfile,
   onOpenFriends,
   onOpenActivityFeed,
-  onViewAllFlightCases,
+  onViewAllLibrary,
 }: HomeScreenProps) {
   const { user } = useAuth();
   const cv = useCV();
@@ -409,8 +411,8 @@ export function HomeScreen({
             <SectionHeader
               label="RECENT FLIGHT CASES"
               accent={tacticalTokens.colors.ice}
-              actionLabel={archiveRooms.length > 0 && onViewAllFlightCases ? 'VIEW ALL' : undefined}
-              onAction={archiveRooms.length > 0 ? onViewAllFlightCases : undefined}
+              actionLabel={archiveRooms.length > 0 && onViewAllLibrary ? 'VIEW ALL' : undefined}
+              onAction={archiveRooms.length > 0 ? onViewAllLibrary : undefined}
             />
 
             {archiveRooms.length > 0 ? (

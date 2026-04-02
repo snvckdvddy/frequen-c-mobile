@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { notificationApi, type Notification } from '../services/api';
@@ -31,7 +33,7 @@ const NOTIF_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   system: 'information-circle-outline',
 };
 
-function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+function MonoText(props: { children: React.ReactNode; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
   return <Text {...props} />;
 }
 

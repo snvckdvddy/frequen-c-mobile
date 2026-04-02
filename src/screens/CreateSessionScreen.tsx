@@ -95,7 +95,7 @@ function ManualHotspot({
 }
 
 export function CreateSessionScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<{ replace: (screen: string, params: Record<string, string>) => void; goBack: () => void }>();
   const { readManual } = useManualMode();
   const [name, setName] = useState('');
   const [genre, setGenre] = useState('MIXED');
@@ -158,9 +158,10 @@ export function CreateSessionScreen() {
         vibe,
       });
       navigation.replace('SessionRoom', { sessionId: session.id });
-    } catch (err: any) {
+    } catch (err: unknown) {
       notifyError();
-      setInlineError((err?.message || 'PATCH EXECUTION FAILED.').toUpperCase());
+      const message = err instanceof Error ? err.message : 'PATCH EXECUTION FAILED.';
+      setInlineError(message.toUpperCase());
       showToast('Patch execution failed.', 'error', '!');
     } finally {
       setLoading(false);
@@ -229,6 +230,7 @@ export function CreateSessionScreen() {
                     autoCapitalize="words"
                     returnKeyType="done"
                     selectionColor={tacticalTokens.colors.ice}
+                    accessibilityLabel="Room name"
                   />
                 </View>
 
@@ -242,6 +244,7 @@ export function CreateSessionScreen() {
                     onChangeText={(text) => setGenre(text.toUpperCase())}
                     autoCapitalize="characters"
                     selectionColor={tacticalTokens.colors.ice}
+                    accessibilityLabel="Genre or tag"
                   />
                 </View>
 

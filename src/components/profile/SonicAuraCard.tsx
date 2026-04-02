@@ -6,6 +6,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { aiApi, type SonicAuraInput, type SonicAuraResult } from '../../services/api';
@@ -18,7 +20,7 @@ interface Props {
   topArtists: string[];
 }
 
-function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+function MonoText(props: { children: React.ReactNode; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
   return <Text {...props} />;
 }
 
@@ -40,9 +42,9 @@ export function SonicAuraCard({ roomsHosted, duelWinRate, topArtists }: Props) {
       notifySuccess();
       fade.setValue(0);
       Animated.spring(fade, { toValue: 1, useNativeDriver: true }).start();
-    } catch (err: any) {
+    } catch (err: unknown) {
       notifyError();
-      setError(err?.message || 'AURA READING UNAVAILABLE');
+      setError(err instanceof Error ? err.message : 'AURA READING UNAVAILABLE');
     } finally {
       setLoading(false);
     }

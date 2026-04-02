@@ -74,7 +74,7 @@ export function PowerRoutingSheet({
               <Text style={styles.headerTitle}>POWER ROUTING</Text>
               <Text style={styles.headerVoltage}>{String(voltage).padStart(3, '0')}V</Text>
             </View>
-            <Pressable onPress={onClose} style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close power routing" style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}>
               <Text style={styles.closeGlyph}>✕</Text>
             </Pressable>
           </View>

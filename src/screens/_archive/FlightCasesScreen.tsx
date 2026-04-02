@@ -1,3 +1,8 @@
+/**
+ * @archived 2026-03-30 — replaced by LibraryScreen.tsx
+ * DO NOT import or render. Retained for reference only.
+ * Relative imports assume placement in src/screens/_archive/.
+ */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -8,6 +13,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, showToast } from '../components/ui';
@@ -35,7 +42,7 @@ function MonoText({
   numberOfLines,
 }: {
   children: React.ReactNode;
-  style?: any;
+  style?: StyleProp<TextStyle>;
   numberOfLines?: number;
 }) {
   return (
@@ -204,8 +211,9 @@ export function FlightCasesScreen({ onOpenProfile }: FlightCasesScreenProps) {
       const { sessions } = await sessionApi.myRooms();
       setSessionHistory(sessions.filter((session) => !session.isLive));
       setHistoryError(null);
-    } catch (err: any) {
-      setHistoryError((err?.message || 'ARCHIVE BUS OFFLINE').toUpperCase());
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ARCHIVE BUS OFFLINE';
+      setHistoryError(message.toUpperCase());
     } finally {
       setHistoryLoading(false);
       setRefreshing(false);

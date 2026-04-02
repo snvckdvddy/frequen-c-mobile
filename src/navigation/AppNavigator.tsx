@@ -1,7 +1,7 @@
 /**
  * App Navigation — Convergence Strategy §1.1, §5
  *
- * 4-tab layout: Home | Discover | [+] Create | Library
+ * 4-tab layout: Home | Discover | Library | [+] Create
  * Profile accessed via header avatar (not a tab).
  * Center Create button opens CreateSession modal.
  *
@@ -10,7 +10,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, LinkingOptions, NavigationContainerRef, useNavigation } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createNativeStackNavigator, type NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
@@ -38,7 +38,7 @@ import { DiscoverScreen } from '../screens/DiscoverScreen';
 import { CreateSessionScreen } from '../screens/CreateSessionScreen';
 import { JoinSessionScreen } from '../screens/JoinSessionScreen';
 import { SessionRoomScreen } from '../screens/SessionRoomScreen';
-import { FlightCasesScreen } from '../screens/FlightCasesScreen';
+import { LibraryScreen } from '../screens/LibraryScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { FriendsScreen } from '../screens/FriendsScreen';
 import { UserProfileScreen } from '../screens/UserProfileScreen';
@@ -131,7 +131,7 @@ function TabNavigator() {
   const { user } = useAuth();
   const globalRoom = useGlobalSessionRoom();
   const currentTrack = globalRoom.queue[0];
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
   const handlePress = () => {
     if (globalRoom.session?.id) {
@@ -195,7 +195,7 @@ function TabNavigator() {
                 onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
                 onOpenFriends={() => props.navigation.getParent()?.navigate('Friends')}
                 onOpenActivityFeed={() => props.navigation.getParent()?.navigate('ActivityFeed')}
-                onViewAllFlightCases={() => props.navigation.navigate('Library')}
+                onViewAllLibrary={() => props.navigation.navigate('Library')}
               />
             </ErrorBoundary>
           )}
@@ -225,14 +225,14 @@ function TabNavigator() {
           )}
         </Tab.Screen>
 
-        {/* Tab 3: Library — ARCHIVE */}
+        {/* Tab 3: Library — LIBRARY */}
         <Tab.Screen
           name="Library"
           options={{
             tabBarLabel: ({ focused }) => (
               <View style={[styles.tacticalTab, focused && styles.tacticalTabActive]}>
                 <Text style={[styles.tacticalTabLabel, focused && { color: palette.green }]}>
-                  ARCHIVE
+                  LIBRARY
                 </Text>
               </View>
             ),
@@ -240,11 +240,10 @@ function TabNavigator() {
         >
           {(props) => (
             <ErrorBoundary screenName="Library">
-              <FlightCasesScreen
+              <LibraryScreen
                 onOpenRoom={(sessionId: string) =>
                   props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
                 }
-                onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
               />
             </ErrorBoundary>
           )}
@@ -397,7 +396,7 @@ function MainNavigator() {
         {({ navigation, route }) => (
           <ErrorBoundary screenName="UserProfile">
             <UserProfileScreen
-              userId={(route.params as any)?.userId ?? ''}
+              userId={(route.params as MainStackParamList['UserProfile'])?.userId ?? ''}
               onBack={() => navigation.goBack()}
               onOpenRoom={(sessionId: string) => navigation.navigate('SessionRoom', { sessionId })}
             />

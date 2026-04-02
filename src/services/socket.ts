@@ -275,6 +275,12 @@ export function trackEnded(sessionId: string): void {
   guardedEmit('track-ended', { sessionId });
 }
 
+/** Broadcast host playback state so non-host users see live progress. */
+export function emitPlaybackState(sessionId: string, state: 'playing' | 'paused' | 'stopped', position: number): void {
+  if (USE_MOCKS) return;
+  guardedEmit('playback:state', { sessionId, state, position });
+}
+
 // ─── Spotlight Mode Events (approve / reject suggestions) ───
 
 export function approveTrackEvent(sessionId: string, trackId: string, track: QueueTrack): void {

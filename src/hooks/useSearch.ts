@@ -136,9 +136,9 @@ export function useSearch(debounceMs = 500): UseSearchReturn {
         if (changed) {
           setResults(enrichedTracks);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (requestId !== requestIdRef.current) return;
-        setError(err.message || 'Search failed');
+        setError(err instanceof Error ? err.message : 'Search failed');
         setResults([]);
         setFallbackUsed(false);
         setProviderStates(getIdleSearchProviderStates());

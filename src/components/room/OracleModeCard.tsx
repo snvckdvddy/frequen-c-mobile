@@ -169,9 +169,10 @@ export function OracleModeCard({
         [feeling, ...prev.filter((item) => item !== feeling)].slice(0, MAX_RECENT_PROMPTS),
       );
       void resolveSuggestions(data.tracks);
-    } catch (err: any) {
-      setError(err?.message || 'Oracle unavailable');
-      console.warn('[Oracle]', err?.message || err);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Oracle unavailable';
+      setError(message);
+      console.warn('[Oracle]', message);
     } finally {
       setLoading(false);
     }

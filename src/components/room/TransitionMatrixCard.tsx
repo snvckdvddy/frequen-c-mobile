@@ -45,9 +45,10 @@ export function TransitionMatrixCard({ currentTitle, currentArtist, nextTitle, n
       const data = await aiApi.transitionMatrix(currentTitle, currentArtist, nextTitle, nextArtist);
       setResult(data);
       Animated.spring(fadeAnim, { toValue: 1, useNativeDriver: true }).start();
-    } catch (err: any) {
-      setError(err?.message || 'Analysis unavailable');
-      console.warn('[TransitionMatrix]', err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Analysis unavailable';
+      setError(message);
+      console.warn('[TransitionMatrix]', message);
     } finally {
       setLoading(false);
     }

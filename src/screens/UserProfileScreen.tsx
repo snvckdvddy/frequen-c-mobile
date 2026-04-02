@@ -25,7 +25,7 @@ interface UserProfileScreenProps {
 
 type PromptState = null | 'remove' | 'block';
 
-function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+function MonoText(props: { children: React.ReactNode; style?: import('react-native').StyleProp<import('react-native').TextStyle>; numberOfLines?: number }) {
   return <Text {...props} />;
 }
 
@@ -188,7 +188,7 @@ export function UserProfileScreen({ userId, onBack, onOpenRoom }: UserProfileScr
           <View style={styles.emptyState}>
             <MonoText style={[styles.display, styles.emptyTitle]}>NO PROFILE ROUTE</MonoText>
             <MonoText style={[styles.mono, styles.emptyCopy]}>{loadError || 'PROFILE BUS OFFLINE'}</MonoText>
-            <Pressable onPress={() => { setLoading(true); void load(true); }} style={({ pressed }) => [styles.retryAction, pressed && styles.pressed]}>
+            <Pressable onPress={() => { setLoading(true); void load(true); }} accessibilityRole="button" accessibilityLabel="Retry loading profile" style={({ pressed }) => [styles.retryAction, pressed && styles.pressed]}>
               <MonoText style={[styles.monoBold, styles.retryActionText]}>RETRY</MonoText>
             </Pressable>
           </View>
@@ -210,7 +210,7 @@ export function UserProfileScreen({ userId, onBack, onOpenRoom }: UserProfileScr
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(true); }} tintColor={tacticalTokens.colors.ice} />}
           >
             <View style={styles.header}>
-              <Pressable onPress={onBack} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+              <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Go back" style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
                 <Ionicons name="chevron-back" size={20} color={tacticalTokens.colors.white} />
               </Pressable>
               <View style={{ flex: 1 }}>
@@ -229,7 +229,7 @@ export function UserProfileScreen({ userId, onBack, onOpenRoom }: UserProfileScr
                   <MonoText style={[styles.display, styles.name]}>{profile.username.toUpperCase()}</MonoText>
                   <MonoText style={[styles.mono, styles.meta]}>MEMBER SINCE // {new Date(profile.createdAt).toLocaleDateString()}</MonoText>
                   {liveRoom ? (
-                    <Pressable onPress={() => onOpenRoom?.(liveRoom.id)} style={({ pressed }) => [styles.liveBadge, pressed && styles.pressed]}>
+                    <Pressable onPress={() => onOpenRoom?.(liveRoom.id)} accessibilityRole="button" accessibilityLabel={`Open live room ${liveRoom.name}`} style={({ pressed }) => [styles.liveBadge, pressed && styles.pressed]}>
                       <MonoText style={[styles.monoBold, styles.liveText]}>LIVE // {liveRoom.name.toUpperCase()}</MonoText>
                     </Pressable>
                   ) : null}
@@ -254,6 +254,9 @@ export function UserProfileScreen({ userId, onBack, onOpenRoom }: UserProfileScr
                 <Pressable
                   onPress={() => void handleFriendAction()}
                   disabled={actionLoading}
+                  accessibilityRole="button"
+                  accessibilityLabel={friendLabel(profile.friendshipStatus)}
+                  accessibilityState={{ disabled: actionLoading }}
                   style={({ pressed }) => [styles.friendAction, actionLoading && styles.disabledAction, pressed && styles.pressed]}
                 >
                   <MonoText style={[styles.monoBold, styles.friendActionText]}>{friendLabel(profile.friendshipStatus)}</MonoText>
@@ -289,7 +292,7 @@ export function UserProfileScreen({ userId, onBack, onOpenRoom }: UserProfileScr
             </View>
 
             {profile.friendshipStatus !== 'blocked' ? (
-              <Pressable onPress={() => { tapLight(); setPrompt('block'); }} style={({ pressed }) => [styles.blockAction, pressed && styles.pressed]}>
+              <Pressable onPress={() => { tapLight(); setPrompt('block'); }} accessibilityRole="button" accessibilityLabel="Block this user" style={({ pressed }) => [styles.blockAction, pressed && styles.pressed]}>
                 <MonoText style={[styles.monoBold, styles.blockActionText]}>BLOCK USER</MonoText>
               </Pressable>
             ) : null}

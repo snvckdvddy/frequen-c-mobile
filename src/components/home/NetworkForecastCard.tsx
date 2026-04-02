@@ -25,9 +25,10 @@ export function NetworkForecastCard() {
       setForecast(data);
       fadeAnim.setValue(0);
       Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
-    } catch (err: any) {
-      setError(err?.message || 'Forecast unavailable');
-      console.warn('[Forecast]', err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Forecast unavailable';
+      setError(message);
+      console.warn('[Forecast]', message);
     } finally {
       setLoading(false);
     }

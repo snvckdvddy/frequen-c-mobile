@@ -17,7 +17,7 @@ import {
   loadTrack, onProgress, onTrackEnd, stop as stopPlayback,
   type PlaybackState,
 } from '../services/playbackEngine';
-import { trackEnded } from '../services/socket';
+import { trackEnded, emitPlaybackState } from '../services/socket';
 import api from '../services/api';
 import type { QueueTrack } from '../types';
 
@@ -40,11 +40,33 @@ export function useHostPlaybackEngine({
 }: HostPlaybackParams): void {
 
   // ─── Progress subscription ─────────────────────────────
+  // Host updates local state AND broadcasts to non-host users (~1s throttle)
+  const lastEmitRef = useRef(0);
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+
   useEffect(() => {
     if (!isHost) return;
-    const unsub = onProgress((s) => setPlayback(s));
-    return () => { unsub(); stopPlayback(); };
+    const unsub = onProgress((s) => {
+      setPlayback(s);
+      const now = Date.now();
+      if (now - lastEmitRef.current >= 1000) {
+        lastEmitRef.current = now;
+        emitPlaybackState(
+          sessionIdRef.current,
+          s.isPlaying ? 'playing' : 'paused',
+          s.elapsed,
+        );
+      }
+    });
+    return unsub;
   }, [setPlayback, isHost]);
+
+  // Stop audio only when the host leaves the screen entirely
+  useEffect(() => {
+    if (!isHost) return;
+    return () => { stopPlayback(); };
+  }, [isHost]);
 
   // ─── Load track when queue[0] changes ──────────────────
   const currentTrackRef = useRef<string | null>(null);

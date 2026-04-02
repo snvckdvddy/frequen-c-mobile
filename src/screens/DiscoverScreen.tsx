@@ -11,6 +11,8 @@ import {
   Text,
   TextInput,
   View,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorState, SafeScreen } from '../components/ui';
@@ -33,7 +35,7 @@ interface DiscoverScreenProps {
 
 type ModeFilter = 'all' | RoomMode;
 
-function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+function MonoText(props: { children: React.ReactNode; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
   return <Text {...props} />;
 }
 
@@ -317,9 +319,10 @@ export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
                       autoCapitalize="none"
                       autoCorrect={false}
                       returnKeyType="search"
+                      accessibilityLabel="Search rooms"
                     />
                     {search ? (
-                      <Pressable onPress={() => setSearch('')} style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
+                      <Pressable onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear search" style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
                         <Ionicons name="close" size={14} color={tacticalTokens.colors.white} />
                       </Pressable>
                     ) : null}
@@ -333,6 +336,9 @@ export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
                         <Pressable
                           key={filterValue}
                           onPress={() => setMode(filterValue)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Filter by ${filterLabel}`}
+                          accessibilityState={{ selected: active }}
                           style={({ pressed }) => [
                             styles.modeFilter,
                             active && styles.modeFilterActive,

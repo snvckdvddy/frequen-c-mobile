@@ -310,7 +310,7 @@ export function ProfileScreen() {
           <View style={styles.errorState}>
             <MonoText style={[textStyles.display, styles.errorTitle]}>NO PROFILE ROUTE</MonoText>
             <MonoText style={[textStyles.mono, styles.errorCopy]}>{loadError || 'PROFILE BUS UNAVAILABLE'}</MonoText>
-            <Pressable onPress={() => { setLoading(true); void refreshProfile(true); }} style={({ pressed }) => [styles.errorAction, pressed && styles.pressed]}>
+            <Pressable onPress={() => { setLoading(true); void refreshProfile(true); }} accessibilityRole="button" accessibilityLabel="Retry loading profile" style={({ pressed }) => [styles.errorAction, pressed && styles.pressed]}>
               <MonoText style={[textStyles.monoBold, styles.errorActionText]}>RETRY</MonoText>
             </Pressable>
           </View>
@@ -336,7 +336,7 @@ export function ProfileScreen() {
                 <MonoText style={[textStyles.display, styles.title]}>SYSTEM PREFERENCES</MonoText>
                 <MonoText style={[textStyles.mono, styles.subtitle]}>Personal routing, provider patch cables, and local room behavior.</MonoText>
               </View>
-              <Pressable onPress={() => navigation.goBack()} style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
+              <Pressable onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel="Close profile" style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
                 <Ionicons name="close" size={18} color={tacticalTokens.colors.white} />
               </Pressable>
             </View>
@@ -381,6 +381,8 @@ export function ProfileScreen() {
                     </View>
                     <Pressable
                       onPress={() => navigation.navigate('WelcomeBoot')}
+                      accessibilityRole="button"
+                      accessibilityLabel="Preview welcome screen"
                       style={({ pressed }) => [styles.manualPreviewChip, pressed && styles.pressed]}
                     >
                       <MonoText style={[textStyles.monoBold, styles.manualPreviewText]}>
@@ -392,7 +394,7 @@ export function ProfileScreen() {
                     </MonoText>
                   </View>
                 </View>
-                <Pressable onPress={() => { tapLight(); setReadManual(!readManual); }} style={({ pressed }) => [styles.toggle, readManual && styles.toggleActive, pressed && styles.pressed]}>
+                <Pressable onPress={() => { tapLight(); setReadManual(!readManual); }} accessibilityRole="switch" accessibilityLabel="Read the manual" accessibilityState={{ checked: readManual }} style={({ pressed }) => [styles.toggle, readManual && styles.toggleActive, pressed && styles.pressed]}>
                   <View style={[styles.toggleKnob, readManual && styles.toggleKnobActive]} />
                 </Pressable>
               </View>
@@ -409,6 +411,9 @@ export function ProfileScreen() {
                     setMonitorOut(next);
                     void persistPreference(() => authApi.setPreferences({ isIncognito: next }));
                   }}
+                  accessibilityRole="switch"
+                  accessibilityLabel="Monitor out incognito mode"
+                  accessibilityState={{ checked: monitorOut }}
                   style={({ pressed }) => [styles.toggle, monitorOut && styles.toggleActive, pressed && styles.pressed]}
                 >
                   <View style={[styles.toggleKnob, monitorOut && styles.toggleKnobActive]} />
@@ -455,7 +460,7 @@ export function ProfileScreen() {
                     {group.options.map(([label, value]) => {
                       const active = group.value === value;
                       return (
-                        <Pressable key={label} onPress={() => group.set(value as never)} style={({ pressed }) => [styles.segment, active && styles.segmentActive, pressed && styles.pressed]}>
+                        <Pressable key={label} onPress={() => group.set(value as never)} accessibilityRole="button" accessibilityLabel={`Set ${group.title.toLowerCase()} to ${label}`} accessibilityState={{ selected: active }} style={({ pressed }) => [styles.segment, active && styles.segmentActive, pressed && styles.pressed]}>
                           <MonoText style={[textStyles.monoBold, styles.segmentText, active && styles.segmentTextActive]}>{label}</MonoText>
                         </Pressable>
                       );
@@ -474,6 +479,8 @@ export function ProfileScreen() {
                     setWalkOnTransient(next);
                     void persistPreference(() => authApi.setPreferences({ walkOnTransient: next === 'NONE' ? 'none' : next }));
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Walk-on transient, current: ${walkOnTransient}`}
                   style={({ pressed }) => [styles.valueRail, pressed && styles.pressed]}
                 >
                   <MonoText style={[textStyles.monoBold, styles.valueText]}>{walkOnTransient}</MonoText>
@@ -497,6 +504,9 @@ export function ProfileScreen() {
                       </View>
                       <Pressable
                         onPress={() => { void handleBiometricToggle(); }}
+                        accessibilityRole="switch"
+                        accessibilityLabel="Biometric unlock"
+                        accessibilityState={{ checked: biometric.isEnabled }}
                         style={({ pressed }) => [
                           styles.toggle,
                           biometric.isEnabled && styles.toggleActive,
@@ -543,6 +553,9 @@ export function ProfileScreen() {
                         <Pressable
                           onPress={() => { void handleSetPassword(); }}
                           disabled={passwordLoading}
+                          accessibilityRole="button"
+                          accessibilityLabel="Set password"
+                          accessibilityState={{ disabled: passwordLoading }}
                           style={({ pressed }) => [
                             styles.setPasswordButton,
                             pressed && styles.pressed,
@@ -620,6 +633,8 @@ export function ProfileScreen() {
                           }
                           if (entry.provider) void handleConnect(entry.provider, entry.label);
                         }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${comingSoon ? 'Coming soon' : connected ? 'Disconnect' : 'Connect'} ${entry.label}`}
                         style={({ pressed }) => [
                           styles.providerAction,
                           connected ? styles.providerActionDanger : blocked ? styles.providerActionMuted : styles.providerActionDefault,
@@ -643,7 +658,7 @@ export function ProfileScreen() {
                 ['PRIVACY POLICY', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
                 ['TERMS OF SERVICE', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
               ]).map(([title, detail, onPress, icon], index) => (
-                <Pressable key={title} onPress={onPress} style={({ pressed }) => [styles.infoRow, index !== 2 && styles.divider, pressed && styles.pressed]}>
+                <Pressable key={title} onPress={onPress} accessibilityRole="button" accessibilityLabel={title as string} style={({ pressed }) => [styles.infoRow, index !== 2 && styles.divider, pressed && styles.pressed]}>
                   <View style={{ flex: 1 }}>
                     <MonoText style={[textStyles.display, styles.infoTitle]}>{title}</MonoText>
                     <MonoText style={[textStyles.mono, styles.infoDetail]}>{detail}</MonoText>
@@ -660,10 +675,10 @@ export function ProfileScreen() {
             </View>
 
             <View style={styles.actionStack}>
-              <Pressable onPress={() => { tapMedium(); setPrompt({ kind: 'logout' }); }} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
+              <Pressable onPress={() => { tapMedium(); setPrompt({ kind: 'logout' }); }} accessibilityRole="button" accessibilityLabel="Log out" style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
                 <MonoText style={[textStyles.monoBold, styles.primaryActionText]}>DISCONNECT</MonoText>
               </Pressable>
-              <Pressable onPress={() => { tapHeavy(); setPrompt({ kind: 'delete' }); }} style={({ pressed }) => [styles.dangerAction, pressed && styles.pressed]}>
+              <Pressable onPress={() => { tapHeavy(); setPrompt({ kind: 'delete' }); }} accessibilityRole="button" accessibilityLabel="Delete account" style={({ pressed }) => [styles.dangerAction, pressed && styles.pressed]}>
                 <MonoText style={[textStyles.monoBold, styles.dangerActionText]}>DELETE ACCOUNT</MonoText>
               </Pressable>
             </View>

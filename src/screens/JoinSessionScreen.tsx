@@ -6,7 +6,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ADSRTransition, SafeScreen, showToast } from '../components/ui';
 import { VoidSurface } from '../design/components';
@@ -23,8 +23,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function JoinSessionScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<{ replace: (screen: string, params: Record<string, string>) => void; goBack: () => void }>();
+  const route = useRoute<RouteProp<{ JoinSession: { joinCode?: string } }, 'JoinSession'>>();
   const { readManual } = useManualMode();
   const [code, setCode] = useState(route.params?.joinCode || '');
   const [loading, setLoading] = useState(false);
@@ -48,9 +48,9 @@ export function JoinSessionScreen() {
     try {
       const { session } = await sessionApi.join(finalCode);
       navigation.replace('SessionRoom', { sessionId: session.id });
-    } catch (err: any) {
+    } catch (err: unknown) {
       notifyError();
-      const message = (err?.message || 'Check the code and try again.').toUpperCase();
+      const message = (err instanceof Error ? err.message : 'Check the code and try again.').toUpperCase();
       setInlineError(message);
       showToast('Signal not found. Check the join code.', 'error', '!');
     } finally {
@@ -132,6 +132,7 @@ export function JoinSessionScreen() {
                     spellCheck={false}
                     returnKeyType="go"
                     onSubmitEditing={() => void handleJoin()}
+                    accessibilityLabel="Room join code"
                     selectionColor={tacticalTokens.colors.ice}
                   />
                 </View>

@@ -182,7 +182,7 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
 
               <View style={styles.switchRow}>
                 <MonoText style={[styles.mono, styles.switchCopy]}>ALREADY PATCHED IN?</MonoText>
-                <Pressable onPress={onSwitchToLogin} style={({ pressed }) => [pressed && styles.pressed]}>
+                <Pressable onPress={onSwitchToLogin} accessibilityRole="button" accessibilityLabel="Switch to login" style={({ pressed }) => [pressed && styles.pressed]}>
                   <MonoText style={[styles.monoBold, styles.switchAction]}>RECONNECT</MonoText>
                 </Pressable>
               </View>

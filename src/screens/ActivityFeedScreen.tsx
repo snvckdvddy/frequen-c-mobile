@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen } from '../components/ui';
@@ -40,7 +42,7 @@ function MonoText({
   numberOfLines,
 }: {
   children: React.ReactNode;
-  style?: any;
+  style?: StyleProp<TextStyle>;
   numberOfLines?: number;
 }) {
   return (
@@ -122,9 +124,10 @@ export function ActivityFeedScreen({ onBack, onOpenRoom, onOpenProfile }: Activi
       hasMoreRef.current = res.hasMore ?? nextItems.length >= 30;
       cursorRef.current = nextItems.length > 0 ? nextItems[nextItems.length - 1].createdAt : before;
       setInlineError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!before) {
-        setInlineError((err?.message || 'SIGNAL MONITOR OFFLINE').toUpperCase());
+        const message = err instanceof Error ? err.message : 'SIGNAL MONITOR OFFLINE';
+        setInlineError(message.toUpperCase());
       }
     } finally {
       setLoading(false);

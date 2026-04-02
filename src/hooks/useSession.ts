@@ -67,9 +67,9 @@ export function useSession(sessionId: string): UseSessionReturn {
         if (user) {
           joinSession(sessionId, user.id, user.username);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (mountedRef.current) {
-          setError(err.message || 'Could not load session.');
+          setError(err instanceof Error ? err.message : 'Could not load session.');
         }
       } finally {
         if (mountedRef.current) setLoading(false);

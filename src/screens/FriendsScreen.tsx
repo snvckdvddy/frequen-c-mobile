@@ -8,6 +8,9 @@ import {
   StyleSheet,
   Text,
   View,
+  type ListRenderItem,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeScreen, showToast } from '../components/ui';
@@ -37,7 +40,7 @@ function MonoText({
   numberOfLines,
 }: {
   children: React.ReactNode;
-  style?: any;
+  style?: StyleProp<TextStyle>;
   numberOfLines?: number;
 }) {
   return (
@@ -111,8 +114,9 @@ export function FriendsScreen({ onBack, onOpenProfile, onOpenRoom }: FriendsScre
       setOnlineFriends(onlineRes.online);
       setPendingRequests(pendingRes.requests);
       setInlineError(null);
-    } catch (err: any) {
-      setInlineError((err?.message || 'FRIEND ROUTING OFFLINE').toUpperCase());
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'FRIEND ROUTING OFFLINE';
+      setInlineError(message.toUpperCase());
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -339,16 +343,16 @@ export function FriendsScreen({ onBack, onOpenProfile, onOpenRoom }: FriendsScre
               <ActivityIndicator size="large" color={tacticalTokens.colors.acid} />
             </View>
           ) : (
-            <FlatList
-              data={listData as any[]}
+            <FlatList<FriendUser | OnlineFriend | FriendRequest>
+              data={listData}
               key={tab}
-              keyExtractor={(item: FriendUser) => item.id}
+              keyExtractor={(item) => item.id}
               renderItem={
                 tab === 'online'
-                  ? (renderOnlineItem as any)
+                  ? (renderOnlineItem as ListRenderItem<FriendUser | OnlineFriend | FriendRequest>)
                   : tab === 'requests'
-                    ? (renderRequestItem as any)
-                    : (renderFriendItem as any)
+                    ? (renderRequestItem as ListRenderItem<FriendUser | OnlineFriend | FriendRequest>)
+                    : (renderFriendItem as ListRenderItem<FriendUser | OnlineFriend | FriendRequest>)
               }
               contentContainerStyle={styles.listContent}
               refreshControl={(

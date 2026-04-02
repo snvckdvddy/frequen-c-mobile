@@ -297,7 +297,7 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
 
               <View style={styles.switchRow}>
                 <MonoText style={[styles.mono, styles.switchCopy]}>NO ACTIVE PROFILE?</MonoText>
-                <Pressable onPress={onSwitchToRegister} style={({ pressed }) => [pressed && styles.pressed]}>
+                <Pressable onPress={onSwitchToRegister} accessibilityRole="button" accessibilityLabel="Switch to register" style={({ pressed }) => [pressed && styles.pressed]}>
                   <MonoText style={[styles.monoBold, styles.switchAction]}>GENERATE SIGNAL</MonoText>
                 </Pressable>
               </View>

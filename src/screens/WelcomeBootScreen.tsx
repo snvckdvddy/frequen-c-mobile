@@ -5,6 +5,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import { SafeScreen } from '../components/ui';
 import { VoidSurface } from '../design/components';
@@ -16,7 +18,7 @@ interface WelcomeBootScreenProps {
   onContinue: () => void;
 }
 
-function MonoText(props: { children: React.ReactNode; style?: any; numberOfLines?: number }) {
+function MonoText(props: { children: React.ReactNode; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
   return <Text {...props} />;
 }
 
@@ -166,6 +168,8 @@ export function WelcomeBootScreen({ onContinue }: WelcomeBootScreenProps) {
                   <Pressable
                     onPress={typingDone ? undefined : revealAllBootLines}
                     disabled={typingDone}
+                    accessibilityRole="button"
+                    accessibilityLabel="Skip boot sequence"
                     style={({ pressed }) => [styles.logArea, pressed && !typingDone && styles.pressed]}
                   >
                     <View style={styles.logStack}>

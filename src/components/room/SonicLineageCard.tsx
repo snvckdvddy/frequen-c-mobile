@@ -74,9 +74,10 @@ export function SonicLineageCard({ trackTitle, trackArtist }: SonicLineageCardPr
         tension: 80,
         friction: 12,
       }).start();
-    } catch (err: any) {
-      setError(err?.message || 'Unable to read sonic lineage');
-      console.warn('[SonicLineage]', err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to read sonic lineage';
+      setError(message);
+      console.warn('[SonicLineage]', message);
     } finally {
       setLoading(false);
     }

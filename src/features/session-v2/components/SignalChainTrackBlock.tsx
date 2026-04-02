@@ -93,13 +93,13 @@ function VoteTower({
 
   return (
     <View style={styles.voteTower}>
-      <Pressable onPress={onUpvote} style={({ pressed }) => [styles.voteCell, pressed && styles.voteCellPressed]}>
+      <Pressable onPress={onUpvote} accessibilityRole="button" accessibilityLabel="Upvote track" style={({ pressed }) => [styles.voteCell, pressed && styles.voteCellPressed]}>
         <Text style={styles.voteGlyph}>▲</Text>
       </Pressable>
       <View style={styles.voteCountCell}>
         <Text style={[styles.voteCount, { color: countColor }]}>{voteCount}</Text>
       </View>
-      <Pressable onPress={onDownvote} style={({ pressed }) => [styles.voteCell, pressed && styles.voteCellPressed]}>
+      <Pressable onPress={onDownvote} accessibilityRole="button" accessibilityLabel="Downvote track" style={({ pressed }) => [styles.voteCell, pressed && styles.voteCellPressed]}>
         <Text style={styles.voteGlyph}>▼</Text>
       </Pressable>
     </View>

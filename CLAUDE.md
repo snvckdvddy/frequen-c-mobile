@@ -11,49 +11,41 @@ Use with:
 
 Do not port fixes into legacy copies under `Frequen-C/mobile`, `Frequen-C/backend`, or `Frequen-C/server`.
 
-Before feature work, prefer:
-
-```bash
-npm run doctor:auth
-npm run qa:preflight
-npm run qa:backend
-npm run qa:baseline
-```
-
 ## Project Overview
 Mobile-first React Native (Expo) rebuild of Frequen-C — a collaborative music curation app.
 
 ## Architecture
 - **Frontend**: React Native (Expo 54) + TypeScript
 - **Backend**: Existing Node/Express server (port 5000) — shared with web app
-- **Database**: SQLite via `better-sqlite3` (managed by Frequen-C-Backend, NOT Firebase — docs were incorrect)
+- **Database**: SQLite via `better-sqlite3` (managed by Frequen-C-Backend, NOT Firebase)
 - **Real-time**: Socket.io
-- **Auth**: JWT tokens stored in expo-secure-store
+- **Auth**: JWT tokens stored in expo-secure-store + optional biometric gating
+- **Social Auth**: Apple Sign In + Google Sign In (password-less accounts supported)
 
 ## Key Directories
 ```
 src/
-  components/ui/     → Reusable primitives (Text, Button, Input)
-  components/layout/ → App layout shells
-  components/auth/   → Auth-specific components
-  components/session/→ Room/session components
-  components/queue/  → Queue & track components
-  screens/           → Full screen components
-  navigation/        → React Navigation config
-  services/          → API client, socket client
-  hooks/             → Custom hooks
-  contexts/          → React Context providers
-  theme/             → Design system (colors, typography, spacing)
-  types/             → TypeScript type definitions
-  utils/             → Utility functions
+  components/ui/       -> Reusable primitives (Text, Button, Input, TrackListItem)
+  components/library/  -> Library browsing (ServiceSelectorPills, PlaylistList, PlaylistTrackList)
+  design/tokens/       -> Design system tokens (materials.ts = canonical source)
+  features/            -> Feature modules (search-hud, session-v2, power-routing, onboarding)
+  screens/             -> Full screen components
+  navigation/          -> React Navigation config (AppNavigator.tsx)
+  services/adapters/   -> Music service adapters (Spotify, SoundCloud, Tidal, Apple Music stubs)
+  hooks/               -> Custom hooks (useLibraryBrowse, useBiometric, useCV, useSearch, etc.)
+  contexts/            -> React Context providers (Auth, Theme, Favorites, GlobalSessionRoom)
+  types/               -> TypeScript definitions (re-exports from @frequen-c/types)
 ```
+
+## Navigation (current)
+4-tab layout: RADAR (Home) | ROOM (Discover) | LIBRARY (LibraryScreen) | CREATE (elevated CTA)
+Profile accessed via top-right avatar modal, not a tab.
 
 ## Design System
 
 **Canonical source of truth: `src/design/tokens/materials.ts`**
 
-`src/theme/colors.ts` is a legacy wrapper — it imports from `design/tokens/materials` for backward compat.
-Do NOT edit `colors.ts` directly; update `materials.ts` instead.
+`src/theme/colors.ts` is a legacy wrapper — imports from `design/tokens/materials` for backward compat.
 
 | Token | Value | Role |
 |---|---|---|
@@ -65,56 +57,22 @@ Do NOT edit `colors.ts` directly; update `materials.ts` instead.
 | `palette.magenta` | `#F472B6` | Spotlight mode, destructive |
 | `palette.green` | `#34D399` | CV economy positive, live |
 
-- Typography: minor-third scale (1.2 ratio), see `src/design/tokens/typography.ts`
-- Spacing: 4px base grid, see `src/theme/spacing.ts`
-- Visual language: **Rack × Chrome** — `VoidSurface`, `ModuleFaceplate`, `LEDReadout`, `ChromeButton`
+Visual language: **Rack x Chrome** — `VoidSurface`, `TacticalGridBackground`, `LEDReadout`, `ChromeButton`
 
-## Product Vision
-Frequen-C is a real product first. Academic credit (DESN 374-040) is a side benefit, not the driver.
+## Development Workflow
 
-Five design pillars guide UX decisions (not requirements — guidelines):
-1. Social Choice Architecture (room modes, authority models)
-2. Room Mode Physics (Campfire, Spotlight, Open Floor)
-3. Social Voltage Economy (queue priority currency)
-4. Contribution Visibility (presence, attribution)
-5. Tactile Fidelity (haptics, native audio, gesture interactions)
+**New features** follow the brainstorming -> writing-plans pipeline:
+1. **Brainstorm** — Explore context, clarify, propose 2-3 approaches, present design, get approval
+2. **Plan** — Implementation plan with bite-sized tasks, exact file paths, expected output
+3. **Execute** — Follow the plan task by task
 
-## Backend API (existing, at localhost:5000)
-- POST /api/auth/login
-- POST /api/auth/register
-- GET  /api/auth/me
-- GET  /api/sessions
-- POST /api/sessions
-- POST /api/sessions/join
-- GET  /api/sessions/discover
-- GET  /api/search?q=...
+Custom skills in `.skills/skills/`: `brainstorming`, `writing-plans`, `api-design-principles`, `ux-product-manager`
 
-## Development
-```bash
-npm start          # Expo dev server
-npm run ios        # iOS simulator
-npm run android    # Android emulator
-```
-
-## Development Workflow (Skill Pipeline)
-
-**All new features follow this pipeline — no exceptions:**
-
-1. **`brainstorming`** — Design-first gate. Explore context → clarify questions (one at a time) → propose 2-3 approaches → present design → get approval.
-2. **`writing-plans`** — Implementation plan. Bite-sized TDD tasks with exact file paths, commands, and expected output. DRY, YAGNI, frequent commits.
-3. **Execute** — Follow the plan task by task.
-
-**Reference skills (use during brainstorming or planning):**
-- **`api-design-principles`** — REST + GraphQL patterns, pagination, error handling, DataLoader
-- **`ux-product-manager`** — PRD Generator → PRD Clarifier → 6-pass UX Spec → Build-Order Prompts
-
-Skills live in `.skills/skills/` at project root. Each has a `SKILL.md`.
-
-**HARD GATE:** Do NOT write code or scaffold anything until a design is presented and the user approves it. The brainstorming skill enforces this.
+**Maintenance/approved plans** can proceed directly without the brainstorming gate.
 
 ## Rules
-- Always use semantic color tokens from theme, never raw hex in components
-- Prioritize shipping a functional, polished product over academic framing
-- Mobile-first: design for phone screens, scale up if needed
-- Test with real backend early and often
-- All new features go through the brainstorming → writing-plans pipeline
+- Always use semantic color tokens from design system, never raw hex in components
+- Prioritize shipping a functional, polished product
+- Mobile-first: design for phone screens
+- All new files must pass `npx tsc --noEmit` (hooks enforce this automatically)
+- No `any` types in production code (hooks block edits that introduce or leave `any`)
