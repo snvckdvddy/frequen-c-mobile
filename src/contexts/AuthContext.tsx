@@ -236,10 +236,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     {
       responseType: ResponseType.Code,
       clientId: config.TIDAL_CLIENT_ID,
+      scopes: ['user.read', 'collection.read', 'search.read', 'playback', 'entitlements.read'],
       usePKCE: true,
       redirectUri: authDiagnostics.tidalRedirectUri,
     },
-    { authorizationEndpoint: 'https://login.tidal.com/authorize', tokenEndpoint: 'https://auth.tidal.com/v1/oauth2/token' }
+    tidalDiscovery
   );
 
   // Sync external adapter dependency tree with active user connectedServices

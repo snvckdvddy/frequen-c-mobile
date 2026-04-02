@@ -33,8 +33,11 @@ class TidalAdapter implements MusicServiceAdapter {
 
     async getStreamUrl(trackId: string): Promise<string> {
         try {
+            // Backend handles iTunes fallback for MPEG-DASH manifests automatically.
+            // If Tidal returns a direct URL, we get it. If it returns a DASH manifest,
+            // the backend fetches track metadata and searches iTunes for a 30s preview.
             const res = await apiFetch<{ url: string }>(`/auth/tidal/stream/${trackId}`);
-            return res.url;
+            return res.url || '';
         } catch (e) {
             logger.warn('tidal', 'getStreamUrl unavailable', e);
             return '';
