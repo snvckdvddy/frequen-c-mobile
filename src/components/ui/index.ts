@@ -7,7 +7,6 @@ export { Skeleton, TrackCardSkeleton, SessionCardSkeleton } from './Skeleton';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
 export { LoadingState } from './LoadingState';
-export { OfflineBanner } from './OfflineBanner';
 export { AnimatedPressable } from './AnimatedPressable';
 export { FadeIn } from './FadeIn';
 export { showToast, ToastProvider } from './Toast';
