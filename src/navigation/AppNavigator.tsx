@@ -431,13 +431,17 @@ const prefix = Linking.createURL('/');
  * Auth callback URLs (SoundCloud, Last.fm, Apple web) should NOT trigger
  * navigation — they are handled by the Linking listener in AuthContext.
  * Return true for URLs that carry auth params so getStateFromPath can drop them.
+ *
+ * NOTE: React Navigation's getStateFromPath receives only the path+query portion
+ * of the deep link, not the scheme. So frequenc://apple-auth?token=… arrives as
+ * "apple-auth?token=…".
  */
 function isAuthCallbackUrl(path: string): boolean {
   const lower = path.toLowerCase();
   // SoundCloud / generic service callbacks: ?service=soundcloud&status=success
   if (/[?&]service=/.test(lower) && /[?&]status=/.test(lower)) return true;
-  // Last.fm callback: ?token=...
-  if (/[?&]token=/.test(lower)) return true;
+  // Last.fm callback: bare scheme root with ?token= (no path segment)
+  if (/^[/?]?[^/]*[?&]token=/.test(lower) && !/[?&]service=/.test(lower)) return true;
   // Apple web sign-in callback: frequenc://apple-auth?...
   if (lower.startsWith('apple-auth')) return true;
   return false;

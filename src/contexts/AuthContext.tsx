@@ -20,7 +20,7 @@ import { AppState, Linking, type AppStateStatus } from 'react-native';
 import type { User, AuthState } from '../types';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthRequest, ResponseType } from 'expo-auth-session';
-import { getAuthDiagnostics } from '../services/authDiagnostics';
+import { getAuthDiagnostics, consumeAppleWebAuthState } from '../services/authDiagnostics';
 import { showToast } from '../components/ui';
 import { useBiometric } from '../hooks/useBiometric';
 import type { BiometricState } from '../hooks/useBiometric';
@@ -382,6 +382,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const params = new URLSearchParams(url.split('?')[1] || '');
     const token = params.get('token');
     const error = params.get('error');
+    const returnedState = params.get('state');
 
     if (error) {
       showToast(`Apple sign in failed: ${error}`, 'error');
@@ -389,11 +390,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (!token) return false;
 
+    // CSRF: verify state matches what LoginScreen stored before opening the browser
+    const expectedState = consumeAppleWebAuthState();
+    if (!returnedState || returnedState !== expectedState) {
+      showToast('Apple sign in failed: invalid state', 'error');
+      return true;
+    }
+
     try {
       await storeToken(token);
       const { user } = await authApi.me();
       dispatch({ type: 'SET_USER', payload: { user, token } });
-      showToast('Apple account patched', 'success', '');
+      const isNewUser = params.get('isNewUser') === 'true';
+      showToast(isNewUser ? 'Welcome to Frequen-C!' : 'Signed in with Apple', 'success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to complete Apple sign in';
       showToast(message, 'error');

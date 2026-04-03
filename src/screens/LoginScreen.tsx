@@ -20,6 +20,7 @@ import { VoidSurface } from '../design/components';
 import { useAuth } from '../contexts/AuthContext';
 import { useManualMode } from '../hooks/useManualMode';
 import { config } from '../config';
+import { getAuthDiagnostics, setAppleWebAuthState } from '../services/authDiagnostics';
 import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
@@ -117,13 +118,14 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
     setSubmitError(null);
     setSocialLoading('apple');
     try {
-      const { API_BASE_URL } = await import('../services/config');
-      const redirectUri = `${API_BASE_URL}/auth/apple/web-callback`;
-      const state = Math.random().toString(36).slice(2);
+      const { appleWebCallbackUri } = getAuthDiagnostics();
+      const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      // Store state so AuthContext can verify it on callback (CSRF protection)
+      setAppleWebAuthState(state);
       const authUrl =
         `https://appleid.apple.com/auth/authorize?` +
         `client_id=${encodeURIComponent(serviceId)}` +
-        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&redirect_uri=${encodeURIComponent(appleWebCallbackUri)}` +
         `&response_type=code+id_token` +
         `&scope=name+email` +
         `&response_mode=form_post` +
@@ -134,9 +136,10 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
         // The callback URL is frequenc://apple-auth?token=...
         // AuthContext's Linking listener handles the rest
       } else if (result.type === 'cancel' || result.type === 'dismiss') {
-        // User cancelled — no error
+        setAppleWebAuthState(null);
       }
     } catch (error: unknown) {
+      setAppleWebAuthState(null);
       const message = error instanceof Error ? error.message : 'Apple sign in failed.';
       setSubmitError(message.toUpperCase());
     } finally {

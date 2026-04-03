@@ -31,6 +31,16 @@ export function getAuthDiagnostics(): AuthDiagnostics {
   };
 }
 
+// ─── Apple Web Auth CSRF State ────────────────────────────
+// LoginScreen stores state before opening browser; AuthContext verifies it on callback.
+let _pendingAppleWebState: string | null = null;
+export function setAppleWebAuthState(state: string | null) { _pendingAppleWebState = state; }
+export function consumeAppleWebAuthState(): string | null {
+  const s = _pendingAppleWebState;
+  _pendingAppleWebState = null;
+  return s;
+}
+
 export function formatAuthDiagnosticsText(): string {
   const diagnostics = getAuthDiagnostics();
   return [
@@ -41,5 +51,6 @@ export function formatAuthDiagnosticsText(): string {
     `Last.fm redirect: ${diagnostics.lastfmRedirectUri}`,
     `SoundCloud backend callback: ${diagnostics.soundcloudRedirectUri}`,
     `SoundCloud app return: ${diagnostics.soundcloudSessionReturnUrl}`,
+    `Apple web callback: ${diagnostics.appleWebCallbackUri}`,
   ].join('\n');
 }
