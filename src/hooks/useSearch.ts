@@ -98,7 +98,7 @@ export function useSearch(debounceMs = 500): UseSearchReturn {
 
         setResults(tracks);
         setFallbackUsed(didFallback);
-        setProviderStates(nextProviderStates || { spotify: 'off', soundcloud: 'off' });
+        setProviderStates(nextProviderStates || getIdleSearchProviderStates());
         setDiagnostics(nextDiagnostics);
         setIsSearching(false);
 

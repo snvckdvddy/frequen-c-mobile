@@ -631,9 +631,6 @@ const styles = StyleSheet.create({
     borderColor: tacticalTokens.colors.borderGhost,
     backgroundColor: tacticalTokens.colors.matteGhost,
   },
-  providerBtnSoon: {
-    opacity: 0.62,
-  },
   providerBtnTop: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -656,9 +653,6 @@ const styles = StyleSheet.create({
     color: tacticalTokens.colors.textMuted,
     letterSpacing: 0.9,
     textAlign: 'center',
-  },
-  providerStateTextSoon: {
-    color: tacticalTokens.colors.textSoft,
   },
   providerStateTextOffline: {
     color: tacticalTokens.colors.textDim,
