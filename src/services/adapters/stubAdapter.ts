@@ -10,7 +10,7 @@ import { MusicServiceAdapter } from './types';
 import { Track, TrackSource } from '../../types';
 import { logger } from '../../utils/logger';
 
-type StubSource = 'appleMusic' | 'youtube' | 'itunes';
+type StubSource = 'youtube' | 'itunes';
 
 function createStubAdapter(name: StubSource): MusicServiceAdapter {
     let connected = false;
@@ -39,10 +39,9 @@ function createStubAdapter(name: StubSource): MusicServiceAdapter {
 }
 
 /**
- * Apple Music stub — will be replaced with a real adapter when
- * Apple Music integration is implemented via MusicKit JS / App Remote.
+ * Apple Music stub — YouTube and iTunes stubs remain for safety.
+ * Apple Music now uses a dedicated adapter backed by iTunes Search API.
  */
-export const appleMusicAdapter = createStubAdapter('appleMusic');
 
 /** YouTube stub — no playback integration planned yet. */
 export const youtubeAdapter = createStubAdapter('youtube');

@@ -84,6 +84,8 @@ describe('search provider truth classification', () => {
     expect(getIdleSearchProviderStates()).toEqual({
       spotify: 'off',
       soundcloud: 'unpatched',
+      tidal: 'unpatched',
+      appleMusic: 'off',
     });
   });
 });

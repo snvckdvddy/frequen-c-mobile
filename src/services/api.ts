@@ -21,11 +21,13 @@ export function setCurrentServices(services?: ConnectedServices) {
   currentServices = services;
 }
 
-export type SearchHudProvider = 'spotify' | 'soundcloud';
+export type SearchHudProvider = 'spotify' | 'soundcloud' | 'tidal' | 'appleMusic';
 
 const SEARCH_PROVIDER_ENDPOINTS: Record<SearchHudProvider, string> = {
   spotify: '/search/tracks',
   soundcloud: '/auth/soundcloud/search',
+  tidal: '/auth/tidal/search',
+  appleMusic: '/search/apple-music',
 };
 
 export type SearchProviderState = 'direct' | 'empty' | 'error' | 'off' | 'unpatched';
@@ -86,6 +88,15 @@ function getSearchConnectionSnapshot(): Record<SearchHudProvider, SearchConnecti
       connected: !!currentServices?.soundcloud?.connected,
       username: currentServices?.soundcloud?.username,
     },
+    tidal: {
+      connected: !!currentServices?.tidal?.connected,
+      username: currentServices?.tidal?.username,
+    },
+    appleMusic: {
+      // Apple Music via iTunes Search is always available — no auth needed
+      connected: true,
+      username: undefined,
+    },
   };
 }
 
@@ -113,6 +124,8 @@ function getProviderStatesFromDiagnostics(
   return {
     spotify: diagnostics.spotify.state,
     soundcloud: diagnostics.soundcloud.state,
+    tidal: diagnostics.tidal.state,
+    appleMusic: diagnostics.appleMusic.state,
   };
 }
 
@@ -240,6 +253,8 @@ function createSearchDiagnostics(
     providers: {
       spotify: createSearchProviderDiagnostic('spotify', authSnapshot.spotify.connected, requestedSources.includes('spotify')),
       soundcloud: createSearchProviderDiagnostic('soundcloud', authSnapshot.soundcloud.connected, requestedSources.includes('soundcloud')),
+      tidal: createSearchProviderDiagnostic('tidal', authSnapshot.tidal.connected, requestedSources.includes('tidal')),
+      appleMusic: createSearchProviderDiagnostic('appleMusic', authSnapshot.appleMusic.connected, requestedSources.includes('appleMusic')),
     },
     directMatchCount: 0,
     openFallbackCount: 0,
@@ -271,7 +286,9 @@ function logSearchTruth(scope: string, diagnostics: SearchDiagnostics) {
     }, {
       spotify: {},
       soundcloud: {},
-    });
+      tidal: {},
+      appleMusic: {},
+    } as Record<SearchHudProvider, Record<string, unknown>>);
 
   logger.debug('api', `SearchTruth[${scope}]`, {
     query: diagnostics.query,
@@ -289,6 +306,8 @@ export function getIdleSearchProviderStates(): Record<SearchHudProvider, SearchP
   return {
     spotify: snapshot.spotify.connected ? 'off' : 'unpatched',
     soundcloud: snapshot.soundcloud.connected ? 'off' : 'unpatched',
+    tidal: snapshot.tidal.connected ? 'off' : 'unpatched',
+    appleMusic: 'off', // Always available — no auth needed
   };
 }
 
@@ -839,16 +858,21 @@ async function queryProviderTracks(
   }
 
   const deduped = new Map<string, import('../types').Track>();
-  const [{ spotifyAdapter }, { soundcloudAdapter }] = await Promise.all([
+  const [{ spotifyAdapter }, { soundcloudAdapter }, { tidalAdapter }, { appleMusicAdapter }] = await Promise.all([
     import('./adapters/spotifyAdapter'),
     import('./adapters/soundcloudAdapter'),
+    import('./adapters/tidalAdapter'),
+    import('./adapters/appleMusicAdapter'),
   ]);
 
   const spotifyConnected = diagnostics.authSnapshot.spotify.connected;
   const soundcloudConnected = diagnostics.authSnapshot.soundcloud.connected;
+  const tidalConnected = diagnostics.authSnapshot.tidal.connected;
 
   spotifyAdapter.setConnected(spotifyConnected);
   soundcloudAdapter.setConnected(soundcloudConnected);
+  tidalAdapter.setConnected(tidalConnected);
+  // Apple Music is always connected (iTunes Search API is public)
 
   const searches: Array<{ source: SearchHudProvider; promise: Promise<import('../types').Track[]> }> = [];
 
@@ -882,6 +906,30 @@ async function queryProviderTracks(
         promise: soundcloudAdapter.search(query, { ...options, rethrow: true }),
       });
     }
+  }
+
+  if (requestedSources.includes('tidal')) {
+    if (!tidalConnected) {
+      diagnostics.providers.tidal = {
+        ...diagnostics.providers.tidal,
+        state: 'unpatched',
+        code: 'NOT_CONNECTED',
+        message: 'Tidal is not connected in the current auth snapshot.',
+      };
+    } else {
+      searches.push({
+        source: 'tidal',
+        promise: tidalAdapter.search(query, { ...options, rethrow: true }),
+      });
+    }
+  }
+
+  if (requestedSources.includes('appleMusic')) {
+    // Apple Music is always available — no auth check needed
+    searches.push({
+      source: 'appleMusic',
+      promise: appleMusicAdapter.search(query, { ...options, rethrow: true }),
+    });
   }
 
   const settled = await Promise.allSettled(searches.map((entry) => entry.promise));
@@ -1096,7 +1144,7 @@ export const searchApi = {
   enrichTrackAvailability: async (
     query: string,
     tracks: import('../types').Track[],
-    sources: Array<'spotify' | 'soundcloud'>,
+    sources: SearchHudProvider[],
   ) => {
     return tracks;
   },

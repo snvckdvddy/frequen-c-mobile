@@ -23,32 +23,32 @@ import { tacticalTokens } from '../session-v2/theme/tacticalTokens';
 import type { SearchHudSource } from '../../hooks/useSearch';
 import type { SearchDiagnostics, SearchProviderState } from '../../services/api';
 
-type ProviderKey = SearchHudSource | 'apple' | 'tidal';
 type SearchMode = 'database' | 'oracle';
 type HudTab = 'search' | 'library';
 
-const PROVIDER_ORDER: ProviderKey[] = ['spotify', 'soundcloud', 'apple', 'tidal'];
+const PROVIDER_ORDER: SearchHudSource[] = ['spotify', 'soundcloud', 'appleMusic', 'tidal'];
 
-const PROVIDER_META: Record<ProviderKey, { label: string; color: string; status: 'live' | 'soon' }> = {
-  spotify: { label: 'SPT', color: '#1DB954', status: 'live' },
-  soundcloud: { label: 'SC', color: '#FF5500', status: 'live' },
-  apple: { label: 'APL', color: '#F5F5F7', status: 'soon' },
-  tidal: { label: 'TDL', color: '#D8FFF7', status: 'soon' },
+const PROVIDER_META: Record<SearchHudSource, { label: string; color: string }> = {
+  spotify: { label: 'SPT', color: '#1DB954' },
+  soundcloud: { label: 'SC', color: '#FF5500' },
+  appleMusic: { label: 'APL', color: '#F5F5F7' },
+  tidal: { label: 'TDL', color: '#D8FFF7' },
 };
-
-function isSourceKey(key: ProviderKey): key is SearchHudSource {
-  return key === 'spotify' || key === 'soundcloud';
-}
 
 function getSourceKey(track: Track): SearchHudSource | null {
   if (track.source === 'spotify') return 'spotify';
   if (track.source === 'soundcloud') return 'soundcloud';
+  if (track.source === 'tidal') return 'tidal';
+  if (track.source === 'appleMusic') return 'appleMusic';
   return null;
 }
 
 function getAvailabilitySources(track: Track): SearchHudSource[] {
   const sources = track.availableSources || [track.source];
-  return sources.filter((source): source is SearchHudSource => source === 'spotify' || source === 'soundcloud');
+  return sources.filter(
+    (source): source is SearchHudSource =>
+      source === 'spotify' || source === 'soundcloud' || source === 'tidal' || source === 'appleMusic',
+  );
 }
 
 export interface SearchHudOverlayProps {
@@ -112,7 +112,7 @@ export function SearchHudOverlay({
       return [] as Array<{ source: SearchHudSource; message: string }>;
     }
 
-    return (['spotify', 'soundcloud'] as const)
+    return (PROVIDER_ORDER)
       .filter((source) => sources[source] && diagnostics.providers[source].state === 'error')
       .map((source) => {
         const diagnostic = diagnostics.providers[source];
@@ -134,11 +134,7 @@ export function SearchHudOverlay({
       });
   }, [diagnostics, query, sources]);
 
-  const getProviderStatusLabel = (key: ProviderKey) => {
-    if (!isSourceKey(key)) {
-      return 'SOON';
-    }
-
+  const getProviderStatusLabel = (key: SearchHudSource) => {
     if (!sources[key]) {
       return 'OFF';
     }
@@ -180,14 +176,11 @@ export function SearchHudOverlay({
 
     console.log(`[SearchTruth][hud] ${JSON.stringify({
       query,
-      renderedLabels: {
-        spotify: getProviderStatusLabel('spotify'),
-        soundcloud: getProviderStatusLabel('soundcloud'),
-      },
+      renderedLabels: Object.fromEntries(PROVIDER_ORDER.map((k) => [k, getProviderStatusLabel(k)])),
       providerStates,
       diagnostics,
     })}`);
-  }, [diagnostics, isDevRuntime, providerStates, query, searchMode, sources.spotify, sources.soundcloud]);
+  }, [diagnostics, isDevRuntime, providerStates, query, searchMode, sources.spotify, sources.soundcloud, sources.tidal, sources.appleMusic]);
 
   const toggleSource = (key: SearchHudSource) => {
     onSourcesChange((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -384,25 +377,18 @@ export function SearchHudOverlay({
                 >
                   {PROVIDER_ORDER.map((key) => {
                     const meta = PROVIDER_META[key];
-                    const active = isSourceKey(key) ? sources[key] : false;
-                    const interactive = isSourceKey(key);
+                    const active = sources[key];
                     return (
                       <Pressable
                         key={key}
-                        onPress={() => {
-                          if (!interactive) return;
-                          toggleSource(key);
-                        }}
-                        disabled={!interactive}
+                        onPress={() => toggleSource(key)}
                         style={({ pressed }) => [
                           styles.providerBtn,
-                          interactive && styles.providerBtnLive,
+                          styles.providerBtnLive,
                           active && { borderColor: meta.color, backgroundColor: `${meta.color}22` },
-                          interactive &&
-                            (providerStates[key as SearchHudSource] === 'error' ||
-                              providerStates[key as SearchHudSource] === 'unpatched') &&
+                          (providerStates[key] === 'error' ||
+                            providerStates[key] === 'unpatched') &&
                             styles.providerBtnOffline,
-                          !interactive && styles.providerBtnSoon,
                           pressed && styles.pressed,
                         ]}
                       >
@@ -410,20 +396,18 @@ export function SearchHudOverlay({
                           <View
                             style={[
                               styles.sourceDot,
-                              { backgroundColor: active || !interactive ? meta.color : tacticalTokens.colors.textDim },
+                              { backgroundColor: active ? meta.color : tacticalTokens.colors.textDim },
                             ]}
                           />
-                          <Text style={[styles.sourceText, (active || !interactive) && { color: meta.color }]}>
+                          <Text style={[styles.sourceText, active && { color: meta.color }]}>
                             {`[ ${meta.label} ]`}
                           </Text>
                         </View>
                         <Text
                           style={[
                             styles.providerStateText,
-                            !interactive && [styles.providerStateTextSoon, { color: meta.color }],
-                            interactive &&
-                              (providerStates[key as SearchHudSource] === 'error' ||
-                                providerStates[key as SearchHudSource] === 'unpatched') &&
+                            (providerStates[key] === 'error' ||
+                              providerStates[key] === 'unpatched') &&
                               styles.providerStateTextOffline,
                           ]}
                         >
@@ -474,7 +458,7 @@ export function SearchHudOverlay({
               {isDevRuntime && query.trim().length > 0 && diagnostics ? (
                 <View style={styles.debugPanel}>
                   <Text style={styles.debugTitle}>TRUTH PATH</Text>
-                  {(['spotify', 'soundcloud'] as const).map((source) => {
+                  {PROVIDER_ORDER.map((source) => {
                     const providerDebug = diagnostics.providers[source];
                     return (
                       <Text key={source} style={styles.debugLine}>
@@ -500,7 +484,7 @@ export function SearchHudOverlay({
                     <View style={styles.empty}>
                       <Text style={styles.emptyText}>
                         {activeSourceCount === 0
-                          ? 'ARM A LIVE PROVIDER // ENABLE SPT OR SC'
+                          ? 'ARM A LIVE PROVIDER // ENABLE AT LEAST ONE SOURCE'
                           : 'NO MATCHES // REFINE QUERY'}
                       </Text>
                     </View>

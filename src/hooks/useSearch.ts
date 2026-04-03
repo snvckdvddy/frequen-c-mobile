@@ -15,7 +15,7 @@ import {
 } from '../services/api';
 import type { Track } from '../types';
 
-export type SearchHudSource = 'spotify' | 'soundcloud';
+export type SearchHudSource = 'spotify' | 'soundcloud' | 'tidal' | 'appleMusic';
 
 interface UseSearchReturn {
   query: string;
@@ -36,6 +36,8 @@ export function useSearch(debounceMs = 500): UseSearchReturn {
   const [sources, setSources] = useState<Record<SearchHudSource, boolean>>({
     spotify: true,
     soundcloud: true,
+    tidal: true,
+    appleMusic: true,
   });
   const [results, setResults] = useState<Track[]>([]);
   const [fallbackUsed, setFallbackUsed] = useState(false);

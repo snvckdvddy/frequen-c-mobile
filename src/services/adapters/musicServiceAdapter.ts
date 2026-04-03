@@ -2,7 +2,8 @@ import { MusicServiceAdapter } from './types';
 import { spotifyAdapter } from './spotifyAdapter';
 import { soundcloudAdapter } from './soundcloudAdapter';
 import { tidalAdapter } from './tidalAdapter';
-import { appleMusicAdapter, youtubeAdapter, itunesAdapter } from './stubAdapter';
+import { appleMusicAdapter } from './appleMusicAdapter';
+import { youtubeAdapter, itunesAdapter } from './stubAdapter';
 import { ConnectedServices, TrackSource } from '../../types';
 
 // ─── Sync helper ─────────────────────────────────────────────
@@ -14,7 +15,8 @@ function syncConnectedState(connectedServices: ConnectedServices | undefined): v
     spotifyAdapter.setConnected(!!cs?.spotify?.connected);
     soundcloudAdapter.setConnected(!!cs?.soundcloud?.connected);
     tidalAdapter.setConnected(!!cs?.tidal?.connected);
-    appleMusicAdapter.setConnected(!!cs?.appleMusic?.connected);
+    // Apple Music uses iTunes Search API — always available, no auth needed
+    appleMusicAdapter.setConnected(true);
     // youtube & itunes have no auth flow — always disconnected
     youtubeAdapter.setConnected(false);
     itunesAdapter.setConnected(false);
