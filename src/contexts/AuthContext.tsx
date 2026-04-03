@@ -128,7 +128,7 @@ function summarizeConnectedServices(user: User | null) {
   };
 }
 
-function friendlyAuthError(service: 'SoundCloud' | 'Tidal', detail?: string) {
+function friendlyAuthError(service: 'Spotify' | 'SoundCloud' | 'Tidal' | 'Last.fm', detail?: string) {
   const lower = (detail || '').toLowerCase();
   if (lower.includes('redirect') || lower.includes('callback') || lower.includes('mismatch')) {
     return `${service} failed: redirect URL mismatch. Check app + provider callback settings.`;
@@ -288,8 +288,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         showToast('Spotify patched', 'success');
       }).catch(err => {
         console.error('Failed to connect Spotify on backend:', err);
-        showToast('Spotify patch failed. Please check backend auth config.', 'error');
+        showToast(friendlyAuthError('Spotify', (err as Error)?.message), 'error');
       });
+    } else if (response?.type === 'error') {
+      console.error('Spotify OAuth error:', response.error);
+      showToast(friendlyAuthError('Spotify', response.error?.message), 'error');
+    } else if (response?.type === 'dismiss') {
+      console.log('Spotify auth dismissed by user');
     }
   }, [response]);
 
