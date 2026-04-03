@@ -15,8 +15,9 @@ function syncConnectedState(connectedServices: ConnectedServices | undefined): v
     spotifyAdapter.setConnected(!!cs?.spotify?.connected);
     soundcloudAdapter.setConnected(!!cs?.soundcloud?.connected);
     tidalAdapter.setConnected(!!cs?.tidal?.connected);
-    // Apple Music uses iTunes Search API — always available, no auth needed
-    appleMusicAdapter.setConnected(true);
+    // Apple Music catalog search always works; library access needs MusicKit auth.
+    // setConnected reflects whether the user has authenticated (for library features).
+    appleMusicAdapter.setConnected(!!cs?.appleMusic?.connected);
     // youtube & itunes have no auth flow — always disconnected
     youtubeAdapter.setConnected(false);
     itunesAdapter.setConnected(false);

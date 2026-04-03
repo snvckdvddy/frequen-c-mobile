@@ -93,7 +93,8 @@ function getSearchConnectionSnapshot(): Record<SearchHudProvider, SearchConnecti
       username: currentServices?.tidal?.username,
     },
     appleMusic: {
-      // Apple Music via iTunes Search is always available — no auth needed
+      // Catalog search is always available (public iTunes API).
+      // Library access (playlists, liked songs) requires MusicKit auth — checked separately.
       connected: true,
       username: undefined,
     },
@@ -311,7 +312,7 @@ export function getIdleSearchProviderStates(): Record<SearchHudProvider, SearchP
   };
 }
 
-export type DisconnectableProvider = 'spotify' | 'soundcloud' | 'tidal' | 'lastfm';
+export type DisconnectableProvider = 'spotify' | 'soundcloud' | 'tidal' | 'lastfm' | 'appleMusic';
 
 export interface ProviderConfigStatus {
   backendConfigured: boolean;
@@ -409,6 +410,7 @@ export const authApi = {
           soundcloud: { backendConfigured: true, missing: [] },
           tidal: { backendConfigured: true, missing: [] },
           lastfm: { backendConfigured: true, missing: [] },
+          appleMusic: { backendConfigured: true, missing: [] },
         },
       };
     }
@@ -445,6 +447,18 @@ export const authApi = {
     return apiFetch<{ message: string; user: import('../types').User }>('/auth/lastfm/exchange', {
       method: 'POST',
       body: JSON.stringify({ token }),
+    });
+  },
+
+  /** Store the user's MusicKit Music User Token after authorization. */
+  connectAppleMusic: async (musicUserToken: string) => {
+    if (USE_MOCKS) {
+      await mockDelay(100, 300);
+      return { message: 'Apple Music connected (mock)' };
+    }
+    return apiFetch<{ message: string }>('/auth/apple-music/connect', {
+      method: 'POST',
+      body: JSON.stringify({ musicUserToken }),
     });
   },
 

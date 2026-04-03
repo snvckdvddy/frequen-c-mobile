@@ -89,6 +89,7 @@ interface AuthContextValue extends AuthState {
   connectSoundcloud: () => Promise<void>;
   connectTidal: () => Promise<void>;
   connectLastfm: () => Promise<void>;
+  connectAppleMusic: () => Promise<void>;
   disconnectService: (provider: DisconnectableProvider) => Promise<void>;
   /** Biometric state + controls exposed so UI can show toggles / offer opt-in. */
   biometric: BiometricState & {
@@ -105,6 +106,7 @@ const providerLabel: Record<DisconnectableProvider, string> = {
   soundcloud: 'SoundCloud',
   tidal: 'Tidal',
   lastfm: 'Last.fm',
+  appleMusic: 'Apple Music',
 };
 
 function summarizeConnectedServices(user: User | null) {
@@ -410,11 +412,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, []);
 
+  // ── Apple Music Auth Callback (MusicKit) ───────────────────
+  const handleAppleMusicCallback = useCallback(async (url: string): Promise<boolean> => {
+    if (!url.includes('apple-music-auth')) return false;
+    const params = new URLSearchParams(url.split('?')[1] || '');
+    const musicUserToken = params.get('musicUserToken');
+    const error = params.get('error');
+
+    if (error) {
+      showToast(`Apple Music connection failed: ${error}`, 'error');
+      return true;
+    }
+    if (!musicUserToken || !state.token) return false;
+
+    try {
+      await authApi.connectAppleMusic(musicUserToken);
+      const { user } = await authApi.me();
+      dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
+      showToast('Apple Music patched', 'success');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to connect Apple Music';
+      showToast(message, 'error');
+    }
+    return true;
+  }, [state.token]);
+
   const handleIncomingAuthUrl = useCallback(async (url: string) => {
     if (!url || lastHandledAuthUrlRef.current === url) return false;
 
     // Claim the URL immediately to prevent concurrent handlers from double-processing
     lastHandledAuthUrlRef.current = url;
+
+    // Apple Music auth callback (check BEFORE Apple Sign In since the URL is more specific)
+    if (await handleAppleMusicCallback(url)) {
+      pendingAuthProviderRef.current = null;
+      return true;
+    }
 
     if (await handleAppleWebCallback(url)) {
       pendingAuthProviderRef.current = null;
@@ -798,6 +831,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.user, authDiagnostics, handleIncomingAuthUrl]);
 
+  const connectAppleMusic = useCallback(async () => {
+    if (BYPASS_AUTH) {
+      showToast('Disable auth bypass to patch Apple Music.', 'info');
+      return;
+    }
+    if (!state.user) return;
+
+    // The backend serves a MusicKit JS authorization page that handles the
+    // Apple consent dialog. On success it redirects to frequenc://apple-music-auth
+    // with the Music User Token. The Linking listener above handles the callback.
+    const authorizeUrl = `${config.API_BASE_URL}/auth/apple-music/authorize`;
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, 'frequenc://apple-music-auth');
+      if (result.type === 'success' && result.url) {
+        await handleIncomingAuthUrl(result.url);
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        showToast('Apple Music sign-in cancelled.', 'info');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Apple Music patch failed.';
+      showToast(`Apple Music failed: ${message}`, 'error');
+    }
+  }, [state.user, handleIncomingAuthUrl]);
+
   const disconnectService = useCallback(async (provider: DisconnectableProvider) => {
     if (!state.user || !state.token) return;
     try {
@@ -840,6 +897,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       connectSoundcloud,
       connectTidal,
       connectLastfm,
+      connectAppleMusic,
       disconnectService,
       biometric: {
         isAvailable: bio.isAvailable,

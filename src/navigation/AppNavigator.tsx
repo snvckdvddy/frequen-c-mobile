@@ -443,7 +443,8 @@ function isAuthCallbackUrl(path: string): boolean {
   // Last.fm callback: bare scheme root with ?token= (no path segment)
   if (/^[/?]?[^/]*[?&]token=/.test(lower) && !/[?&]service=/.test(lower)) return true;
   // Apple web sign-in callback: frequenc://apple-auth?...
-  if (lower.startsWith('apple-auth')) return true;
+  // Apple Music MusicKit callback: frequenc://apple-music-auth?...
+  if (lower.startsWith('apple-auth') || lower.startsWith('apple-music-auth')) return true;
   return false;
 }
 

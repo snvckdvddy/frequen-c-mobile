@@ -1,12 +1,13 @@
 /**
- * Apple Music adapter backed by iTunes Search API via backend.
+ * Apple Music adapter — dual-mode: public catalog search + authenticated library access.
  *
- * Uses the public iTunes Search API (proxied through backend at /api/search/apple-music)
- * to search the Apple Music catalog. Returns 30-sec preview URLs for playback.
+ * Catalog search: Always available via the public iTunes Search API (no auth needed).
+ * Library access: Requires a MusicKit user token stored after the user connects their
+ * Apple Music account. Library playlists and songs are fetched through the backend,
+ * which uses the stored Music User Token to call Apple Music API.
  *
- * No user authentication is required — search is always available.
- * When MusicKit integration is added later, this adapter can be upgraded
- * to support full playback and user library access.
+ * isConnected() reflects whether the user has authenticated their Apple Music.
+ * Search always works regardless — the adapter routes to catalog or library based on intent.
  */
 
 import { MusicServiceAdapter } from './types';
@@ -14,22 +15,39 @@ import { Track } from '../../types';
 import { apiFetch } from '../fetchClient';
 import { logger } from '../../utils/logger';
 
+interface LibraryResponse {
+    tracks: Track[];
+    hasMore: boolean;
+}
+
+interface PlaylistResponse {
+    playlists: Array<{ id: string; name: string; description: string; artwork: string }>;
+    hasMore: boolean;
+}
+
 class AppleMusicAdapter implements MusicServiceAdapter {
     serviceName = 'appleMusic' as const;
+    private _connected = false;
 
     /**
-     * Apple Music search via iTunes is always available (no auth needed).
-     * setConnected is a no-op; isConnected always returns true.
+     * Set whether the user has authenticated their Apple Music account.
+     * Does NOT affect catalog search — only library features.
      */
-    setConnected(_status: boolean) {
-        // No-op: iTunes search doesn't require authentication
+    setConnected(status: boolean) {
+        this._connected = status;
     }
 
+    /**
+     * Returns true if the user has connected their Apple Music account.
+     * Catalog search works regardless; this gates library-only features.
+     */
     isConnected(): boolean {
-        // Always available — iTunes Search API is public
-        return true;
+        return this._connected;
     }
 
+    /**
+     * Catalog search — always available (public iTunes API).
+     */
     async search(query: string, options?: { silent?: boolean; rethrow?: boolean }): Promise<Track[]> {
         try {
             const res = await apiFetch<{ tracks: Track[] }>(
@@ -46,11 +64,57 @@ class AppleMusicAdapter implements MusicServiceAdapter {
     }
 
     async getStreamUrl(trackId: string): Promise<string> {
-        // For now, Apple Music tracks use their previewUrl directly.
-        // The track object already has previewUrl set from the search response.
-        // Full playback will require MusicKit SDK integration.
+        // Full playback handled by WebView SDK backend in Phase 3.
+        // Track objects carry previewUrl from search — used as fallback until then.
         logger.debug('appleMusic', `getStreamUrl called for ${trackId} — using previewUrl from track`);
         return '';
+    }
+
+    // ─── Library Access (MusicServiceAdapter interface) ──────
+
+    async getUserPlaylists(): Promise<import('../../types').Playlist[]> {
+        if (!this._connected) return [];
+        try {
+            const res = await apiFetch<PlaylistResponse>(
+                '/auth/apple-music/library/playlists?limit=100'
+            );
+            return res.playlists.map((p) => ({
+                id: p.id,
+                name: p.name,
+                coverArt: p.artwork || undefined,
+                trackCount: 0, // Apple Music doesn't return count in list endpoint
+                source: 'appleMusic' as const,
+            }));
+        } catch (e) {
+            logger.warn('appleMusic', 'Failed to fetch library playlists', e);
+            return [];
+        }
+    }
+
+    async getPlaylistTracks(playlistId: string): Promise<Track[]> {
+        if (!this._connected) return [];
+        try {
+            const res = await apiFetch<LibraryResponse>(
+                `/auth/apple-music/library/playlists/${playlistId}/tracks?limit=300`
+            );
+            return res.tracks;
+        } catch (e) {
+            logger.warn('appleMusic', 'Failed to fetch playlist tracks', e);
+            return [];
+        }
+    }
+
+    async getLikedTracks(): Promise<Track[]> {
+        if (!this._connected) return [];
+        try {
+            const res = await apiFetch<LibraryResponse>(
+                '/auth/apple-music/library/songs?limit=100'
+            );
+            return res.tracks;
+        } catch (e) {
+            logger.warn('appleMusic', 'Failed to fetch library songs', e);
+            return [];
+        }
     }
 }
 

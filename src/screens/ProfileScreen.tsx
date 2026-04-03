@@ -45,7 +45,7 @@ const WALK_ON_OPTIONS = ['808 KICK', 'VINYL CRACKLE', 'SYNTH STAB', 'DOOR CHIME'
 
 const PROVIDERS: Array<{ label: string; serviceKey: string; provider?: DisconnectableProvider; key: string; alwaysOn?: boolean }> = [
   { key: 'spotify', label: 'SPOTIFY', serviceKey: 'spotify', provider: 'spotify' },
-  { key: 'apple', label: 'APPLE MUSIC', serviceKey: 'apple-music', alwaysOn: true },
+  { key: 'apple', label: 'APPLE MUSIC', serviceKey: 'apple-music', provider: 'appleMusic' },
   { key: 'tidal', label: 'TIDAL', serviceKey: 'tidal', provider: 'tidal' },
   { key: 'soundcloud', label: 'SOUNDCLOUD', serviceKey: 'soundcloud', provider: 'soundcloud' },
   { key: 'lastfm', label: 'LAST.FM', serviceKey: 'lastfm', provider: 'lastfm' },
@@ -96,6 +96,7 @@ export function ProfileScreen() {
     connectSoundcloud,
     connectTidal,
     connectLastfm,
+    connectAppleMusic,
     disconnectService,
     biometric,
   } = useAuth();
@@ -262,11 +263,13 @@ export function ProfileScreen() {
       if (provider === 'soundcloud') await connectSoundcloud();
       if (provider === 'tidal') await connectTidal();
       if (provider === 'lastfm') await connectLastfm();
+      if (provider === 'appleMusic') await connectAppleMusic();
     } catch {
       notifyError();
       showToast(`${label} patch failed.`, 'error', '!');
     }
   }, [
+    connectAppleMusic,
     connectLastfm,
     connectSoundcloud,
     connectSpotify,
@@ -593,7 +596,8 @@ export function ProfileScreen() {
                     : entry.provider === 'soundcloud' ? Boolean(profileUser?.connectedServices?.soundcloud?.connected)
                       : entry.provider === 'tidal' ? Boolean(profileUser?.connectedServices?.tidal?.connected)
                         : entry.provider === 'lastfm' ? Boolean(profileUser?.connectedServices?.lastfm?.connected)
-                          : false;
+                          : entry.provider === 'appleMusic' ? Boolean(profileUser?.connectedServices?.appleMusic?.connected)
+                            : false;
                 const username = entry.alwaysOn
                   ? undefined
                   : entry.provider === 'spotify' ? profileUser?.connectedServices?.spotify?.username
