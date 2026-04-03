@@ -25,6 +25,9 @@ export const config = {
   // ─── SoundCloud ───────────────────────────────────────────
   SOUNDCLOUD_CLIENT_ID: readEnv(process.env.EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID) || '',
 
+  // ─── Apple Sign In (web flow for Android) ─────────────────
+  APPLE_SERVICE_ID: readEnv(process.env.EXPO_PUBLIC_APPLE_SERVICE_ID) || '',
+
   // ─── Google Sign In ─────────────────────────────────────
   GOOGLE_WEB_CLIENT_ID: readEnv(process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) || '',
   GOOGLE_IOS_CLIENT_ID: readEnv(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) || '',

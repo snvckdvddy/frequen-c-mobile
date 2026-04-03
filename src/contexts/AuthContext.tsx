@@ -376,11 +376,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, [state.token]);
 
+  // ── Apple Web Auth Callback (Android) ────────────────────
+  const handleAppleWebCallback = useCallback(async (url: string): Promise<boolean> => {
+    if (!url.includes('apple-auth')) return false;
+    const params = new URLSearchParams(url.split('?')[1] || '');
+    const token = params.get('token');
+    const error = params.get('error');
+
+    if (error) {
+      showToast(`Apple sign in failed: ${error}`, 'error');
+      return true;
+    }
+    if (!token) return false;
+
+    try {
+      await storeToken(token);
+      const { user } = await authApi.me();
+      dispatch({ type: 'SET_USER', payload: { user, token } });
+      showToast('Apple account patched', 'success', '');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to complete Apple sign in';
+      showToast(message, 'error');
+    }
+    return true;
+  }, []);
+
   const handleIncomingAuthUrl = useCallback(async (url: string) => {
     if (!url || lastHandledAuthUrlRef.current === url) return false;
 
     // Claim the URL immediately to prevent concurrent handlers from double-processing
     lastHandledAuthUrlRef.current = url;
+
+    if (await handleAppleWebCallback(url)) {
+      pendingAuthProviderRef.current = null;
+      return true;
+    }
 
     if (await handleSoundcloudRedirect(url)) {
       pendingAuthProviderRef.current = null;
@@ -407,7 +437,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return handled;
-  }, [completeLastfmAuth, handleSoundcloudRedirect]);
+  }, [completeLastfmAuth, handleSoundcloudRedirect, handleAppleWebCallback]);
 
   useEffect(() => {
     const sub = Linking.addEventListener('url', ({ url }) => {

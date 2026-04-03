@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { NavigationContainer, LinkingOptions, NavigationContainerRef, useNavigation } from '@react-navigation/native';
+import { NavigationContainer, LinkingOptions, NavigationContainerRef, useNavigation, getStateFromPath as defaultGetStateFromPath } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -427,6 +427,22 @@ function MainNavigator() {
 
 const prefix = Linking.createURL('/');
 
+/**
+ * Auth callback URLs (SoundCloud, Last.fm, Apple web) should NOT trigger
+ * navigation — they are handled by the Linking listener in AuthContext.
+ * Return true for URLs that carry auth params so getStateFromPath can drop them.
+ */
+function isAuthCallbackUrl(path: string): boolean {
+  const lower = path.toLowerCase();
+  // SoundCloud / generic service callbacks: ?service=soundcloud&status=success
+  if (/[?&]service=/.test(lower) && /[?&]status=/.test(lower)) return true;
+  // Last.fm callback: ?token=...
+  if (/[?&]token=/.test(lower)) return true;
+  // Apple web sign-in callback: frequenc://apple-auth?...
+  if (lower.startsWith('apple-auth')) return true;
+  return false;
+}
+
 const linking: LinkingOptions<MainStackParamList> = {
   prefixes: [prefix, 'frequenc://'],
   config: {
@@ -441,6 +457,10 @@ const linking: LinkingOptions<MainStackParamList> = {
         path: '',
       },
     },
+  },
+  getStateFromPath(path, options) {
+    if (isAuthCallbackUrl(path)) return undefined;
+    return defaultGetStateFromPath(path, options);
   },
 };
 

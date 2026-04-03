@@ -10,6 +10,7 @@ export interface AuthDiagnostics {
   lastfmRedirectUri: string;
   soundcloudRedirectUri: string;
   soundcloudSessionReturnUrl: string;
+  appleWebCallbackUri: string;
 }
 
 export function getAuthDiagnostics(): AuthDiagnostics {
@@ -26,6 +27,7 @@ export function getAuthDiagnostics(): AuthDiagnostics {
     lastfmRedirectUri: makeRedirectUri({ scheme: 'frequenc' }),
     soundcloudRedirectUri: `${API_BASE_URL}/auth/soundcloud/callback`,
     soundcloudSessionReturnUrl: makeRedirectUri(),
+    appleWebCallbackUri: `${API_BASE_URL}/auth/apple/web-callback`,
   };
 }
 

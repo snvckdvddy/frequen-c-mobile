@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as WebBrowser from 'expo-web-browser';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { Button, Input, SafeScreen } from '../components/ui';
 import { ManualPanel } from '../components/manual/ManualPanel';
@@ -62,8 +63,16 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
     }
   };
 
-  // ── Apple Sign In ──────────────────────────────────────────
+  // ── Apple Sign In (iOS native / Android web) ───────────────
   const handleAppleSignIn = async () => {
+    if (Platform.OS === 'ios') {
+      await handleAppleSignInNative();
+    } else {
+      await handleAppleSignInWeb();
+    }
+  };
+
+  const handleAppleSignInNative = async () => {
     setSubmitError(null);
     setSocialLoading('apple');
     try {
@@ -90,9 +99,44 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
         credential.email ?? undefined,
       );
     } catch (error: unknown) {
-      // code === 'ERR_REQUEST_CANCELED' means user dismissed the sheet
       const code = error instanceof Error && 'code' in error ? (error as Error & { code: string }).code : '';
       if (code === 'ERR_REQUEST_CANCELED') return;
+      const message = error instanceof Error ? error.message : 'Apple sign in failed.';
+      setSubmitError(message.toUpperCase());
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  const handleAppleSignInWeb = async () => {
+    const serviceId = config.APPLE_SERVICE_ID;
+    if (!serviceId) {
+      setSubmitError('APPLE SIGN IN IS NOT CONFIGURED FOR THIS PLATFORM');
+      return;
+    }
+    setSubmitError(null);
+    setSocialLoading('apple');
+    try {
+      const { API_BASE_URL } = await import('../services/config');
+      const redirectUri = `${API_BASE_URL}/auth/apple/web-callback`;
+      const state = Math.random().toString(36).slice(2);
+      const authUrl =
+        `https://appleid.apple.com/auth/authorize?` +
+        `client_id=${encodeURIComponent(serviceId)}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&response_type=code+id_token` +
+        `&scope=name+email` +
+        `&response_mode=form_post` +
+        `&state=${state}`;
+
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, 'frequenc://apple-auth');
+      if (result.type === 'success' && result.url) {
+        // The callback URL is frequenc://apple-auth?token=...
+        // AuthContext's Linking listener handles the rest
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        // User cancelled — no error
+      }
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Apple sign in failed.';
       setSubmitError(message.toUpperCase());
     } finally {
@@ -193,31 +237,29 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
 
               {/* ── Social Auth Buttons ──────────────────────────── */}
               <View style={styles.socialSection}>
-                {Platform.OS === 'ios' && (
-                  <Pressable
-                    onPress={handleAppleSignIn}
-                    disabled={isAnyLoading}
-                    style={({ pressed }) => [
-                      styles.socialButton,
-                      styles.appleButton,
-                      pressed && styles.pressed,
-                      isAnyLoading && styles.socialDisabled,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Sign in with Apple"
-                  >
-                    {socialLoading === 'apple' ? (
-                      <ActivityIndicator color="#000000" size="small" />
-                    ) : (
-                      <>
-                        <Ionicons name="logo-apple" size={20} color="#000000" />
-                        <MonoText style={[styles.monoBold, styles.appleButtonText]}>
-                          SIGN IN WITH APPLE
-                        </MonoText>
-                      </>
-                    )}
-                  </Pressable>
-                )}
+                <Pressable
+                  onPress={handleAppleSignIn}
+                  disabled={isAnyLoading}
+                  style={({ pressed }) => [
+                    styles.socialButton,
+                    styles.appleButton,
+                    pressed && styles.pressed,
+                    isAnyLoading && styles.socialDisabled,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign in with Apple"
+                >
+                  {socialLoading === 'apple' ? (
+                    <ActivityIndicator color="#000000" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-apple" size={20} color="#000000" />
+                      <MonoText style={[styles.monoBold, styles.appleButtonText]}>
+                        SIGN IN WITH APPLE
+                      </MonoText>
+                    </>
+                  )}
+                </Pressable>
 
                 <Pressable
                   onPress={handleGoogleSignIn}
