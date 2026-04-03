@@ -69,7 +69,7 @@ type TabParamList = {
   Home: undefined;
   Discover: undefined;
   Create: undefined;     // Placeholder — intercepted by listener, opens modal
-  Library: undefined;
+  Library: { initialSegment?: 'liked' | 'playlists' | 'history' } | undefined;
 };
 
 // ─── Navigators ─────────────────────────────────────────────
@@ -241,6 +241,7 @@ function TabNavigator() {
           {(props) => (
             <ErrorBoundary screenName="Library">
               <LibraryScreen
+                route={props.route}
                 onOpenRoom={(sessionId: string) =>
                   props.navigation.getParent()?.navigate('SessionRoom', { sessionId })
                 }
