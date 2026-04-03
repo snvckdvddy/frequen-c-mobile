@@ -43,12 +43,11 @@ type SocialBattery = 'low' | 'unity' | 'hot';
 
 const WALK_ON_OPTIONS = ['808 KICK', 'VINYL CRACKLE', 'SYNTH STAB', 'DOOR CHIME', 'NONE'] as const;
 
-const PROVIDERS: Array<{ label: string; serviceKey: string; provider?: DisconnectableProvider; key: string }> = [
+const PROVIDERS: Array<{ label: string; serviceKey: string; provider?: DisconnectableProvider; key: string; alwaysOn?: boolean }> = [
   { key: 'spotify', label: 'SPOTIFY', serviceKey: 'spotify', provider: 'spotify' },
-  { key: 'apple', label: 'APPLE MUSIC', serviceKey: 'apple-music' },
+  { key: 'apple', label: 'APPLE MUSIC', serviceKey: 'apple-music', alwaysOn: true },
   { key: 'tidal', label: 'TIDAL', serviceKey: 'tidal', provider: 'tidal' },
   { key: 'soundcloud', label: 'SOUNDCLOUD', serviceKey: 'soundcloud', provider: 'soundcloud' },
-  { key: 'youtube', label: 'YOUTUBE MUSIC', serviceKey: 'youtube-music' },
   { key: 'lastfm', label: 'LAST.FM', serviceKey: 'lastfm', provider: 'lastfm' },
 ];
 
@@ -588,22 +587,23 @@ export function ProfileScreen() {
             <MonoText style={[textStyles.mono, styles.sectionLabel]}>PATCH CABLES</MonoText>
             <View style={styles.panel}>
               {PROVIDERS.map((entry, index) => {
-                const connected =
-                  entry.provider === 'spotify' ? Boolean(profileUser?.connectedServices?.spotify?.connected)
+                const connected = entry.alwaysOn
+                  ? true
+                  : entry.provider === 'spotify' ? Boolean(profileUser?.connectedServices?.spotify?.connected)
                     : entry.provider === 'soundcloud' ? Boolean(profileUser?.connectedServices?.soundcloud?.connected)
                       : entry.provider === 'tidal' ? Boolean(profileUser?.connectedServices?.tidal?.connected)
                         : entry.provider === 'lastfm' ? Boolean(profileUser?.connectedServices?.lastfm?.connected)
                           : false;
-                const username =
-                  entry.provider === 'spotify' ? profileUser?.connectedServices?.spotify?.username
+                const username = entry.alwaysOn
+                  ? undefined
+                  : entry.provider === 'spotify' ? profileUser?.connectedServices?.spotify?.username
                     : entry.provider === 'soundcloud' ? profileUser?.connectedServices?.soundcloud?.username
                       : entry.provider === 'tidal' ? profileUser?.connectedServices?.tidal?.username
                         : entry.provider === 'lastfm' ? profileUser?.connectedServices?.lastfm?.username
                           : undefined;
-                const comingSoon = !entry.provider;
                 const blocked = entry.provider ? mobileConfigMissing(entry.provider) || providerUnavailable(entry.provider) : false;
-                const status = comingSoon
-                  ? 'SOON'
+                const status = entry.alwaysOn
+                  ? 'ALWAYS ON // NO AUTH NEEDED'
                   : connected
                     ? username ? `PATCHED // @${username.toUpperCase()}` : 'PATCHED'
                     : mobileConfigMissing(entry.provider!) ? 'MOBILE CONFIG MISSING'
@@ -620,31 +620,33 @@ export function ProfileScreen() {
                           <MonoText style={[textStyles.mono, styles.providerStatus]}>{status}</MonoText>
                         </View>
                       </View>
-                      <Pressable
-                        onPress={() => {
-                          if (comingSoon) {
-                            showToast(`${entry.label} is not routed yet.`, 'info', '!');
-                            return;
-                          }
-                          if (connected && entry.provider) {
-                            tapMedium();
-                            setPrompt({ kind: 'disconnect', provider: entry.provider, name: entry.label });
-                            return;
-                          }
-                          if (entry.provider) void handleConnect(entry.provider, entry.label);
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${comingSoon ? 'Coming soon' : connected ? 'Disconnect' : 'Connect'} ${entry.label}`}
-                        style={({ pressed }) => [
-                          styles.providerAction,
-                          connected ? styles.providerActionDanger : blocked ? styles.providerActionMuted : styles.providerActionDefault,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <MonoText style={[textStyles.monoBold, styles.providerActionText]}>
-                          {comingSoon ? 'SOON' : connected ? 'UNPATCH' : 'PATCH'}
-                        </MonoText>
-                      </Pressable>
+                      {entry.alwaysOn ? (
+                        <View style={[styles.providerAction, styles.providerActionMuted]}>
+                          <MonoText style={[textStyles.monoBold, styles.providerActionText]}>AUTO</MonoText>
+                        </View>
+                      ) : (
+                        <Pressable
+                          onPress={() => {
+                            if (connected && entry.provider) {
+                              tapMedium();
+                              setPrompt({ kind: 'disconnect', provider: entry.provider, name: entry.label });
+                              return;
+                            }
+                            if (entry.provider) void handleConnect(entry.provider, entry.label);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${connected ? 'Disconnect' : 'Connect'} ${entry.label}`}
+                          style={({ pressed }) => [
+                            styles.providerAction,
+                            connected ? styles.providerActionDanger : blocked ? styles.providerActionMuted : styles.providerActionDefault,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <MonoText style={[textStyles.monoBold, styles.providerActionText]}>
+                            {connected ? 'UNPATCH' : 'PATCH'}
+                          </MonoText>
+                        </Pressable>
+                      )}
                     </View>
                   </View>
                 );

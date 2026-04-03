@@ -203,10 +203,10 @@ export function WelcomeBootScreen({ onContinue }: WelcomeBootScreenProps) {
                     <MonoText style={styles.duelEyebrow}>WORLD BUILDING // MODE PREVIEW</MonoText>
                     <MonoText style={styles.duelTitle}>CROSSFADER DUEL</MonoText>
                     <MonoText style={styles.duelCopy}>
-                      A live head-to-head vote battle where the room drags a shared crossfader toward the track it wants to keep.
+                      A live head-to-head vote battle. The host pits two tracks against each other. Everyone votes. Loser gets dropped. 18 seconds on the clock.
                     </MonoText>
                     <MonoText style={styles.duelCopyMuted}>
-                      Not active in this onboarding slice yet. Patch into Home Grid first, then return when the mode comes online.
+                      The host can launch a duel from the room settings panel. Look for the CROSSFADER DUEL action once you are in a session.
                     </MonoText>
                   </View>
                 </>

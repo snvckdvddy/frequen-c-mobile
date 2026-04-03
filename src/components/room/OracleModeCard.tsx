@@ -339,17 +339,17 @@ export function OracleModeCard({
             <Text style={styles.resultsLabel}>CURATED RETURNS</Text>
             <Text style={styles.resultsMeta}>
               {preferredSources && preferredSources.length === 0
-                ? 'ARM A LIVE PROVIDER TO LOCK MATCHES'
-                : 'LOCKING CURATED RETURNS TO LIVE SEARCH'}
+                ? 'ENABLE A MUSIC SOURCE TO FIND TRACKS'
+                : 'MATCHING RESULTS TO YOUR CONNECTED SERVICES'}
             </Text>
           </View>
           {result.tracks.map(renderSuggestionRow)}
         </View>
       ) : !loading ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>SEMANTIC ROUTING READY</Text>
+          <Text style={styles.emptyTitle}>ORACLE READY</Text>
           <Text style={styles.emptyBody}>
-            DESCRIBE THE VIBE. ORACLE RETURNS CURATED CANDIDATES AND TRIES TO LOCK THEM BEFORE PATCH.
+            DESCRIBE A MOOD OR VIBE — ORACLE FINDS TRACKS THAT FIT AND QUEUES THEM FOR YOU.
           </Text>
         </View>
       ) : null}

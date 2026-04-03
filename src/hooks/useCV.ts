@@ -5,7 +5,8 @@
  * via Socket.io, and exposes power move triggers.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface CVTransaction {
   amount: number;
@@ -34,10 +35,30 @@ export const CV_EARN_RATES = {
   forecast_correct: 2,
 } as const;
 
+const CV_STORAGE_KEY = '@frequenc/cv_balance';
+
 export function useCV(initialBalance: number = 50) {
   const [balance, setBalance] = useState(initialBalance);
   const [history, setHistory] = useState<CVTransaction[]>([]);
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
+  const hydratedRef = useRef(false);
+
+  // Restore persisted balance on mount
+  useEffect(() => {
+    AsyncStorage.getItem(CV_STORAGE_KEY).then((stored) => {
+      if (stored !== null) {
+        const parsed = parseInt(stored, 10);
+        if (!isNaN(parsed) && parsed > 0) setBalance(parsed);
+      }
+      hydratedRef.current = true;
+    }).catch(() => { hydratedRef.current = true; });
+  }, []);
+
+  // Persist balance changes (skip until hydrated to avoid overwriting with initialBalance)
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    AsyncStorage.setItem(CV_STORAGE_KEY, String(balance)).catch(() => {});
+  }, [balance]);
 
   /** Earn CV — called when server emits cv:earn */
   const earn = useCallback((amount: number, reason: string) => {

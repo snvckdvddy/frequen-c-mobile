@@ -195,7 +195,7 @@ function TabNavigator() {
                 onOpenProfile={() => props.navigation.getParent()?.navigate('Profile')}
                 onOpenFriends={() => props.navigation.getParent()?.navigate('Friends')}
                 onOpenActivityFeed={() => props.navigation.getParent()?.navigate('ActivityFeed')}
-                onViewAllLibrary={() => props.navigation.navigate('Library')}
+                onViewAllLibrary={() => props.navigation.navigate('Library', { initialSegment: 'history' })}
               />
             </ErrorBoundary>
           )}

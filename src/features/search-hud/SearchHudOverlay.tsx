@@ -484,8 +484,8 @@ export function SearchHudOverlay({
                     <View style={styles.empty}>
                       <Text style={styles.emptyText}>
                         {activeSourceCount === 0
-                          ? 'ARM A LIVE PROVIDER // ENABLE AT LEAST ONE SOURCE'
-                          : 'NO MATCHES // REFINE QUERY'}
+                          ? 'TURN ON AT LEAST ONE MUSIC SOURCE ABOVE'
+                          : 'NO MATCHES — TRY A DIFFERENT SEARCH'}
                       </Text>
                     </View>
                   }

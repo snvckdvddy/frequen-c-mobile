@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -7,6 +7,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type ListRenderItem,
   type StyleProp,
@@ -17,6 +18,7 @@ import { SafeScreen, showToast } from '../components/ui';
 import { VoidSurface } from '../design/components';
 import {
   friendApi,
+  searchApi,
   type FriendRequest,
   type FriendUser,
   type OnlineFriend,
@@ -102,6 +104,39 @@ export function FriendsScreen({ onBack, onOpenProfile, onOpenRoom }: FriendsScre
   const [refreshing, setRefreshing] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [removePrompt, setRemovePrompt] = useState<FriendUser | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<FriendUser[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced user search
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await searchApi.users(trimmed);
+        setSearchResults((res.users || []).map((u) => ({
+          id: u.id,
+          username: u.username,
+          avatarUrl: u.avatarUrl || null,
+          sessionsHosted: u.sessionsCount ?? 0,
+          tracksAdded: u.tracksAdded ?? 0,
+        })));
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchQuery]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -336,9 +371,51 @@ export function FriendsScreen({ onBack, onOpenProfile, onOpenRoom }: FriendsScre
                 );
               })}
             </View>
+
+            {/* User Search */}
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={14} color={tacticalTokens.colors.textMuted} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="FIND USERS"
+                placeholderTextColor={tacticalTokens.colors.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                selectionColor={tacticalTokens.colors.ice}
+                style={styles.searchInput}
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <Pressable onPress={() => setSearchQuery('')} style={({ pressed }) => [pressed && styles.pressed]}>
+                  <Ionicons name="close-circle" size={16} color={tacticalTokens.colors.textMuted} />
+                </Pressable>
+              )}
+            </View>
           </View>
 
-          {loading ? (
+          {searchQuery.trim() ? (
+            searching ? (
+              <View style={styles.centerState}>
+                <ActivityIndicator size="large" color={tacticalTokens.colors.ice} />
+              </View>
+            ) : (
+              <FlatList<FriendUser>
+                data={searchResults}
+                keyExtractor={(item) => item.id}
+                renderItem={renderFriendItem}
+                contentContainerStyle={styles.listContent}
+                ListEmptyComponent={(
+                  <View style={styles.emptyState}>
+                    <Ionicons name="search-outline" size={42} color={tacticalTokens.colors.textMuted} />
+                    <MonoText style={styles.emptyTitle}>NO MATCHES</MonoText>
+                    <MonoText style={styles.emptyText}>NO USERS FOUND FOR &quot;{searchQuery.trim().toUpperCase()}&quot;</MonoText>
+                  </View>
+                )}
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+              />
+            )
+          ) : loading ? (
             <View style={styles.centerState}>
               <ActivityIndicator size="large" color={tacticalTokens.colors.acid} />
             </View>
@@ -421,6 +498,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: tacticalTokens.spacing.xl,
     paddingTop: tacticalTokens.spacing.xl,
     paddingBottom: tacticalTokens.spacing.lg,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tacticalTokens.spacing.xs,
+    marginTop: tacticalTokens.spacing.sm,
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    height: 38,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: 11,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1,
+    paddingVertical: 0,
   },
   headerTopRow: {
     flexDirection: 'row',

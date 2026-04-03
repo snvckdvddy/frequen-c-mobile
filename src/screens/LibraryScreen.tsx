@@ -13,7 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeScreen, Text, ADSRFadeIn, TrackListItem, ErrorState, TrackCardSkeleton } from '../components/ui';
+import { SafeScreen, Text, ADSRFadeIn, TrackListItem, ErrorState, TrackCardSkeleton, showToast } from '../components/ui';
 import { ServiceSelectorPills } from '../components/library/ServiceSelectorPills';
 import { PlaylistList } from '../components/library/PlaylistList';
 import { PlaylistTrackList } from '../components/library/PlaylistTrackList';
@@ -21,6 +21,7 @@ import { ArchiveSessionModal } from '../components/ArchiveSessionModal';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
 import { useLibraryBrowse } from '../hooks/useLibraryBrowse';
 import { sessionApi } from '../services/api';
 import { VoidSurface } from '../design/components';
@@ -184,13 +185,24 @@ const histStyles = StyleSheet.create({
 
 interface LibraryScreenProps {
   onOpenRoom?: (sessionId: string) => void;
+  initialSegment?: Segment;
+  route?: { params?: { initialSegment?: Segment } };
 }
 
-export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
+export function LibraryScreen({ onOpenRoom, initialSegment, route }: LibraryScreenProps) {
+  const resolvedInitialSegment: Segment = route?.params?.initialSegment || initialSegment || 'liked';
   const { favorites, removeFavorite, isLoaded } = useFavoritesContext();
   const { user } = useAuth();
   const { accent } = useTheme();
-  const [segment, setSegment] = useState<Segment>('liked');
+  const [segment, setSegment] = useState<Segment>(resolvedInitialSegment);
+
+  // Switch segment when navigated to with a different initialSegment param
+  useEffect(() => {
+    if (route?.params?.initialSegment) {
+      setSegment(route.params.initialSegment);
+    }
+  }, [route?.params?.initialSegment]);
+
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -248,11 +260,16 @@ export function LibraryScreen({ onOpenRoom }: LibraryScreenProps) {
   );
 
   // ─── Track tap handler (standalone context) ───────────────
+  const globalRoom = useGlobalSessionRoom();
+  const hasActiveSession = Boolean(globalRoom.session?.isLive);
+
   const handleTrackPress = useCallback((track: Track) => {
-    // In standalone library, track press could open a context menu.
-    // For now, log — will wire up context menu in a follow-up.
-    console.log('Library track pressed:', track.title);
-  }, []);
+    if (hasActiveSession) {
+      showToast('Open the queue in your active session to add tracks', 'info', '!');
+    } else {
+      showToast(`${track.title} — join or create a room to queue tracks`, 'info', '!');
+    }
+  }, [hasActiveSession]);
 
   return (
     <SafeScreen>
