@@ -16,6 +16,7 @@
 import { getAdapterForSource } from './adapters/musicServiceAdapter';
 import { currentServices } from './api';
 import { playbackRouter } from './playback/PlaybackRouter';
+import { SDK_SOURCES } from './playback/PlaybackBackend';
 import { TrackSource } from '../types';
 import { logger } from '../utils/logger';
 
@@ -50,8 +51,7 @@ let trackEndListeners: TrackEndListener[] = [];
 // ─── Voltage Sag audio degradation ──────────────────────────
 let voltageSagActive = false;
 
-/** Sources handled by WebView SDK (no adapter URL resolution needed) */
-const SDK_SOURCES: ReadonlySet<TrackSource> = new Set(['spotify', 'appleMusic']);
+// SDK_SOURCES imported from PlaybackBackend.ts (single source of truth)
 
 // ─── Router subscriptions ──────────────────────────────────
 // Subscribe to the PlaybackRouter's events once at module load.

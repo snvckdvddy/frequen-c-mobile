@@ -25,8 +25,13 @@ const MAX_RETRIES = 2;
 
 export class ExpoAvBackend implements PlaybackBackend {
   readonly name = 'ExpoAv';
+  // CDN sources are fully supported with direct audio URLs.
+  // SDK sources (spotify, appleMusic) are listed for fallback: PlaybackRouter
+  // routes here when the WebView is unavailable. Playback is degraded —
+  // only a 30-second preview URL (if present), not full-length SDK streaming.
   readonly supportedSources: ReadonlyArray<TrackSource> = [
-    'soundcloud', 'tidal', 'itunes', 'youtube', 'spotify', 'appleMusic',
+    'soundcloud', 'tidal', 'itunes', 'youtube',
+    'spotify', 'appleMusic', // fallback only — degraded without SDK
   ];
 
   private sound: Audio.Sound | null = null;

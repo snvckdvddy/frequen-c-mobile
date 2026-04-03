@@ -12,6 +12,13 @@
 
 import type { TrackSource } from '../../types';
 
+/**
+ * Sources that require SDK playback via the hidden WebView.
+ * Shared constant — used by PlaybackRouter and playbackEngine.ts so
+ * the definition stays in one place.
+ */
+export const SDK_SOURCES: ReadonlySet<TrackSource> = new Set(['spotify', 'appleMusic']);
+
 export interface PlaybackProgress {
   isPlaying: boolean;
   elapsed: number;   // seconds

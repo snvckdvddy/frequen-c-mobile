@@ -25,14 +25,12 @@ import type {
   TrackEndListener,
   TrackLoadRequest,
 } from './PlaybackBackend';
+import { SDK_SOURCES } from './PlaybackBackend';
 import type { TrackSource } from '../../types';
 import { ExpoAvBackend } from './ExpoAvBackend';
 import { webViewSDKBackend } from './WebViewBridge';
 import { apiFetch } from '../fetchClient';
 import { logger } from '../../utils/logger';
-
-/** Sources that require SDK playback (DRM-protected, no raw audio URL) */
-const SDK_SOURCES: ReadonlySet<TrackSource> = new Set(['spotify', 'appleMusic']);
 
 /** Response from GET /api/playback/credentials/:queueTrackId */
 interface PlaybackCredentials {
