@@ -7,7 +7,6 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "installCommand": "npm ci --legacy-peer-deps",
       "ios": {
         "simulator": true
       },
