@@ -23,7 +23,7 @@ import { tacticalTokens } from '../session-v2/theme/tacticalTokens';
 import type { SearchHudSource } from '../../hooks/useSearch';
 import type { SearchDiagnostics, SearchProviderState } from '../../services/api';
 import { getTierForSource } from '../../services/adapters/musicServiceAdapter';
-import { palette, withAlpha } from '@/design/tokens/materials';
+import { TierBadge } from '@/components/ui';
 
 type SearchMode = 'database' | 'oracle';
 type HudTab = 'search' | 'library';
@@ -422,11 +422,11 @@ export function SearchHudOverlay({
                           <Text style={[styles.sourceText, active && { color: meta.color }]}>
                             {`[ ${meta.label} ]`}
                           </Text>
-                          {isRestrictedBeta && (
-                            <View style={styles.tierBadge}>
-                              <Text style={styles.tierBadgeText}>BETA</Text>
-                            </View>
-                          )}
+                          <TierBadge
+                            source={key}
+                            style={styles.tierBadgeOffset}
+                            textStyle={styles.tierBadgeMono}
+                          />
                         </View>
                         <Text
                           style={[
@@ -837,27 +837,22 @@ const styles = StyleSheet.create({
     fontSize: 6,
     letterSpacing: 0.7,
   },
-  // ─── Tier 3 "Restricted Beta" status chip ──────────────────
-  // Distinct from tagBadge above: tagBadge is a *data* chip (which
-  // providers a track is on); tierBadge is a *status* chip (this
-  // provider has restricted availability). Same monoBold font for
-  // typographic cohesion within the tactical aesthetic, but rounded
-  // corners + cross-app orange accent so the tier signal reads
-  // independently of any per-provider brand color.
-  tierBadge: {
+  // ─── Tier 3 "Restricted Beta" status chip overrides ────────
+  // The shared <TierBadge /> primitive (components/ui/TierBadge.tsx)
+  // owns the visual styling — orange accent, border, padding, shape.
+  // These two styles are surface-local *overrides* the primitive accepts:
+  //   • tierBadgeOffset → layout (marginLeft) is the parent's job
+  //   • tierBadgeMono   → font override so this tactical surface keeps
+  //     its monoBold typography instead of the primitive's system font
+  // Primitives in components/ui/ can't import session-v2 tokens, so
+  // surfaces that want the tactical font opt in via the textStyle prop.
+  tierBadgeOffset: {
     marginLeft: 5,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: withAlpha(palette.orange, 0.45),
-    backgroundColor: withAlpha(palette.orange, 0.18),
   },
-  tierBadgeText: {
+  tierBadgeMono: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: 8,
     letterSpacing: 0.6,
-    color: palette.orange,
   },
   originChip: {
     borderWidth: 1,

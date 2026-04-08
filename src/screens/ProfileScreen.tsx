@@ -15,7 +15,7 @@ import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { SafeScreen, showToast } from '../components/ui';
+import { SafeScreen, showToast, TierBadge } from '../components/ui';
 import { VoidSurface } from '../design/components';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { SonicAuraCard } from '../components/profile/SonicAuraCard';
@@ -27,7 +27,6 @@ import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { authApi, getStoredToken, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
 import { formatAuthDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
 import { getTierForSource } from '../services/adapters/musicServiceAdapter';
-import { palette, withAlpha } from '@/design/tokens/materials';
 import { config } from '../config';
 import type { User, TrackSource } from '../types';
 import { notifyError, notifySuccess, tapHeavy, tapLight, tapMedium } from '../utils/haptics';
@@ -660,10 +659,12 @@ export function ProfileScreen() {
                         <View style={{ flex: 1 }}>
                           <View style={styles.providerTitleRow}>
                             <MonoText style={[textStyles.display, styles.providerTitle]}>{entry.label}</MonoText>
-                            {isRestrictedBeta && (
-                              <View style={styles.tierBadge}>
-                                <Text style={styles.tierBadgeText}>BETA</Text>
-                              </View>
+                            {isMusicTrackSource(entry.provider) && (
+                              <TierBadge
+                                source={entry.provider}
+                                size="md"
+                                textStyle={styles.tierBadgeMono}
+                              />
                             )}
                           </View>
                           <MonoText style={[textStyles.mono, styles.providerStatus]}>{status}</MonoText>
@@ -843,24 +844,16 @@ const styles = StyleSheet.create({
   providerTitle: { fontSize: 16, color: tacticalTokens.colors.white },
   providerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   providerStatus: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
-  // ─── Tier 3 "Restricted Beta" status chip ──────────────────
-  // Same cross-app orange accent as the Library and SearchHud BETA chips
-  // so the tier signal reads consistently across all three surfaces.
-  // Sized slightly chunkier than the SearchHud version because the patch
-  // bay row has more vertical space and a 16px title to balance against.
-  tierBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderColor: withAlpha(palette.orange, 0.45),
-    backgroundColor: withAlpha(palette.orange, 0.18),
-  },
-  tierBadgeText: {
+  // ─── Tier 3 "Restricted Beta" status chip override ─────────
+  // The shared <TierBadge size="md" /> primitive owns the visual
+  // styling — orange accent, border, padding, shape. This single
+  // override exists so the patch bay's tactical aesthetic keeps its
+  // monoBold font instead of inheriting the primitive's system font.
+  // Layering rule: components/ui/ primitives can't import session-v2
+  // tokens, so this surface opts in via the textStyle prop.
+  tierBadgeMono: {
     fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: 9,
     letterSpacing: 0.7,
-    color: palette.orange,
   },
   providerAction: { minWidth: 92, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
   providerActionDefault: { borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A' },

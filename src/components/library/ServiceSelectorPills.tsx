@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { palette, withAlpha } from '@/design/tokens/materials';
 import { TrackSource } from '../../types';
 import { getTierForSource } from '../../services/adapters/musicServiceAdapter';
+import { TierBadge } from '@/components/ui';
 
 // ─── Service metadata ───────────────────────────────────────
 
@@ -77,8 +78,9 @@ export function ServiceSelectorPills({
         // Tier 3 (Spotify, as of Feb 2026) is treated as "Restricted Beta".
         // The badge stays visible whether the user is connected or not so the
         // scarcity is communicated up front, not after a failed connect.
-        const tier = getTierForSource(svc.key);
-        const isRestrictedBeta = tier === 3;
+        // The visual chip lives in <TierBadge />; we still need this boolean
+        // locally so the accessibility label can be enriched at the parent.
+        const isRestrictedBeta = getTierForSource(svc.key) === 3;
 
         // Build accessibility label: include the tier framing for screen-reader
         // users so they hear *why* a service might be different, not just its name.
@@ -130,11 +132,7 @@ export function ServiceSelectorPills({
             >
               {isConnected ? svc.label : 'Connect'}
             </Text>
-            {isRestrictedBeta && (
-              <View style={styles.tierBadge}>
-                <Text style={styles.tierBadgeText}>BETA</Text>
-              </View>
-            )}
+            <TierBadge source={svc.key} style={styles.tierBadgeOffset} />
           </TouchableOpacity>
         );
       })}
@@ -186,24 +184,12 @@ const styles = StyleSheet.create({
   pillTextDisabled: {
     color: palette.slate,
   },
-  // ─── Tier 3 "Restricted Beta" badge ────────────────────────
-  // Compact orange-tinted chip rendered inline at the trailing edge of
-  // the Spotify pill. Uses the primary accent (orange) at low alpha so
-  // it reads as a tag, not a CTA, and stays legible against both the
-  // resting steel background and the active orange-tinted background.
-  tierBadge: {
+  // ─── Tier 3 "Restricted Beta" badge offset ─────────────────
+  // Layout-only spacer for the shared <TierBadge /> primitive when it
+  // sits inline at the trailing edge of the Spotify pill. Visual styling
+  // (color, border, padding, font) lives in components/ui/TierBadge.tsx —
+  // sizing belongs to the primitive, spacing belongs to the parent.
+  tierBadgeOffset: {
     marginLeft: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 3,
-    backgroundColor: withAlpha(palette.orange, 0.18),
-    borderWidth: 1,
-    borderColor: withAlpha(palette.orange, 0.45),
-  },
-  tierBadgeText: {
-    color: palette.orange,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.5,
   },
 });

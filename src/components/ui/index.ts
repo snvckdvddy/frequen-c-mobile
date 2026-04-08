@@ -13,6 +13,8 @@ export { showToast, ToastProvider } from './Toast';
 
 // Convergence Strategy components
 export { RoomModeBadge } from './RoomModeBadge';
+export { TierBadge } from './TierBadge';
+export type { TierBadgeProps } from './TierBadge';
 export { TrackListItem } from './TrackListItem';
 export { ParticipantAvatarBar } from './ParticipantAvatarBar';
 export { ReactionBar } from './ReactionBar';
