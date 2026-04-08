@@ -421,8 +421,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const musicUserToken = params.get('musicUserToken');
     const error = params.get('error');
 
+    // Clear pending refs at the EARLIEST possible point to avoid a race with the
+    // AppState foreground listener's 750ms cancel tick. The URL just arrived, so the
+    // user is back and the auth is no longer "pending" — regardless of which branch
+    // (success or error) we end up taking. Without this, the success path's network
+    // calls (connectAppleMusic + me) could exceed the 750ms window on a slow
+    // connection and trigger a stale "sign-in cancelled" toast mid-success.
+    pendingAuthProviderRef.current = null;
+    pendingAuthStartedAtRef.current = null;
+
     if (error) {
-      showToast(`Apple Music connection failed: ${error}`, 'error');
+      // The new backend authorize page only sends ?error= when the user explicitly
+      // taps "Return to Frequen-C" (?error=cancelled). All other failures are
+      // surfaced in the page itself for retry. So treat the deep-link error as a
+      // soft cancellation, matching the SoundCloud/Last.fm pattern.
+      if (error === 'cancelled') {
+        showToast('Apple Music sign-in cancelled.', 'info');
+      } else {
+        showToast(`Apple Music connection failed: ${error}`, 'error');
+      }
       return true;
     }
     if (!musicUserToken || !state.token) return false;
