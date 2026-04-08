@@ -26,8 +26,10 @@ import { TacticalActionPrompt } from '../features/session-v2/components/Tactical
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { authApi, getStoredToken, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
 import { formatAuthDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
+import { getTierForSource } from '../services/adapters/musicServiceAdapter';
+import { palette, withAlpha } from '@/design/tokens/materials';
 import { config } from '../config';
-import type { User } from '../types';
+import type { User, TrackSource } from '../types';
 import { notifyError, notifySuccess, tapHeavy, tapLight, tapMedium } from '../utils/haptics';
 import { Input } from '../components/ui';
 
@@ -43,11 +45,37 @@ type SocialBattery = 'low' | 'unity' | 'hot';
 
 const WALK_ON_OPTIONS = ['808 KICK', 'VINYL CRACKLE', 'SYNTH STAB', 'DOOR CHIME', 'NONE'] as const;
 
+// Type guard: which DisconnectableProvider values are also valid TrackSource
+// values (i.e. actual playback sources, not scrobbling/social services)?
+// Used by the patch bay row to safely call getTierForSource — Last.fm is the
+// outlier we exclude here.
+//
+// The narrowed type uses Extract<> to compute the intersection of the two
+// source-of-truth unions, rather than narrowing to the full TrackSource
+// (which would include preview-only sources like 'youtube'/'itunes' that
+// aren't DisconnectableProviders, violating TypeScript's type-predicate
+// subtyping rule).
+type MusicProvider = Extract<DisconnectableProvider, TrackSource>;
+
+const isMusicTrackSource = (
+  p: DisconnectableProvider | undefined,
+): p is MusicProvider =>
+  p === 'spotify' || p === 'soundcloud' || p === 'tidal' || p === 'appleMusic';
+
+// Patch bay row order matches the tier model in musicServiceAdapter.ts so the
+// most-universal music sources sit at the top and the restricted Tier 3 source
+// (Spotify, per the Feb 2026 Dev Mode 5-user cap) sits at the bottom of the
+// music section. Last.fm is a scrobbling/social service rather than a playback
+// source, so it's excluded from the tier model and pinned below the music rows.
 const PROVIDERS: Array<{ label: string; serviceKey: string; provider?: DisconnectableProvider; key: string; alwaysOn?: boolean }> = [
-  { key: 'spotify', label: 'SPOTIFY', serviceKey: 'spotify', provider: 'spotify' },
+  // Tier 1 — universal access
   { key: 'apple', label: 'APPLE MUSIC', serviceKey: 'apple-music', provider: 'appleMusic' },
-  { key: 'tidal', label: 'TIDAL', serviceKey: 'tidal', provider: 'tidal' },
   { key: 'soundcloud', label: 'SOUNDCLOUD', serviceKey: 'soundcloud', provider: 'soundcloud' },
+  // Tier 2 — subscription required, no allowlist
+  { key: 'tidal', label: 'TIDAL', serviceKey: 'tidal', provider: 'tidal' },
+  // Tier 3 — restricted beta (Spotify Feb 2026 Dev Mode 5-user cap)
+  { key: 'spotify', label: 'SPOTIFY', serviceKey: 'spotify', provider: 'spotify' },
+  // Non-source: scrobbling/social only
   { key: 'lastfm', label: 'LAST.FM', serviceKey: 'lastfm', provider: 'lastfm' },
 ];
 
@@ -590,6 +618,13 @@ export function ProfileScreen() {
             <MonoText style={[textStyles.mono, styles.sectionLabel]}>PATCH CABLES</MonoText>
             <View style={styles.panel}>
               {PROVIDERS.map((entry, index) => {
+                // Tier classification — only valid for music sources, not lastfm.
+                // The type predicate isMusicTrackSource (defined at module scope)
+                // narrows entry.provider to TrackSource so getTierForSource can
+                // accept it without a cast.
+                const isRestrictedBeta =
+                  isMusicTrackSource(entry.provider) && getTierForSource(entry.provider) === 3;
+
                 const connected = entry.alwaysOn
                   ? true
                   : entry.provider === 'spotify' ? Boolean(profileUser?.connectedServices?.spotify?.connected)
@@ -614,13 +649,23 @@ export function ProfileScreen() {
                     : providerUnavailable(entry.provider!) ? 'BACKEND CONFIG MISSING'
                     : 'READY TO PATCH';
 
+                const baseA11y = `${connected ? 'Disconnect' : 'Connect'} ${entry.label}`;
+                const buttonA11y = isRestrictedBeta ? `${baseA11y}, restricted beta` : baseA11y;
+
                 return (
                   <View key={entry.key} style={index !== PROVIDERS.length - 1 ? styles.divider : undefined}>
                     <View style={styles.providerRow}>
                       <View style={styles.providerMeta}>
                         <View style={styles.providerIcon}><ServiceIcon service={entry.serviceKey} size={18} connected={connected} /></View>
                         <View style={{ flex: 1 }}>
-                          <MonoText style={[textStyles.display, styles.providerTitle]}>{entry.label}</MonoText>
+                          <View style={styles.providerTitleRow}>
+                            <MonoText style={[textStyles.display, styles.providerTitle]}>{entry.label}</MonoText>
+                            {isRestrictedBeta && (
+                              <View style={styles.tierBadge}>
+                                <Text style={styles.tierBadgeText}>BETA</Text>
+                              </View>
+                            )}
+                          </View>
                           <MonoText style={[textStyles.mono, styles.providerStatus]}>{status}</MonoText>
                         </View>
                       </View>
@@ -639,7 +684,7 @@ export function ProfileScreen() {
                             if (entry.provider) void handleConnect(entry.provider, entry.label);
                           }}
                           accessibilityRole="button"
-                          accessibilityLabel={`${connected ? 'Disconnect' : 'Connect'} ${entry.label}`}
+                          accessibilityLabel={buttonA11y}
                           style={({ pressed }) => [
                             styles.providerAction,
                             connected ? styles.providerActionDanger : blocked ? styles.providerActionMuted : styles.providerActionDefault,
@@ -796,7 +841,27 @@ const styles = StyleSheet.create({
   providerMeta: { flexDirection: 'row', gap: 12, alignItems: 'center', flex: 1 },
   providerIcon: { width: 40, height: 40, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, alignItems: 'center', justifyContent: 'center' },
   providerTitle: { fontSize: 16, color: tacticalTokens.colors.white },
+  providerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   providerStatus: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
+  // ─── Tier 3 "Restricted Beta" status chip ──────────────────
+  // Same cross-app orange accent as the Library and SearchHud BETA chips
+  // so the tier signal reads consistently across all three surfaces.
+  // Sized slightly chunkier than the SearchHud version because the patch
+  // bay row has more vertical space and a 16px title to balance against.
+  tierBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: withAlpha(palette.orange, 0.45),
+    backgroundColor: withAlpha(palette.orange, 0.18),
+  },
+  tierBadgeText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 9,
+    letterSpacing: 0.7,
+    color: palette.orange,
+  },
   providerAction: { minWidth: 92, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
   providerActionDefault: { borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A' },
   providerActionDanger: { borderColor: tacticalTokens.colors.orange, backgroundColor: '#1A120D' },
