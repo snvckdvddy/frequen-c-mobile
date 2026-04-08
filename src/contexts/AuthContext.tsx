@@ -220,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const lastHandledSoundcloudUrlRef = useRef<string | null>(null);
   const lastHandledAuthUrlRef = useRef<string | null>(null);
   const pendingAuthProviderRef = useRef<PendingAuthProvider | null>(null);
+  const pendingAuthStartedAtRef = useRef<number | null>(null);
 
   // Spotify Auth Request Setup
   const [request, response, promptAsync] = useAuthRequest(
@@ -446,16 +447,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Apple Music auth callback (check BEFORE Apple Sign In since the URL is more specific)
     if (await handleAppleMusicCallback(url)) {
       pendingAuthProviderRef.current = null;
+      pendingAuthStartedAtRef.current = null;
       return true;
     }
 
     if (await handleAppleWebCallback(url)) {
       pendingAuthProviderRef.current = null;
+      pendingAuthStartedAtRef.current = null;
       return true;
     }
 
     if (await handleSoundcloudRedirect(url)) {
       pendingAuthProviderRef.current = null;
+      pendingAuthStartedAtRef.current = null;
       return true;
     }
 
@@ -476,6 +480,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (handled) {
       pendingAuthProviderRef.current = null;
+      pendingAuthStartedAtRef.current = null;
     }
 
     return handled;
@@ -706,6 +711,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, [state.token, state.isAuthenticated, performRefresh]);
 
+  // Clear stale OAuth pending state if user backgrounded the app and returned
+  // without completing the auth flow (e.g., closed Chrome without finishing).
+  // Required because Linking.openURL (used by SoundCloud + Last.fm to survive
+  // 2FA backgrounding) doesn't fire a cancel callback like WebBrowser does.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState !== 'active') return;
+      const pending = pendingAuthProviderRef.current;
+      if (!pending) return;
+      // Only treat as a cancel for providers using Linking.openURL.
+      if (pending !== 'soundcloud' && pending !== 'lastfm') return;
+      const startedAt = pendingAuthStartedAtRef.current;
+      // Grace window: if the provider was started <2 seconds ago, the user might
+      // just be returning briefly. Don't clear yet.
+      if (!startedAt || Date.now() - startedAt < 2000) return;
+      // Wait a tick — if a deep link is about to arrive, let it process first
+      // and clear the pending state itself.
+      setTimeout(() => {
+        if (pendingAuthProviderRef.current === pending) {
+          const label = pending === 'soundcloud' ? 'SoundCloud' : 'Last.fm';
+          showToast(`${label} sign-in cancelled.`, 'info');
+          pendingAuthProviderRef.current = null;
+          pendingAuthStartedAtRef.current = null;
+        }
+      }, 750);
+    });
+    return () => sub.remove();
+  }, [showToast]);
+
   const connectSpotify = useCallback(async () => {
     if (BYPASS_AUTH) {
       showToast('Disable auth bypass to patch Spotify.', 'info');
@@ -759,18 +793,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       pendingAuthProviderRef.current = 'soundcloud';
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, 'frequenc://');
-      if (result.type === 'success' && result.url) {
-        await handleIncomingAuthUrl(result.url);
-      } else if (result.type === 'cancel' || result.type === 'dismiss') {
-        showToast('SoundCloud sign-in cancelled.', 'info');
-        pendingAuthProviderRef.current = null;
-      }
+      pendingAuthStartedAtRef.current = Date.now();
+      // Use Linking.openURL (not WebBrowser.openAuthSessionAsync) so the OAuth tab
+      // survives the user backgrounding the app to open a 2FA authenticator.
+      // The existing Linking.addEventListener catches the deep-link return, and
+      // the AppState foreground listener handles cancel detection.
+      await Linking.openURL(authUrl);
     } catch (error) {
       showToast(friendlyAuthError('SoundCloud', (error as Error)?.message), 'error');
       pendingAuthProviderRef.current = null;
+      pendingAuthStartedAtRef.current = null;
     }
-  }, [state.user, authDiagnostics, handleIncomingAuthUrl]);
+  }, [state.user, authDiagnostics]);
 
   const connectTidal = useCallback(async () => {
     if (BYPASS_AUTH) {
@@ -818,18 +852,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       pendingAuthProviderRef.current = 'lastfm';
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, 'frequenc://');
-      if (result.type === 'success' && result.url) {
-        await handleIncomingAuthUrl(result.url);
-      } else if (result.type === 'cancel' || result.type === 'dismiss') {
-        showToast('Last.fm sign-in cancelled.', 'info');
-        pendingAuthProviderRef.current = null;
-      }
+      pendingAuthStartedAtRef.current = Date.now();
+      // Use Linking.openURL (not WebBrowser.openAuthSessionAsync) so the OAuth tab
+      // survives the user backgrounding the app. The existing Linking.addEventListener
+      // catches the deep-link return, and the AppState listener handles cancels.
+      await Linking.openURL(authUrl);
     } catch (error) {
       showToast(friendlyProviderError('Last.fm', (error as Error)?.message), 'error');
       pendingAuthProviderRef.current = null;
+      pendingAuthStartedAtRef.current = null;
     }
-  }, [state.user, authDiagnostics, handleIncomingAuthUrl]);
+  }, [state.user, authDiagnostics]);
 
   const connectAppleMusic = useCallback(async () => {
     if (BYPASS_AUTH) {
