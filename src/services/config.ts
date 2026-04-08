@@ -8,11 +8,7 @@
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { logger } from '../utils/logger';
-
-const readEnv = (value: string | undefined): string | undefined => {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-};
+import { readEnv } from '../utils/env';
 
 const API_BASE_OVERRIDE = readEnv(process.env.EXPO_PUBLIC_API_BASE_URL);
 const SOCKET_BASE_OVERRIDE = readEnv(process.env.EXPO_PUBLIC_SOCKET_URL);

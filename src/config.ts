@@ -7,10 +7,7 @@
  * Secrets (client_secret) live server-side only.
  */
 
-const readEnv = (value: string | undefined): string | undefined => {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-};
+import { readEnv } from './utils/env';
 
 export const config = {
   // ─── Spotify ───────────────────────────────────────────────
