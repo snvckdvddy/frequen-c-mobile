@@ -16,6 +16,7 @@ import {
   type DisconnectableProvider,
 } from '../services/api';
 import { config } from '../config';
+import { API_BASE_URL } from '../services/config';
 import { AppState, Linking, type AppStateStatus } from 'react-native';
 import type { User, AuthState } from '../types';
 import * as WebBrowser from 'expo-web-browser';
@@ -874,7 +875,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // The backend serves a MusicKit JS authorization page that handles the
     // Apple consent dialog. On success it redirects to frequenc://apple-music-auth
     // with the Music User Token. The Linking listener above handles the callback.
-    const authorizeUrl = `${config.API_BASE_URL}/auth/apple-music/authorize`;
+    // Note: use API_BASE_URL from '../services/config' (reads EXPO_PUBLIC_API_BASE_URL)
+    // NOT config.API_BASE_URL from '../config' (legacy, returns http://127.0.0.1:5000).
+    const authorizeUrl = `${API_BASE_URL}/auth/apple-music/authorize`;
     try {
       const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, 'frequenc://apple-music-auth');
       if (result.type === 'success' && result.url) {

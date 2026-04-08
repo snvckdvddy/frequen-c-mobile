@@ -31,13 +31,11 @@ export const config = {
   // ─── Google Sign In ─────────────────────────────────────
   GOOGLE_WEB_CLIENT_ID: readEnv(process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) || '',
   GOOGLE_IOS_CLIENT_ID: readEnv(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) || '',
-
-  // ─── Legacy compatibility only ────────────────────────────
-  // Use src/services/config.ts for active backend routing.
-  LOCAL_IP: readEnv(process.env.EXPO_PUBLIC_LOCAL_IP) || '127.0.0.1',
-  API_PORT: readEnv(process.env.EXPO_PUBLIC_API_PORT) || '5000',
-
-  get API_BASE_URL() {
-    return `http://${this.LOCAL_IP}:${this.API_PORT}/api`;
-  },
 } as const;
+
+// ─── Backend routing note ────────────────────────────────
+// For the backend base URL (API_BASE_URL / SOCKET_URL), import from
+// 'src/services/config.ts' which correctly reads EXPO_PUBLIC_API_BASE_URL
+// with Railway production fallback. Do NOT add a URL getter to `config`
+// above — that was removed because it hardcoded a 127.0.0.1 default and
+// silently broke Apple Music Connect in production builds.
