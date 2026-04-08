@@ -20,6 +20,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { palette, withAlpha } from '@/design/tokens/materials';
 import { TrackSource } from '../../types';
+import { getTierForSource } from '../../services/adapters/musicServiceAdapter';
 
 // ─── Service metadata ───────────────────────────────────────
 
@@ -29,11 +30,17 @@ interface ServiceMeta {
   icon: keyof typeof Ionicons.glyphMap;
 }
 
+// Order matches the tier model in musicServiceAdapter.ts:
+//   Tier 1 — universal (Apple Music, SoundCloud)
+//   Tier 2 — subscription required (Tidal)
+//   Tier 3 — restricted beta, Spotify Feb 2026 Dev Mode 5-user cap
+// Pills render left→right in this order so the most-universal source
+// is the first thing the user sees and the restricted source is last.
 const SERVICES: ServiceMeta[] = [
-  { key: 'soundcloud',  label: 'SoundCloud',  icon: 'cloud-outline' },
-  { key: 'spotify',     label: 'Spotify',     icon: 'musical-notes-outline' },
   { key: 'appleMusic',  label: 'Apple Music', icon: 'logo-apple' },
+  { key: 'soundcloud',  label: 'SoundCloud',  icon: 'cloud-outline' },
   { key: 'tidal',       label: 'Tidal',       icon: 'water-outline' },
+  { key: 'spotify',     label: 'Spotify',     icon: 'musical-notes-outline' },
 ];
 
 // ─── Props ──────────────────────────────────────────────────
@@ -67,6 +74,20 @@ export function ServiceSelectorPills({
       {SERVICES.map((svc) => {
         const isConnected = connectedServices.includes(svc.key);
         const isSelected = selectedService === svc.key;
+        // Tier 3 (Spotify, as of Feb 2026) is treated as "Restricted Beta".
+        // The badge stays visible whether the user is connected or not so the
+        // scarcity is communicated up front, not after a failed connect.
+        const tier = getTierForSource(svc.key);
+        const isRestrictedBeta = tier === 3;
+
+        // Build accessibility label: include the tier framing for screen-reader
+        // users so they hear *why* a service might be different, not just its name.
+        const a11yBase = isConnected
+          ? `${svc.label}${isSelected ? ', selected' : ''}`
+          : `Connect ${svc.label}`;
+        const a11yLabel = isRestrictedBeta
+          ? `${a11yBase}, restricted beta`
+          : a11yBase;
 
         return (
           <TouchableOpacity
@@ -85,11 +106,7 @@ export function ServiceSelectorPills({
             }}
             activeOpacity={isConnected ? 0.7 : 0.4}
             accessibilityRole="button"
-            accessibilityLabel={
-              isConnected
-                ? `${svc.label}${isSelected ? ', selected' : ''}`
-                : `Connect ${svc.label}`
-            }
+            accessibilityLabel={a11yLabel}
           >
             <Ionicons
               name={svc.icon}
@@ -113,6 +130,11 @@ export function ServiceSelectorPills({
             >
               {isConnected ? svc.label : 'Connect'}
             </Text>
+            {isRestrictedBeta && (
+              <View style={styles.tierBadge}>
+                <Text style={styles.tierBadgeText}>BETA</Text>
+              </View>
+            )}
           </TouchableOpacity>
         );
       })}
@@ -163,5 +185,25 @@ const styles = StyleSheet.create({
   },
   pillTextDisabled: {
     color: palette.slate,
+  },
+  // ─── Tier 3 "Restricted Beta" badge ────────────────────────
+  // Compact orange-tinted chip rendered inline at the trailing edge of
+  // the Spotify pill. Uses the primary accent (orange) at low alpha so
+  // it reads as a tag, not a CTA, and stays legible against both the
+  // resting steel background and the active orange-tinted background.
+  tierBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+    backgroundColor: withAlpha(palette.orange, 0.18),
+    borderWidth: 1,
+    borderColor: withAlpha(palette.orange, 0.45),
+  },
+  tierBadgeText: {
+    color: palette.orange,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });
