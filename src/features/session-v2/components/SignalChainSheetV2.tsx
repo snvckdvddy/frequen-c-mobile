@@ -27,6 +27,7 @@ import SignalChainTrackBlock from './SignalChainTrackBlock';
 import { tacticalTokens } from '../theme/tacticalTokens';
 import { theme } from '../../../theme/theme';
 import { getSourceColor, getSourceLabel } from '../../../design/tokens/sourceColors';
+import { TierBadge } from '../../../components/ui';
 import type { TrackSource } from '../../../types';
 
 interface SignalChainSheetV2Props {
@@ -128,22 +129,34 @@ function SearchResultRow({
         {availabilitySources.length > 0 || fallbackSource ? (
           <View style={styles.searchTagCluster}>
             {availabilitySources.map((availabilitySource) => (
-              <View
-                key={`${track.id}-${availabilitySource}`}
-                style={[
-                  styles.searchTagBadge,
-                  { borderColor: getSourceColor(availabilitySource as TrackSource) },
-                ]}
-              >
-                <Text
+              // Fragment carries the iteration key so the data chip + tier
+              // status chip render as a sibling pair inside searchTagCluster.
+              // The TierBadge primitive returns null for Tier 1/2 sources, so
+              // it only appears next to the Spotify chip — communicating the
+              // restricted-beta scarcity at the queue-add moment, before the
+              // user attempts an add that would silently fail at playback.
+              <React.Fragment key={`${track.id}-${availabilitySource}`}>
+                <View
                   style={[
-                    styles.searchTagText,
-                    { color: getSourceColor(availabilitySource as TrackSource) },
+                    styles.searchTagBadge,
+                    { borderColor: getSourceColor(availabilitySource as TrackSource) },
                   ]}
                 >
-                  {getSourceLabel(availabilitySource as TrackSource)}
-                </Text>
-              </View>
+                  <Text
+                    style={[
+                      styles.searchTagText,
+                      { color: getSourceColor(availabilitySource as TrackSource) },
+                    ]}
+                  >
+                    {getSourceLabel(availabilitySource as TrackSource)}
+                  </Text>
+                </View>
+                <TierBadge
+                  source={availabilitySource}
+                  style={styles.tierBadgeChip}
+                  textStyle={styles.tierBadgeMono}
+                />
+              </React.Fragment>
             ))}
             {fallbackSource ? (
               <View style={styles.searchOriginChip}>
@@ -912,6 +925,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchTagText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys - 1,
+    letterSpacing: 0.7,
+  },
+  // ─── Tier 3 "Restricted Beta" status chip overrides ────────
+  // The shared <TierBadge /> primitive (components/ui/TierBadge.tsx)
+  // owns the visual styling — orange accent, border, padding, shape.
+  // These two styles are surface-local overrides:
+  //   • tierBadgeChip → match the data chips' minHeight so the cluster
+  //     row aligns visually (otherwise the BETA chip would sit shorter
+  //     than the SPOTIFY chip and break the row's horizontal baseline)
+  //   • tierBadgeMono → font override so this tactical surface keeps
+  //     its monoBold typography instead of the primitive's system font
+  // Primitives in components/ui/ can't import session-v2 tokens, so
+  // surfaces that want the tactical font opt in via the textStyle prop.
+  tierBadgeChip: {
+    minHeight: 16,
+    justifyContent: 'center',
+  },
+  tierBadgeMono: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys - 1,
     letterSpacing: 0.7,
