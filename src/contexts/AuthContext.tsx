@@ -209,7 +209,7 @@ function extractProviderErrorDetail(error: unknown): string | undefined {
   return undefined;
 }
 
-type PendingAuthProvider = 'spotify' | 'soundcloud' | 'tidal' | 'lastfm';
+type PendingAuthProvider = 'spotify' | 'soundcloud' | 'tidal' | 'lastfm' | 'appleMusic';
 
 // ─── Provider ───────────────────────────────────────────────
 
@@ -714,15 +714,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Clear stale OAuth pending state if user backgrounded the app and returned
   // without completing the auth flow (e.g., closed Chrome without finishing).
-  // Required because Linking.openURL (used by SoundCloud + Last.fm to survive
-  // 2FA backgrounding) doesn't fire a cancel callback like WebBrowser does.
+  // Required because Linking.openURL (used by SoundCloud + Last.fm + Apple Music
+  // to survive 2FA backgrounding) doesn't fire a cancel callback like WebBrowser does.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState !== 'active') return;
       const pending = pendingAuthProviderRef.current;
       if (!pending) return;
       // Only treat as a cancel for providers using Linking.openURL.
-      if (pending !== 'soundcloud' && pending !== 'lastfm') return;
+      if (pending !== 'soundcloud' && pending !== 'lastfm' && pending !== 'appleMusic') return;
       const startedAt = pendingAuthStartedAtRef.current;
       // Grace window: if the provider was started <2 seconds ago, the user might
       // just be returning briefly. Don't clear yet.
@@ -731,7 +731,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // and clear the pending state itself.
       setTimeout(() => {
         if (pendingAuthProviderRef.current === pending) {
-          const label = pending === 'soundcloud' ? 'SoundCloud' : 'Last.fm';
+          const label =
+            pending === 'soundcloud' ? 'SoundCloud'
+              : pending === 'lastfm' ? 'Last.fm'
+              : 'Apple Music';
           showToast(`${label} sign-in cancelled.`, 'info');
           pendingAuthProviderRef.current = null;
           pendingAuthStartedAtRef.current = null;
@@ -879,17 +882,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // NOT config.API_BASE_URL from '../config' (legacy, returns http://127.0.0.1:5000).
     const authorizeUrl = `${API_BASE_URL}/auth/apple-music/authorize`;
     try {
-      const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, 'frequenc://apple-music-auth');
-      if (result.type === 'success' && result.url) {
-        await handleIncomingAuthUrl(result.url);
-      } else if (result.type === 'cancel' || result.type === 'dismiss') {
-        showToast('Apple Music sign-in cancelled.', 'info');
-      }
+      pendingAuthProviderRef.current = 'appleMusic';
+      pendingAuthStartedAtRef.current = Date.now();
+      // Use Linking.openURL (not WebBrowser.openAuthSessionAsync) so the auth flow
+      // runs in the user's system browser. Critical for two reasons:
+      //   1. System browser has a persistent cookie jar, so once the user signs
+      //      into music.apple.com once, future Patches skip the sign-in step.
+      //      Chrome Custom Tabs (auth-mode) start with empty cookies every time,
+      //      forcing the user through Apple's marketing upsell instead of consent.
+      //   2. Survives backgrounding for Apple ID 2FA via trusted device.
+      // The existing Linking.addEventListener handles the deep-link return.
+      await Linking.openURL(authorizeUrl);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Apple Music patch failed.';
       showToast(`Apple Music failed: ${message}`, 'error');
+      pendingAuthProviderRef.current = null;
+      pendingAuthStartedAtRef.current = null;
     }
-  }, [state.user, handleIncomingAuthUrl]);
+  }, [state.user]);
 
   const disconnectService = useCallback(async (provider: DisconnectableProvider) => {
     if (!state.user || !state.token) return;
