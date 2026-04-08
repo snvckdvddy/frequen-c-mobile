@@ -22,11 +22,20 @@ import TacticalGridBackground from '../session-v2/components/TacticalGridBackgro
 import { tacticalTokens } from '../session-v2/theme/tacticalTokens';
 import type { SearchHudSource } from '../../hooks/useSearch';
 import type { SearchDiagnostics, SearchProviderState } from '../../services/api';
+import { getTierForSource } from '../../services/adapters/musicServiceAdapter';
+import { palette, withAlpha } from '@/design/tokens/materials';
 
 type SearchMode = 'database' | 'oracle';
 type HudTab = 'search' | 'library';
 
-const PROVIDER_ORDER: SearchHudSource[] = ['spotify', 'soundcloud', 'appleMusic', 'tidal'];
+// Order matches the tier model in musicServiceAdapter.ts so the search-source
+// filter renders providers in the same priority the routing layer uses:
+//   Tier 1 → Apple Music, SoundCloud
+//   Tier 2 → Tidal
+//   Tier 3 → Spotify (Restricted Beta — Feb 2026 Dev Mode 5-user cap)
+// Keeping this aligned with the Library tab's ServiceSelectorPills means a
+// user scanning the screen sees the same provider order in both tabs.
+const PROVIDER_ORDER: SearchHudSource[] = ['appleMusic', 'soundcloud', 'tidal', 'spotify'];
 
 const PROVIDER_META: Record<SearchHudSource, { label: string; color: string }> = {
   spotify: { label: 'SPT', color: '#1DB954' },
@@ -378,6 +387,11 @@ export function SearchHudOverlay({
                   {PROVIDER_ORDER.map((key) => {
                     const meta = PROVIDER_META[key];
                     const active = sources[key];
+                    // Tier 3 sources (currently just Spotify) carry a "BETA" chip
+                    // so the Restricted Beta status reads up front, not after a
+                    // failed search. Same single source of truth as the Library
+                    // tab pills — getTierForSource from musicServiceAdapter.
+                    const isRestrictedBeta = getTierForSource(key) === 3;
                     return (
                       <Pressable
                         key={key}
@@ -391,6 +405,12 @@ export function SearchHudOverlay({
                             styles.providerBtnOffline,
                           pressed && styles.pressed,
                         ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          isRestrictedBeta
+                            ? `${meta.label} source filter, restricted beta`
+                            : `${meta.label} source filter`
+                        }
                       >
                         <View style={styles.providerBtnTop}>
                           <View
@@ -402,6 +422,11 @@ export function SearchHudOverlay({
                           <Text style={[styles.sourceText, active && { color: meta.color }]}>
                             {`[ ${meta.label} ]`}
                           </Text>
+                          {isRestrictedBeta && (
+                            <View style={styles.tierBadge}>
+                              <Text style={styles.tierBadgeText}>BETA</Text>
+                            </View>
+                          )}
                         </View>
                         <Text
                           style={[
@@ -811,6 +836,28 @@ const styles = StyleSheet.create({
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: 6,
     letterSpacing: 0.7,
+  },
+  // ─── Tier 3 "Restricted Beta" status chip ──────────────────
+  // Distinct from tagBadge above: tagBadge is a *data* chip (which
+  // providers a track is on); tierBadge is a *status* chip (this
+  // provider has restricted availability). Same monoBold font for
+  // typographic cohesion within the tactical aesthetic, but rounded
+  // corners + cross-app orange accent so the tier signal reads
+  // independently of any per-provider brand color.
+  tierBadge: {
+    marginLeft: 5,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: withAlpha(palette.orange, 0.45),
+    backgroundColor: withAlpha(palette.orange, 0.18),
+  },
+  tierBadgeText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 8,
+    letterSpacing: 0.6,
+    color: palette.orange,
   },
   originChip: {
     borderWidth: 1,
