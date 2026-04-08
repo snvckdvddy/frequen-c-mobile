@@ -27,15 +27,26 @@
 import React from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   type ViewStyle,
   type TextStyle,
   type StyleProp,
 } from 'react-native';
-import { Text } from './Text';
 import { palette, withAlpha } from '../../design/tokens/materials';
 import { getTierForSource } from '../../services/adapters/musicServiceAdapter';
 import type { TrackSource } from '../../types';
+
+// Note: this primitive uses react-native `Text` directly rather than the
+// custom themed Text wrapper at `./Text`. The wrapper exists to apply
+// typography variants + color tokens — useful when you want to inherit
+// a typographic preset. The BETA chip is a tightly-styled, surface-agnostic
+// micro-component that owns all of its text properties explicitly, so the
+// wrapper would only introduce a silent collision: every variant brings its
+// own fontSize/fontWeight/letterSpacing that we'd have to override anyway,
+// and the override-vs-variant precedence would depend on style-array order
+// instead of being legible at the call site. Owning the text style here
+// keeps the chip stable against future variant changes in `./Text`.
 
 export interface TierBadgeProps {
   /** Music source whose tier should be displayed */
@@ -76,13 +87,7 @@ export function TierBadge({
 
   return (
     <View style={[styles.badge, size === 'md' && styles.badgeMd, style]}>
-      <Text
-        variant="labelSmall"
-        color={palette.orange}
-        style={[styles.text, textStyle]}
-      >
-        BETA
-      </Text>
+      <Text style={[styles.text, textStyle]}>BETA</Text>
     </View>
   );
 }
@@ -100,7 +105,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
+  // All text properties owned explicitly here — no variant inheritance.
+  // If you need to override the font (e.g. session-v2 tactical surfaces
+  // passing tacticalTokens.fonts.monoBold), use the `textStyle` prop.
   text: {
+    color: palette.orange,
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.6,
