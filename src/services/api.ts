@@ -19,6 +19,9 @@ export let currentServices: ConnectedServices | undefined;
 
 export function setCurrentServices(services?: ConnectedServices) {
   currentServices = services;
+  // Stale — the old snapshot references an auth surface that no longer
+  // matches currentServices. Next search will repopulate.
+  lastSearchDiagnosticsSnapshot = undefined;
 }
 
 export type SearchHudProvider = 'spotify' | 'soundcloud' | 'tidal' | 'appleMusic';
@@ -76,6 +79,31 @@ export interface SearchTracksResponse {
   fallbackUsed: boolean;
   providerStates: Record<SearchHudProvider, SearchProviderState>;
   diagnostics: SearchDiagnostics;
+}
+
+// ─── Last Search Diagnostics Snapshot ─────────────────────────
+// Captured after every search run (via logSearchTruth) so the diagnostic
+// bundle copy flow on ProfileScreen can include live runtime search state
+// without plumbing props through context. Cleared when currentServices is
+// swapped (login/logout/service change) because the old snapshot would
+// reference a stale auth surface. Read via getLastSearchDiagnosticsSnapshot.
+
+export interface LastSearchDiagnosticsSnapshot {
+  diagnostics: SearchDiagnostics;
+  capturedAt: number;
+}
+
+let lastSearchDiagnosticsSnapshot: LastSearchDiagnosticsSnapshot | undefined;
+
+export function getLastSearchDiagnosticsSnapshot(): LastSearchDiagnosticsSnapshot | undefined {
+  return lastSearchDiagnosticsSnapshot;
+}
+
+function captureSearchDiagnosticsSnapshot(diagnostics: SearchDiagnostics): void {
+  lastSearchDiagnosticsSnapshot = {
+    diagnostics,
+    capturedAt: Date.now(),
+  };
 }
 
 function getSearchConnectionSnapshot(): Record<SearchHudProvider, SearchConnectionSnapshot> {
@@ -268,6 +296,12 @@ export function getIdleSearchDiagnostics(): SearchDiagnostics {
 }
 
 function logSearchTruth(scope: string, diagnostics: SearchDiagnostics) {
+  // Capture the snapshot in both dev and production — the diagnostic bundle
+  // copy flow (ProfileScreen > CONFIG BUS > COPY DIAGNOSTICS) reads this to
+  // include runtime search state in the paste-able bundle. Called from every
+  // searchApi.tracks return path, so any completed search refreshes it.
+  captureSearchDiagnosticsSnapshot(diagnostics);
+
   const isDevRuntime = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
   if (!isDevRuntime) return;
 

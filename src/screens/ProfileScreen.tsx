@@ -25,7 +25,7 @@ import TacticalGridBackground from '../features/session-v2/components/TacticalGr
 import { TacticalActionPrompt } from '../features/session-v2/components/TacticalActionPrompt';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { authApi, getStoredToken, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
-import { formatAuthDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
+import { formatFullDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
 import { getTierForSource } from '../services/adapters/musicServiceAdapter';
 import { config } from '../config';
 import type { User, TrackSource } from '../types';
@@ -235,7 +235,7 @@ export function ProfileScreen() {
 
   const handleCopyDiagnostics = useCallback(async () => {
     try {
-      const text = formatAuthDiagnosticsText();
+      const text = formatFullDiagnosticsText();
       await Clipboard.setStringAsync(text);
       notifySuccess();
       showToast('Diagnostics copied.', 'success', '!');
@@ -706,7 +706,7 @@ export function ProfileScreen() {
             <MonoText style={[textStyles.mono, styles.sectionLabel]}>CONFIG BUS</MonoText>
             <View style={styles.panel}>
               {([
-                ['COPY AUTH DIAGNOSTICS', diagnostics.isExpoGo ? 'EXPO GO RUNTIME' : diagnostics.appOwnership.toUpperCase(), () => void handleCopyDiagnostics(), 'copy-outline'] as const,
+                ['COPY DIAGNOSTICS', diagnostics.isExpoGo ? 'EXPO GO RUNTIME' : diagnostics.appOwnership.toUpperCase(), () => void handleCopyDiagnostics(), 'copy-outline'] as const,
                 ['PRIVACY POLICY', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
                 ['TERMS OF SERVICE', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
               ]).map(([title, detail, onPress, icon], index) => (
