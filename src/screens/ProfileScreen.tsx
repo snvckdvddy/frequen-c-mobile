@@ -624,26 +624,41 @@ export function ProfileScreen() {
                 const isRestrictedBeta =
                   isMusicTrackSource(entry.provider) && getTierForSource(entry.provider) === 3;
 
-                const connected = entry.alwaysOn
-                  ? true
-                  : entry.provider === 'spotify' ? Boolean(profileUser?.connectedServices?.spotify?.connected)
-                    : entry.provider === 'soundcloud' ? Boolean(profileUser?.connectedServices?.soundcloud?.connected)
-                      : entry.provider === 'tidal' ? Boolean(profileUser?.connectedServices?.tidal?.connected)
-                        : entry.provider === 'lastfm' ? Boolean(profileUser?.connectedServices?.lastfm?.connected)
-                          : entry.provider === 'appleMusic' ? Boolean(profileUser?.connectedServices?.appleMusic?.connected)
-                            : false;
-                const username = entry.alwaysOn
+                // Read the service connection object once per row so `connected`,
+                // `username`, and the new expiry check all derive from the same
+                // source. Previously we re-walked the ternary chain for each
+                // field, which made the expiry check (added below) awkward to
+                // bolt on without a third chain.
+                const service = entry.alwaysOn
                   ? undefined
-                  : entry.provider === 'spotify' ? profileUser?.connectedServices?.spotify?.username
-                    : entry.provider === 'soundcloud' ? profileUser?.connectedServices?.soundcloud?.username
-                      : entry.provider === 'tidal' ? profileUser?.connectedServices?.tidal?.username
-                        : entry.provider === 'lastfm' ? profileUser?.connectedServices?.lastfm?.username
-                          : undefined;
+                  : entry.provider === 'spotify' ? profileUser?.connectedServices?.spotify
+                    : entry.provider === 'soundcloud' ? profileUser?.connectedServices?.soundcloud
+                      : entry.provider === 'tidal' ? profileUser?.connectedServices?.tidal
+                        : entry.provider === 'lastfm' ? profileUser?.connectedServices?.lastfm
+                          : entry.provider === 'appleMusic' ? profileUser?.connectedServices?.appleMusic
+                            : undefined;
+                const connected = entry.alwaysOn ? true : Boolean(service?.connected);
+                const username = service?.username;
+                // Token-expired honesty: if the server recorded an expiresAt and
+                // that instant has already passed, the stored access token is
+                // dead even though `connected === true` (the backend hasn't yet
+                // observed a 401 to flip the flag). Show this as a distinct
+                // layered claim — "PATCHED · EXPIRED" — matching the SearchHud
+                // chip vocabulary: PATCHED is structural, " · EXPIRED" is the
+                // behavioral qualifier. Providers without expiry (lastfm,
+                // appleMusic) stay in the plain PATCHED branch — typeof check
+                // gates this cleanly.
+                const isExpired =
+                  connected &&
+                  typeof service?.expiresAt === 'number' &&
+                  service.expiresAt < Date.now();
                 const blocked = entry.provider ? mobileConfigMissing(entry.provider) || providerUnavailable(entry.provider) : false;
                 const status = entry.alwaysOn
                   ? 'ALWAYS ON // NO AUTH NEEDED'
                   : connected
-                    ? username ? `PATCHED // @${username.toUpperCase()}` : 'PATCHED'
+                    ? isExpired
+                      ? 'PATCHED · EXPIRED'
+                      : username ? `PATCHED // @${username.toUpperCase()}` : 'PATCHED'
                     : mobileConfigMissing(entry.provider!) ? 'MOBILE CONFIG MISSING'
                     : providerUnavailable(entry.provider!) ? 'BACKEND CONFIG MISSING'
                     : 'READY TO PATCH';
