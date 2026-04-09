@@ -58,7 +58,6 @@
         "backgroundColor": "#0F1012"
       },
       "package": "com.frequenc.app",
-      "versionCode": 1,
       "edgeToEdgeEnabled": true,
       "permissions": [
         "CAMERA",
