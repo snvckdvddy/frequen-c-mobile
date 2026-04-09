@@ -166,7 +166,13 @@ export function SearchHudOverlay({
       if (providerStates[key] === 'error') {
         return 'PATCHED · NO SIGNAL';
       }
-      return diagnostics?.authSnapshot[key]?.connected ? 'CONNECTED' : 'READY';
+      // Idle-connected provider: say "PATCHED" (structural claim — "the cable
+      // is plugged in") rather than "CONNECTED" (which sounds like a behavioral
+      // claim we can't back up until a real search runs). When the next search
+      // fails, the 'error' branch above upgrades this to "PATCHED · NO SIGNAL"
+      // with the dimmed brand-color treatment. This keeps the vocabulary
+      // laddered: UNPATCHED → PATCHED → PATCHED · NO SIGNAL → DIRECT/NO MATCH.
+      return diagnostics?.authSnapshot[key]?.connected ? 'PATCHED' : 'READY';
     }
 
     if (providerStates[key] === 'unpatched') {

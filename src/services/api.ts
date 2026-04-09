@@ -21,7 +21,7 @@ export function setCurrentServices(services?: ConnectedServices) {
   currentServices = services;
   // Stale — the old snapshot references an auth surface that no longer
   // matches currentServices. Next search will repopulate.
-  lastSearchDiagnosticsSnapshot = undefined;
+  clearLastSearchDiagnosticsSnapshot();
 }
 
 export type SearchHudProvider = 'spotify' | 'soundcloud' | 'tidal' | 'appleMusic';
@@ -104,6 +104,10 @@ function captureSearchDiagnosticsSnapshot(diagnostics: SearchDiagnostics): void 
     diagnostics,
     capturedAt: Date.now(),
   };
+}
+
+function clearLastSearchDiagnosticsSnapshot(): void {
+  lastSearchDiagnosticsSnapshot = undefined;
 }
 
 function getSearchConnectionSnapshot(): Record<SearchHudProvider, SearchConnectionSnapshot> {
