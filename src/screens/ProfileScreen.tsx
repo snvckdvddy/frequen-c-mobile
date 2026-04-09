@@ -26,7 +26,7 @@ import { TacticalActionPrompt } from '../features/session-v2/components/Tactical
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { authApi, getStoredToken, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
 import { formatFullDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
-import { getTierForSource } from '../services/adapters/musicServiceAdapter';
+import { getTierForSource, isServiceExpired } from '../services/adapters/musicServiceAdapter';
 import { config } from '../config';
 import type { User, TrackSource } from '../types';
 import { notifyError, notifySuccess, tapHeavy, tapLight, tapMedium } from '../utils/haptics';
@@ -646,12 +646,11 @@ export function ProfileScreen() {
                 // layered claim — "PATCHED · EXPIRED" — matching the SearchHud
                 // chip vocabulary: PATCHED is structural, " · EXPIRED" is the
                 // behavioral qualifier. Providers without expiry (lastfm,
-                // appleMusic) stay in the plain PATCHED branch — typeof check
-                // gates this cleanly.
-                const isExpired =
-                  connected &&
-                  typeof service?.expiresAt === 'number' &&
-                  service.expiresAt < Date.now();
+                // appleMusic) stay in the plain PATCHED branch — the shared
+                // helper's typeof guard short-circuits when no expiresAt exists.
+                // The rule lives in musicServiceAdapter.ts so this UI check and
+                // the adapter-layer filter never drift.
+                const isExpired = isServiceExpired(service);
                 const blocked = entry.provider ? mobileConfigMissing(entry.provider) || providerUnavailable(entry.provider) : false;
                 const status = entry.alwaysOn
                   ? 'ALWAYS ON // NO AUTH NEEDED'

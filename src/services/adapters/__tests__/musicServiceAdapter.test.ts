@@ -51,6 +51,8 @@ import {
     getActiveAdapter,
     getConnectedSources,
     getAllConnectedAdapters,
+    isEffectivelyConnected,
+    isServiceExpired,
 } from '../musicServiceAdapter';
 import type { ConnectedServices, TrackSource } from '../../../types';
 
@@ -312,5 +314,84 @@ describe('getActiveAdapter — expiry-aware fallback', () => {
             spotify: { connected: true, expiresAt: Date.now() - 1_000 },
         };
         expect(getActiveAdapter(cs).serviceName).toBe('appleMusic');
+    });
+});
+
+// ─── Direct predicate exports ────────────────────────────────
+// isEffectivelyConnected and isServiceExpired are the two sibling predicates
+// exported for reuse by UI surfaces that need opposite narrative senses.
+// The helper layer (syncConnectedState, getConnectedSources) uses
+// isEffectivelyConnected to FILTER expired providers. UI layers (ProfileScreen
+// Patch Cables rows) use isServiceExpired to RENDER the expired state as
+// distinct from fresh-connected. Both derive from the same underlying
+// expiresAt comparison so the rule lives in exactly one place.
+
+describe('isEffectivelyConnected predicate', () => {
+    it('returns false for undefined service', () => {
+        expect(isEffectivelyConnected(undefined)).toBe(false);
+    });
+
+    it('returns false when connected is false', () => {
+        expect(isEffectivelyConnected({ connected: false })).toBe(false);
+    });
+
+    it('returns true for connected service with no expiresAt (lastfm/appleMusic)', () => {
+        expect(isEffectivelyConnected({ connected: true })).toBe(true);
+    });
+
+    it('returns true for connected service with future expiresAt', () => {
+        expect(isEffectivelyConnected({ connected: true, expiresAt: Date.now() + 60_000 })).toBe(true);
+    });
+
+    it('returns false for connected service whose expiresAt has already passed', () => {
+        expect(isEffectivelyConnected({ connected: true, expiresAt: Date.now() - 60_000 })).toBe(false);
+    });
+});
+
+describe('isServiceExpired predicate', () => {
+    it('returns false for undefined service', () => {
+        // Nothing to be expired about — no connection, no expiry concept.
+        expect(isServiceExpired(undefined)).toBe(false);
+    });
+
+    it('returns false when the service is not connected at all', () => {
+        // UNPATCHED providers are never "expired" — expiry implies a prior patch.
+        expect(isServiceExpired({ connected: false })).toBe(false);
+    });
+
+    it('returns false for connected service with no expiresAt field', () => {
+        // Providers like lastfm/appleMusic that have no expiry concept must NOT
+        // be classified as expired — the typeof guard short-circuits the check.
+        expect(isServiceExpired({ connected: true })).toBe(false);
+    });
+
+    it('returns false for connected service whose expiresAt is still in the future', () => {
+        expect(isServiceExpired({ connected: true, expiresAt: Date.now() + 60_000 })).toBe(false);
+    });
+
+    it('returns true for connected service whose expiresAt has already passed', () => {
+        // The ProfileScreen Patch Cables row renders this as "PATCHED · EXPIRED"
+        // and swaps the button label to RECONNECT. The predicate is the single
+        // source of truth for that branch.
+        expect(isServiceExpired({ connected: true, expiresAt: Date.now() - 60_000 })).toBe(true);
+    });
+
+    it('is the logical opposite of isEffectivelyConnected for connected services', () => {
+        // Sibling predicates share a single underlying comparison. For any
+        // `connected: true` input, exactly one of the two should be true.
+        // (Both are false for disconnected services — no "expired" claim
+        // can be made about a provider that was never patched.)
+        const fresh = { connected: true, expiresAt: Date.now() + 60_000 };
+        const expired = { connected: true, expiresAt: Date.now() - 60_000 };
+        const noExpiry = { connected: true };
+
+        expect(isEffectivelyConnected(fresh)).toBe(true);
+        expect(isServiceExpired(fresh)).toBe(false);
+
+        expect(isEffectivelyConnected(expired)).toBe(false);
+        expect(isServiceExpired(expired)).toBe(true);
+
+        expect(isEffectivelyConnected(noExpiry)).toBe(true);
+        expect(isServiceExpired(noExpiry)).toBe(false);
     });
 });

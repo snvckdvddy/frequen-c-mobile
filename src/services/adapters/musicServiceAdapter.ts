@@ -52,28 +52,51 @@ export function getTierForSource(source: TrackSource): SourceTier {
     return SOURCE_TIER[source];
 }
 
-// ─── Effective-connection predicate ──────────────────────────
-// Pure helper: is a service connection BEHAVIORALLY alive, not just
-// STRUCTURALLY present? The backend flips `.connected` on a 401, but only
-// after a failed request — a quietly-expired token can lag reality for
-// minutes-to-hours until the next API call. Gating on `expiresAt < now()`
-// catches expired tokens BEFORE we claim the provider is usable.
+// ─── Connection-state predicates ─────────────────────────────
+// Pure helpers for reasoning about whether a service connection is
+// BEHAVIORALLY alive vs STRUCTURALLY present. The backend flips
+// `.connected` on a 401, but only after a failed request — a quietly-
+// expired token can lag reality for minutes-to-hours until the next
+// API call. Gating on `expiresAt < now()` catches expired tokens BEFORE
+// we claim the provider is usable.
 //
-// Providers with no expiry field (lastfm, appleMusic) pass the second clause
-// automatically — `typeof undefined === 'number'` is false, so the guard
-// short-circuits and the `.connected` flag is the only signal.
+// Providers with no expiry field (lastfm, appleMusic) short-circuit the
+// expiry check — `typeof undefined === 'number'` is false, so the
+// `.connected` flag is the only signal and they behave exactly as they
+// did before the overclaim-audit fix.
 //
-// FOLLOW-UP (Option 2 from the overclaim audit): this helper returns a bool,
-// which means expired providers are silently dropped from
-// getConnectedSources / getAllConnectedAdapters. The fuller treatment would
-// return a tri-state { state: 'connected' | 'expired' | 'unpatched' } so UI
-// consumers (LibraryScreen pills, SearchHud source list) can render a
-// distinct "PATCHED · EXPIRED — TAP TO RECONNECT" affordance instead of the
-// silent vanish. Deferred until design discussion on per-consumer UX.
-function isEffectivelyConnected(service: ServiceConnection | undefined): boolean {
+// Two helpers because consumers need OPPOSITE narrative senses:
+//
+//   • `isEffectivelyConnected` — "can this provider serve a request right
+//     now?" Used by the helper layer (getConnectedSources, syncConnectedState)
+//     to FILTER expired providers out of selector results so downstream
+//     callers never receive a dead connection.
+//
+//   • `isServiceExpired` — "is this provider specifically in the
+//     'connected-but-expired' state?" Used by UI surfaces (ProfileScreen's
+//     Patch Cables rows) that need to RENDER expired providers as a
+//     distinct state ("PATCHED · EXPIRED") rather than filter them out.
+//
+// Both helpers derive from the same underlying comparison, so there's
+// only one place to change if the expiry semantics ever grow (grace
+// periods, clock-skew allowance, etc.).
+//
+// FOLLOW-UP (Option 2 from the overclaim audit): consumers currently
+// compose these two booleans by hand. A future refactor could collapse
+// them into a tri-state `getServiceState(service): 'connected' | 'expired'
+// | 'unpatched'` so UI layers pattern-match on a single enum. Deferred
+// until per-consumer UX design lands for inline-reconnect affordances
+// in Library pills and SearchHud source lists.
+
+export function isEffectivelyConnected(service: ServiceConnection | undefined): boolean {
     if (!service?.connected) return false;
     if (typeof service.expiresAt === 'number' && service.expiresAt < Date.now()) return false;
     return true;
+}
+
+export function isServiceExpired(service: ServiceConnection | undefined): boolean {
+    if (!service?.connected) return false;
+    return typeof service.expiresAt === 'number' && service.expiresAt < Date.now();
 }
 
 // ─── Sync helper ─────────────────────────────────────────────
