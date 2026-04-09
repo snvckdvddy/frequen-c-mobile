@@ -67,6 +67,20 @@ function services(connected: Partial<Record<keyof ConnectedServices, boolean>>):
     };
 }
 
+// Helper: build a ConnectedServices payload where a named provider is
+// connected BUT has an already-expired token. Used to exercise the
+// isEffectivelyConnected expiry filter added in the overclaim-audit fix.
+// All other providers are explicitly disconnected so the test output is
+// unambiguously attributable to the expired provider's filtering.
+function servicesWithExpired(
+    provider: 'spotify' | 'tidal' | 'soundcloud',
+    expiresAtMs: number = Date.now() - 60_000, // 1 minute in the past
+): ConnectedServices {
+    const base = services({});
+    base[provider] = { connected: true, expiresAt: expiresAtMs };
+    return base;
+}
+
 describe('SOURCE_TIER mapping', () => {
     it('classifies appleMusic as Tier 1 (universal access via iTunes catalog)', () => {
         expect(SOURCE_TIER.appleMusic).toBe(1);
@@ -208,5 +222,95 @@ describe('getAllConnectedAdapters — tier-ordered output', () => {
 
     it('returns empty array when nothing is connected', () => {
         expect(getAllConnectedAdapters(services({}))).toEqual([]);
+    });
+});
+
+// ─── Expiry-aware filtering ──────────────────────────────────
+// These tests lock in the Option 1 fix from the overclaim audit:
+// isEffectivelyConnected filters providers whose stored OAuth token
+// has already expired, so downstream selectors never return a provider
+// that will immediately 401 on first API call. See docs/ops/current-status.md
+// for the broader "structural vs behavioral claim" vocabulary ladder context.
+
+describe('getConnectedSources — expiry-aware filtering', () => {
+    it('filters out Tidal when its token has already expired', () => {
+        const sources = getConnectedSources(servicesWithExpired('tidal'));
+        expect(sources).not.toContain('tidal');
+        expect(sources).toEqual([]);
+    });
+
+    it('filters out Spotify when its token has already expired', () => {
+        const sources = getConnectedSources(servicesWithExpired('spotify'));
+        expect(sources).not.toContain('spotify');
+        expect(sources).toEqual([]);
+    });
+
+    it('keeps non-expired providers while filtering expired ones', () => {
+        // Tidal connected-and-fresh, Spotify connected-but-expired
+        const cs: ConnectedServices = {
+            ...services({ tidal: true }),
+            spotify: { connected: true, expiresAt: Date.now() - 5_000 },
+        };
+        const sources = getConnectedSources(cs);
+        expect(sources).toContain('tidal');
+        expect(sources).not.toContain('spotify');
+    });
+
+    it('keeps providers whose expiresAt is in the future (not yet expired)', () => {
+        const cs: ConnectedServices = {
+            ...services({}),
+            tidal: { connected: true, expiresAt: Date.now() + 60_000 },
+        };
+        expect(getConnectedSources(cs)).toContain('tidal');
+    });
+
+    it('keeps providers with no expiresAt field (lastfm/appleMusic semantic)', () => {
+        // appleMusic has no expiry in practice — isEffectivelyConnected's
+        // `typeof === 'number'` guard short-circuits and the .connected flag
+        // is the only signal. Regression guard so a future refactor that
+        // tightens the predicate doesn't accidentally drop these providers.
+        const sources = getConnectedSources(services({ appleMusic: true, soundcloud: true }));
+        expect(sources).toContain('appleMusic');
+        expect(sources).toContain('soundcloud');
+    });
+});
+
+describe('getAllConnectedAdapters — expiry-aware filtering', () => {
+    it('filters out Tidal adapter when its token has already expired', () => {
+        // syncConnectedState uses isEffectivelyConnected, so tidalAdapter
+        // gets setConnected(false) during sync → not returned here.
+        const adapters = getAllConnectedAdapters(servicesWithExpired('tidal'));
+        const names = adapters.map((a) => a.serviceName);
+        expect(names).not.toContain('tidal');
+        expect(names).toEqual([]);
+    });
+
+    it('keeps non-expired adapters alongside excluded expired ones', () => {
+        const cs: ConnectedServices = {
+            ...services({ appleMusic: true }),
+            spotify: { connected: true, expiresAt: Date.now() - 1_000 },
+        };
+        const adapters = getAllConnectedAdapters(cs);
+        const names = adapters.map((a) => a.serviceName);
+        expect(names).toContain('appleMusic');
+        expect(names).not.toContain('spotify');
+    });
+});
+
+describe('getActiveAdapter — expiry-aware fallback', () => {
+    it('skips expired Tidal when picking the active adapter', () => {
+        // Only Tidal is "connected" structurally, but its token is expired.
+        // getActiveAdapter should fall through to the Apple Music fallback
+        // instead of returning the stale Tidal adapter.
+        const adapter = getActiveAdapter(servicesWithExpired('tidal'));
+        expect(adapter.serviceName).toBe('appleMusic');
+    });
+
+    it('prefers fresh Apple Music over expired Spotify', () => {
+        const cs: ConnectedServices = {
+            ...services({ appleMusic: true }),
+            spotify: { connected: true, expiresAt: Date.now() - 1_000 },
+        };
+        expect(getActiveAdapter(cs).serviceName).toBe('appleMusic');
     });
 });

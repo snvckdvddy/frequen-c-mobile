@@ -4,7 +4,7 @@ import { soundcloudAdapter } from './soundcloudAdapter';
 import { tidalAdapter } from './tidalAdapter';
 import { appleMusicAdapter } from './appleMusicAdapter';
 import { youtubeAdapter, itunesAdapter } from './stubAdapter';
-import { ConnectedServices, TrackSource } from '../../types';
+import { ConnectedServices, ServiceConnection, TrackSource } from '../../types';
 
 // ─── Source Tiering ──────────────────────────────────────────
 // See plans/modular-tinkering-robin.md §1 for the strategic context.
@@ -52,18 +52,48 @@ export function getTierForSource(source: TrackSource): SourceTier {
     return SOURCE_TIER[source];
 }
 
+// ─── Effective-connection predicate ──────────────────────────
+// Pure helper: is a service connection BEHAVIORALLY alive, not just
+// STRUCTURALLY present? The backend flips `.connected` on a 401, but only
+// after a failed request — a quietly-expired token can lag reality for
+// minutes-to-hours until the next API call. Gating on `expiresAt < now()`
+// catches expired tokens BEFORE we claim the provider is usable.
+//
+// Providers with no expiry field (lastfm, appleMusic) pass the second clause
+// automatically — `typeof undefined === 'number'` is false, so the guard
+// short-circuits and the `.connected` flag is the only signal.
+//
+// FOLLOW-UP (Option 2 from the overclaim audit): this helper returns a bool,
+// which means expired providers are silently dropped from
+// getConnectedSources / getAllConnectedAdapters. The fuller treatment would
+// return a tri-state { state: 'connected' | 'expired' | 'unpatched' } so UI
+// consumers (LibraryScreen pills, SearchHud source list) can render a
+// distinct "PATCHED · EXPIRED — TAP TO RECONNECT" affordance instead of the
+// silent vanish. Deferred until design discussion on per-consumer UX.
+function isEffectivelyConnected(service: ServiceConnection | undefined): boolean {
+    if (!service?.connected) return false;
+    if (typeof service.expiresAt === 'number' && service.expiresAt < Date.now()) return false;
+    return true;
+}
+
 // ─── Sync helper ─────────────────────────────────────────────
 // Centralizes connected-state sync so every public function uses
-// the same logic and no adapter is accidentally skipped.
+// the same logic and no adapter is accidentally skipped. Expired
+// tokens are treated as not-connected at sync time, so downstream
+// `.isConnected()` checks across every adapter-based selector
+// (getActiveAdapter, getAdapterForSource, getAllConnectedAdapters)
+// automatically inherit the expiry-aware filter without each
+// getter needing its own check.
 
 function syncConnectedState(connectedServices: ConnectedServices | undefined): void {
     const cs = connectedServices;
-    spotifyAdapter.setConnected(!!cs?.spotify?.connected);
-    soundcloudAdapter.setConnected(!!cs?.soundcloud?.connected);
-    tidalAdapter.setConnected(!!cs?.tidal?.connected);
+    spotifyAdapter.setConnected(isEffectivelyConnected(cs?.spotify));
+    soundcloudAdapter.setConnected(isEffectivelyConnected(cs?.soundcloud));
+    tidalAdapter.setConnected(isEffectivelyConnected(cs?.tidal));
     // Apple Music catalog search always works; library access needs MusicKit auth.
     // setConnected reflects whether the user has authenticated (for library features).
-    appleMusicAdapter.setConnected(!!cs?.appleMusic?.connected);
+    // appleMusic has no expiresAt, so isEffectivelyConnected is a no-op upgrade here.
+    appleMusicAdapter.setConnected(isEffectivelyConnected(cs?.appleMusic));
     // youtube & itunes have no auth flow — always disconnected
     youtubeAdapter.setConnected(false);
     itunesAdapter.setConnected(false);
@@ -84,6 +114,12 @@ const adapterMap: Record<TrackSource, MusicServiceAdapter> = {
  * Derive the list of connected TrackSource keys from the auth context.
  * Single source of truth — use this instead of manually checking each service.
  *
+ * Filters out providers whose stored OAuth token has already expired, so the
+ * returned list is BEHAVIORALLY honest (every listed provider can actually
+ * serve requests right now) rather than merely STRUCTURALLY present (the
+ * connection record exists but the token is dead). See isEffectivelyConnected
+ * above for the rationale — same predicate as syncConnectedState.
+ *
  * Ordered by tier (1 → 3) so consumers that just iterate the list naturally
  * surface the most-universal source first.
  */
@@ -91,12 +127,12 @@ export function getConnectedSources(connectedServices: ConnectedServices | undef
     if (!connectedServices) return [];
     const sources: TrackSource[] = [];
     // Tier 1
-    if (connectedServices.appleMusic?.connected) sources.push('appleMusic');
-    if (connectedServices.soundcloud?.connected) sources.push('soundcloud');
+    if (isEffectivelyConnected(connectedServices.appleMusic)) sources.push('appleMusic');
+    if (isEffectivelyConnected(connectedServices.soundcloud)) sources.push('soundcloud');
     // Tier 2
-    if (connectedServices.tidal?.connected) sources.push('tidal');
+    if (isEffectivelyConnected(connectedServices.tidal)) sources.push('tidal');
     // Tier 3 (restricted beta — Spotify)
-    if (connectedServices.spotify?.connected) sources.push('spotify');
+    if (isEffectivelyConnected(connectedServices.spotify)) sources.push('spotify');
     return sources;
 }
 
