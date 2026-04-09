@@ -2,6 +2,7 @@ import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { withAlpha } from '../../../design/tokens/materials';
 import { getSourceColor, getSourceLabel } from '../../../design/tokens/sourceColors';
+import { CrossMatchBadge } from '../../../components/ui/CrossMatchBadge';
 import { tacticalTokens } from '../theme/tacticalTokens';
 import type { SignalChainItem, SignalChainVisualMode } from '../types';
 
@@ -196,6 +197,12 @@ export function SignalChainTrackBlock({
                   {getSourceLabel(item.track.source)}
                 </Text>
               </View>
+              <CrossMatchBadge
+                source={item.track.source}
+                metadataSource={item.track.metadataSource}
+                label="VIA SPOTIFY"
+                textStyle={styles.crossMatchTacticalLabel}
+              />
               <Text style={[styles.meta, { color: visuals.metaColor }]} numberOfLines={1}>
                 @{patchedBy}
               </Text>
@@ -343,6 +350,17 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   sourceLabel: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: 7,
+    letterSpacing: 0.8,
+  },
+  // Phase 5: tactical-font override for the shared `CrossMatchBadge`
+  // primitive. The base chip owns color + shape (orange pill that matches
+  // `TierBadge`); this override just swaps the sans-serif default for the
+  // session-v2 mono font so the label reads as one language with the
+  // neighboring `sourceBadge` glyphs. Kept here (not on the primitive) so
+  // `components/ui/` never imports feature-scoped tokens.
+  crossMatchTacticalLabel: {
     fontFamily: tacticalTokens.fonts.mono,
     fontSize: 7,
     letterSpacing: 0.8,

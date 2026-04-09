@@ -46,6 +46,7 @@ import { JoinLeaveToast, ListenerDrawer, type ToastMessage } from '../components
 import { ChatPanel } from '../components/ChatPanel';
 import { useSearch } from '../hooks/useSearch';
 import { useRecentSearches } from '../hooks/useRecentSearches';
+import { resolvePlayableTrack } from '../hooks/useIsrcCrossMatch';
 import { useActiveSession } from '../contexts/ActiveSessionContext';
 import { useFavoritesContext } from '../contexts/FavoritesContext';
 
@@ -230,21 +231,32 @@ export function SessionRoomScreen() {
   // ─── Handlers ─────────────────────────────────────────
   // Queueing is intentionally passive/free in Session V2.
   // Do not attach CV spend, tactical prompts, or power-routing costs to baseline add-to-queue.
+  //
+  // Phase 5: the cross-match resolve is a fire-and-forget async IIFE so this
+  // function keeps its synchronous boolean contract with all callers (prop
+  // types in SearchHud / SearchHudOverlay expect `(track) => void | boolean`).
+  // Non-Spotify tracks pass through `resolvePlayableTrack` unchanged and hit
+  // the cache immediately. Spotify tracks get resolved to a Tier 1/2 playable
+  // equivalent before the socket emit. On resolve failure we fall back to the
+  // original track so the queue never silently drops a user's selection.
   const handleAddTrack = useCallback((track: Track) => {
     if (!user || !session || !sessionId) return false;
     if (!getGlobalLimiter().canDo('addTrack')) return false;
-    const queueTrack: QueueTrack = {
-      ...track,
-      addedBy: { userId: user.id, username: user.username },
-      addedById: user.id,
-      addedAt: new Date().toISOString(),
-      votes: 0,
-      voltageBoost: 0,
-      reactions: [],
-    };
-    addToQueue(sessionId, queueTrack);
-    notifySuccess();
-    if (query.trim()) saveRecentSearch(query.trim());
+    void (async () => {
+      const resolved = await resolvePlayableTrack(track);
+      const queueTrack: QueueTrack = {
+        ...resolved,
+        addedBy: { userId: user.id, username: user.username },
+        addedById: user.id,
+        addedAt: new Date().toISOString(),
+        votes: 0,
+        voltageBoost: 0,
+        reactions: [],
+      };
+      addToQueue(sessionId, queueTrack);
+      notifySuccess();
+      if (query.trim()) saveRecentSearch(query.trim());
+    })();
     return true;
   }, [user, session, sessionId, query, saveRecentSearch]);
 

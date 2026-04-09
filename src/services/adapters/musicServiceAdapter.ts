@@ -21,11 +21,16 @@ import { ConnectedServices, TrackSource } from '../../types';
 //          allowlist). Provider-side scaling is unrestricted.
 //   • tidal: PKCE OAuth + search + stream wired; library browsing TODO.
 //
-// Tier 3 — Restricted beta. Spotify's Feb 2026 Dev Mode tightening caps the
-//          app at 5 allowlisted users until 250k MAU is reached. Treated as
-//          a designed "Restricted Beta" surface in the UI rather than a
-//          first-class source. See plan §4 for the framing.
-//   • spotify: 5-user allowlist; do not route here unless nothing else works.
+// Tier 3 — Restricted beta for user-OAuth PLAYBACK only. Spotify's Feb 2026
+//          Dev Mode tightening caps OAuth'd users at 5 until 250k MAU is
+//          reached. However, Spotify CATALOG is available to EVERY user via
+//          the backend Client Credentials metadata proxy (/api/catalog/spotify
+//          + ISRC cross-match via /api/match). Phase 5 therefore makes Tier 3
+//          gate ONLY full-track Spotify playback on allowlisted devices.
+//          Search/discovery works for everyone; enqueued Spotify tracks are
+//          cross-matched to a Tier 1/2 playable equivalent before the queue
+//          sees them. See plans/graceful-plotting-storm.md Phase 5.
+//   • spotify: search works for everyone; full-track playback is allowlist-only.
 
 export type SourceTier = 1 | 2 | 3;
 

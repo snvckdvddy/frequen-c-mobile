@@ -16,11 +16,22 @@ class SpotifyAdapter implements MusicServiceAdapter {
         return this.connected;
     }
 
+    /**
+     * Spotify search via backend Client Credentials metadata proxy.
+     *
+     * This intentionally does NOT gate on `this.connected`. The metadata proxy
+     * uses a server-to-server Spotify app token (not the user's OAuth token), so
+     * it's available to EVERY authenticated Frequen-C user — not just the ≤5
+     * allowlisted users inside Spotify's Feb 2026 Dev Mode cap.
+     *
+     * `isConnected()`/`setConnected()` remain relevant for `getStreamUrl()`,
+     * which still requires a Tier 3 user-OAuth token for full-length playback.
+     */
     async search(query: string, options?: { silent?: boolean; rethrow?: boolean }): Promise<Track[]> {
-        if (!this.connected) return [];
         try {
-            // Calls existing backend endpoint which uses the stored access token
-            const res = await apiFetch<{ tracks: Track[] }>(`/search/tracks?q=${encodeURIComponent(query)}`);
+            const res = await apiFetch<{ tracks: Track[] }>(
+                `/catalog/spotify/search?q=${encodeURIComponent(query)}`,
+            );
             return res.tracks;
         } catch (e) {
             if (options?.rethrow) {

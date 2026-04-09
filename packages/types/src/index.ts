@@ -174,6 +174,20 @@ export interface Track {
   key?: string;
   /** Audio format or codec (e.g. 'MP3', 'AAC', 'FLAC') */
   format?: string;
+  /**
+   * International Standard Recording Code — universal cross-service recording ID.
+   * Populated by Spotify Client Credentials catalog responses and by the ISRC
+   * cross-match backend so we can resolve a Spotify-discovered track to its
+   * playable equivalent on Apple Music / Tidal / etc.
+   */
+  isrc?: string;
+  /**
+   * When a track was originally discovered via one service but resolved to
+   * another for playback, the original discovery source is recorded here so
+   * the UI can render attribution (e.g., "via Spotify" on an Apple Music row).
+   * Always set alongside a `source` that differs from `metadataSource`.
+   */
+  metadataSource?: TrackSource;
 }
 
 export interface Reaction {

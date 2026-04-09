@@ -116,6 +116,8 @@ export function ArchiveSessionModal({ session, onClose }: ArchiveSessionModalPro
                   artist={lastTrack.artist}
                   albumArt={lastTrack.albumArt}
                   duration={lastTrack.duration}
+                  source={lastTrack.source}
+                  metadataSource={lastTrack.metadataSource}
                   showMenu={false}
                 />
               </View>
@@ -133,6 +135,8 @@ export function ArchiveSessionModal({ session, onClose }: ArchiveSessionModalPro
                       albumArt={track.albumArt}
                       duration={track.duration}
                       addedBy={track.addedBy?.username}
+                      source={track.source}
+                      metadataSource={track.metadataSource}
                       showMenu={false}
                     />
                   ))}

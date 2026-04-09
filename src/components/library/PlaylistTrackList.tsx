@@ -107,6 +107,8 @@ export function PlaylistTrackList({
             artist={item.artist}
             albumArt={item.albumArt}
             duration={item.duration}
+            source={item.source}
+            metadataSource={item.metadataSource}
             onPress={() => onTrackPress(item)}
             onMenuPress={
               onTrackMenuPress ? () => onTrackMenuPress(item) : undefined

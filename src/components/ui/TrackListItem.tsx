@@ -14,8 +14,10 @@ import React from 'react';
 import { View, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
+import { CrossMatchBadge } from './CrossMatchBadge';
 import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
+import type { TrackSource } from '../../types';
 
 interface TrackListItemProps {
   title: string;
@@ -37,6 +39,14 @@ interface TrackListItemProps {
   rightAction?: React.ReactNode;
   /** §5.1: Long press → open context menu sheet */
   onLongPress?: () => void;
+  /**
+   * Phase 5 cross-match attribution — when set, the row renders a small
+   * "via {source}" chip next to the title whenever `metadataSource` differs
+   * from `source`. Pass the track's `source` and `metadataSource` through
+   * untouched; the chip decides whether to render based on the pair.
+   */
+  source?: TrackSource;
+  metadataSource?: TrackSource;
 }
 
 function formatDuration(seconds: number): string {
@@ -58,6 +68,8 @@ export function TrackListItem({
   isNowPlaying = false,
   rightAction,
   onLongPress,
+  source,
+  metadataSource,
 }: TrackListItemProps) {
   return (
     <TouchableOpacity
@@ -89,13 +101,17 @@ export function TrackListItem({
 
       {/* Track info */}
       <View style={styles.info}>
-        <Text
-          variant="body"
-          color={isNowPlaying ? palette.orange : palette.frost}
-          numberOfLines={1}
-        >
-          {title}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text
+            variant="body"
+            color={isNowPlaying ? palette.orange : palette.frost}
+            numberOfLines={1}
+            style={styles.titleText}
+          >
+            {title}
+          </Text>
+          <CrossMatchBadge source={source} metadataSource={metadataSource} />
+        </View>
         <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
           {artist}{duration ? ` · ${formatDuration(duration)}` : ''}
         </Text>
@@ -156,6 +172,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     gap: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  titleText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   menuBtn: {
     width: 44,

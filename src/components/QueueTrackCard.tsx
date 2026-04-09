@@ -11,7 +11,7 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Image, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text } from './ui';
+import { Text, CrossMatchBadge } from './ui';
 import { palette } from '../design/tokens/materials';
 import { getSourceColor } from '../design/tokens/sourceColors';
 import { spacing } from '../theme/spacing';
@@ -97,6 +97,9 @@ export function QueueTrackCard({
             <Text variant="labelLarge" color={palette.frost} numberOfLines={1} style={{ flex: 1 }}>
               {track.title}
             </Text>
+            {/* Phase 5: cross-match attribution — renders null unless the
+                track was discovered via one service and resolved to another */}
+            <CrossMatchBadge source={track.source} metadataSource={track.metadataSource} />
             {isNowPlaying && (
               <View style={trackStyles.nowPlayingBadge}>
                 <Text variant="labelSmall" color={palette.green}>NOW</Text>

@@ -373,6 +373,8 @@ export function LibraryScreen({ onOpenRoom, initialSegment, route }: LibraryScre
                           artist={fav.track.artist}
                           albumArt={fav.track.albumArt}
                           duration={fav.track.duration}
+                          source={fav.track.source}
+                          metadataSource={fav.track.metadataSource}
                           rightAction={
                             <TouchableOpacity
                               onPress={() => removeFavorite(fav.track.id)}
