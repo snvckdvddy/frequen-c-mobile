@@ -224,7 +224,7 @@ function ArchiveCard({
       <TextMono style={styles.archiveIndex}>{room.joinCode.toUpperCase()}</TextMono>
       <TextMono style={styles.archiveTitle} numberOfLines={1}>{room.name.toUpperCase()}</TextMono>
       <TextMono style={styles.archiveMeta} numberOfLines={1}>
-        {(room.source || 'SYSTEM').toUpperCase()} // {(room.vibe || room.genre || 'MIXED').toUpperCase()}
+        {(room.genre || 'MIXED').toUpperCase()}
       </TextMono>
       <View style={styles.archiveFooter}>
         <View style={[styles.archiveModeChip, { borderColor: modeColors.borderColor }]}>

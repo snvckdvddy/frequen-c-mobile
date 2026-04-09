@@ -122,10 +122,21 @@ export function SearchHudOverlay({
     }
 
     return (PROVIDER_ORDER)
-      .filter((source) => sources[source] && diagnostics.providers[source].state === 'error')
+      .filter((source) => {
+        if (!sources[source]) return false;
+        if (diagnostics.providers[source].state !== 'error') return false;
+        // Suppress the banner for the generic uncategorized-upstream-error bucket.
+        // The chip now reads "PATCHED · NO SIGNAL" in dimmed brand color, which
+        // already tells the user "this service is linked but search failed right
+        // now." A redundant banner adds noise without adding information.
+        // Banners remain for actionable codes (RECONNECT, BLOCKED, auth errors,
+        // backend config missing, network errors) where the user needs more detail.
+        if (diagnostics.providers[source].code === 'UPSTREAM_ERROR') return false;
+        return true;
+      })
       .map((source) => {
         const diagnostic = diagnostics.providers[source];
-        let message = diagnostic.message || 'Search unavailable.';
+        let message = diagnostic.message || `${PROVIDER_META[source].label} search unavailable.`;
 
         if (diagnostic.code === 'APP_SUBSCRIPTION_REQUIRED') {
           message = 'Spotify Development Mode is blocking search. The app owner account needs Premium, or the app needs Extended Access.';
@@ -153,7 +164,7 @@ export function SearchHudOverlay({
         return 'UNPATCHED';
       }
       if (providerStates[key] === 'error') {
-        return 'UNAVAILABLE';
+        return 'PATCHED · NO SIGNAL';
       }
       return diagnostics?.authSnapshot[key]?.connected ? 'CONNECTED' : 'READY';
     }
@@ -173,7 +184,7 @@ export function SearchHudOverlay({
       const diagnosticCode = diagnostics?.providers[key]?.code;
       if (diagnosticCode === 'APP_SUBSCRIPTION_REQUIRED') return 'BLOCKED';
       if (diagnosticCode === 'TOKEN_EXPIRED') return 'RECONNECT';
-      return 'UNAVAILABLE';
+      return 'PATCHED · NO SIGNAL';
     }
     return 'READY';
   };
@@ -400,16 +411,26 @@ export function SearchHudOverlay({
                           styles.providerBtn,
                           styles.providerBtnLive,
                           active && { borderColor: meta.color, backgroundColor: `${meta.color}22` },
-                          (providerStates[key] === 'error' ||
-                            providerStates[key] === 'unpatched') &&
-                            styles.providerBtnOffline,
+                          providerStates[key] === 'unpatched' && styles.providerBtnOffline,
+                          // Connected-but-erroring: keep brand color identity, dim it.
+                          // Border at 40% alpha (#66), background at 8% alpha (#14) —
+                          // visibly lower energy than the active 100% / 13% treatment
+                          // above, but still unmistakably the service's chip.
+                          // Gated on `active` so a toggled-off chip with a stale
+                          // 'error' state (from before the toggle) falls back to
+                          // the default treatment and reads consistently with its
+                          // "OFF" label until the next diagnostic cycle clears it.
+                          active && providerStates[key] === 'error' && {
+                            borderColor: `${meta.color}66`,
+                            backgroundColor: `${meta.color}14`,
+                          },
                           pressed && styles.pressed,
                         ]}
                         accessibilityRole="button"
                         accessibilityLabel={
                           isRestrictedBeta
-                            ? `${meta.label} source filter, restricted beta`
-                            : `${meta.label} source filter`
+                            ? `${meta.label} source filter, ${getProviderStatusLabel(key).toLowerCase()}, restricted beta`
+                            : `${meta.label} source filter, ${getProviderStatusLabel(key).toLowerCase()}`
                         }
                       >
                         <View style={styles.providerBtnTop}>
@@ -429,11 +450,14 @@ export function SearchHudOverlay({
                           />
                         </View>
                         <Text
+                          numberOfLines={1}
                           style={[
                             styles.providerStateText,
-                            (providerStates[key] === 'error' ||
-                              providerStates[key] === 'unpatched') &&
-                              styles.providerStateTextOffline,
+                            providerStates[key] === 'unpatched' && styles.providerStateTextOffline,
+                            // Connected-but-erroring: state text picks up brand color
+                            // at ~80% alpha (#CC) so it reads as "this service, dimmed"
+                            // rather than the neutral-grey treatment unpatched uses.
+                            providerStates[key] === 'error' && { color: `${meta.color}CC` },
                           ]}
                         >
                           {getProviderStatusLabel(key)}

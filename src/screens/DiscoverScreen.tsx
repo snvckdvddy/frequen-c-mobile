@@ -166,9 +166,6 @@ function RoomSignalCard({
           <MonoText style={[styles.mono, styles.roomSignalText]}>
             {String(room.listeners?.length || 0).padStart(2, '0')} LISTENERS
           </MonoText>
-          <MonoText style={[styles.mono, styles.roomSignalText]}>
-            {room.source ? room.source.toUpperCase() : 'MIXED'} // {room.vibe ? room.vibe.toUpperCase() : 'OPEN'}
-          </MonoText>
         </View>
       </View>
 
@@ -252,8 +249,7 @@ export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
     return next.filter((room) =>
       room.name.toLowerCase().includes(query) ||
       room.hostUsername.toLowerCase().includes(query) ||
-      room.genre?.toLowerCase().includes(query) ||
-      room.vibe?.toLowerCase().includes(query),
+      room.genre?.toLowerCase().includes(query),
     );
   }, [mode, rooms, search]);
 
@@ -313,7 +309,7 @@ export function DiscoverScreen({ onOpenRoom }: DiscoverScreenProps) {
                     <TextInput
                       value={search}
                       onChangeText={setSearch}
-                      placeholder="PING ROOM, HOST, GENRE, OR VIBE"
+                      placeholder="PING ROOM, HOST, OR GENRE"
                       placeholderTextColor={tacticalTokens.colors.textMuted}
                       style={styles.searchInput}
                       autoCapitalize="none"

@@ -21,9 +21,6 @@ import TacticalGridBackground from '../features/session-v2/components/TacticalGr
 import { formatModeLabel, getModeBlockColors, tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { notifyError, notifyWarning, tapLight, tapMedium } from '../utils/haptics';
 
-const SOURCES = ['SPOTIFY', 'SNDCLOUD', 'YOUTUBE', 'LOCAL'] as const;
-const VIBES = ['CHILL', 'HYPE', 'CHAOS', 'FOCUS', 'AMBIENT'] as const;
-
 const ROOM_PRESETS: { key: RoomMode; label: string; desc: string }[] = [
   { key: 'campfire', label: 'CAMPFIRE', desc: 'Equal turns. Round-robin queue.' },
   { key: 'spotlight', label: 'SPOTLIGHT', desc: 'Host curates. Approval required.' },
@@ -64,7 +61,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
-type ManualHotspotKey = 'mode' | 'routing' | 'visibility';
+type ManualHotspotKey = 'mode' | 'visibility';
 
 function ManualHotspot({
   active,
@@ -104,8 +101,6 @@ export function CreateSessionScreen() {
     ...DEFAULT_BEHAVIORS,
     ...BEHAVIOR_PRESETS.campfire,
   });
-  const [source, setSource] = useState<typeof SOURCES[number]>('SPOTIFY');
-  const [vibe, setVibe] = useState<typeof VIBES[number]>('CHILL');
   const [isPublic, setIsPublic] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -154,8 +149,6 @@ export function CreateSessionScreen() {
         roomMode,
         isPublic,
         behaviors,
-        source,
-        vibe,
       });
       navigation.replace('SessionRoom', { sessionId: session.id });
     } catch (err: unknown) {
@@ -315,60 +308,6 @@ export function CreateSessionScreen() {
                       </Pressable>
                     );
                   })}
-                </View>
-              </View>
-
-              <View style={styles.panel}>
-                <View style={styles.sectionHeaderRow}>
-                  <SectionLabel>SOURCE / VIBE ROUTING</SectionLabel>
-                  {readManual ? (
-                    <ManualHotspot
-                      active={activeManualHotspot === 'routing'}
-                      onPress={() => toggleManualHotspot('routing')}
-                      accent={tacticalTokens.colors.guide}
-                      accessibilityLabel="Toggle source and vibe guide"
-                    />
-                  ) : null}
-                </View>
-                {readManual && activeManualHotspot === 'routing' ? (
-                  <View style={styles.manualHintRail}>
-                    <Text style={styles.manualHintTitle}>ROUTING LABELS</Text>
-                    <Text style={styles.manualHintText}>
-                      Source and vibe work like labels for the room. They tell people what kind of session they are stepping into before they join.
-                    </Text>
-                  </View>
-                ) : null}
-                <Text style={styles.helperText}>INPUT SOURCE</Text>
-                <View style={styles.chipWrap}>
-                  {SOURCES.map((item) => (
-                    <Pressable
-                      key={item}
-                      onPress={() => setSource(item)}
-                      style={({ pressed }) => [
-                        styles.routeChip,
-                        source === item && styles.routeChipActive,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text style={[styles.routeChipText, source === item && styles.routeChipTextActive]}>{item}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <Text style={[styles.helperText, { marginTop: tacticalTokens.spacing.md }]}>ROOM VIBE</Text>
-                <View style={styles.chipWrap}>
-                  {VIBES.map((item) => (
-                    <Pressable
-                      key={item}
-                      onPress={() => setVibe(item)}
-                      style={({ pressed }) => [
-                        styles.routeChip,
-                        vibe === item && styles.vibeChipActive,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text style={[styles.routeChipText, vibe === item && styles.vibeChipTextActive]}>{item}</Text>
-                    </Pressable>
-                  ))}
                 </View>
               </View>
 
@@ -698,14 +637,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     lineHeight: 18,
   },
-  helperText: {
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.guideSoft,
-    letterSpacing: 1.1,
-    marginBottom: tacticalTokens.spacing.sm,
-    lineHeight: 16,
-  },
   manualHintRail: {
     borderWidth: 1,
     borderColor: tacticalTokens.colors.guideSoft,
@@ -754,13 +685,6 @@ const styles = StyleSheet.create({
   },
   routeChipTextActive: {
     color: tacticalTokens.colors.acid,
-  },
-  vibeChipActive: {
-    borderColor: tacticalTokens.colors.ice,
-    backgroundColor: '#081218',
-  },
-  vibeChipTextActive: {
-    color: tacticalTokens.colors.ice,
   },
   toggleRow: {
     flexDirection: 'row',

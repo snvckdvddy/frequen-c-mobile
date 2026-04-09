@@ -584,7 +584,7 @@ function mergeUniqueSessions(
 // ─── Session Endpoints ──────────────────────────────────────
 
 export const sessionApi = {
-  create: async (data: { name: string; genre?: string; roomMode?: string; isPublic?: boolean; behaviors?: import('../types').RoomBehaviors; source?: string; vibe?: string }) => {
+  create: async (data: { name: string; genre?: string; roomMode?: string; isPublic?: boolean; behaviors?: import('../types').RoomBehaviors }) => {
     if (USE_MOCKS) {
       await mockDelay();
       const { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } = require('../types');
@@ -605,8 +605,6 @@ export const sessionApi = {
         queue: [],
         createdAt: new Date().toISOString(),
         behaviors: data.behaviors || { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[mode] },
-        source: data.source,
-        vibe: data.vibe,
       };
       // Persist in mock store so get() can find it later
       mockSessionStore.set(session.id, session);

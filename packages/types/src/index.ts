@@ -142,8 +142,6 @@ export interface Session {
   createdAt: string;
   endedAt?: string;
   tracksPlayedCount?: number;
-  source?: string;
-  vibe?: string;
 }
 
 // ─── Tracks ──────────────────────────────────────────────────
