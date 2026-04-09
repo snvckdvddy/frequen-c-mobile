@@ -663,7 +663,14 @@ export function ProfileScreen() {
                     : providerUnavailable(entry.provider!) ? 'BACKEND CONFIG MISSING'
                     : 'READY TO PATCH';
 
-                const baseA11y = `${connected ? 'Disconnect' : 'Connect'} ${entry.label}`;
+                // A11y mirrors the three-way visible label: RECONNECT for
+                // expired, Disconnect for live, Connect for fresh. Without the
+                // isExpired branch, a screen reader would announce "Disconnect
+                // Spotify" on a button that actually re-runs the OAuth patch —
+                // user-hostile for assistive tech.
+                const baseA11y = isExpired
+                  ? `Reconnect ${entry.label}`
+                  : `${connected ? 'Disconnect' : 'Connect'} ${entry.label}`;
                 const buttonA11y = isRestrictedBeta ? `${baseA11y}, restricted beta` : baseA11y;
 
                 return (
@@ -692,6 +699,16 @@ export function ProfileScreen() {
                       ) : (
                         <Pressable
                           onPress={() => {
+                            // isExpired branch must come BEFORE the `connected`
+                            // branch — an expired token still has connected===true,
+                            // so the old order would route to the Disconnect
+                            // confirm dialog and force a three-tap dance
+                            // (UNPATCH → confirm → PATCH) for a one-tap reflow.
+                            if (isExpired && entry.provider) {
+                              tapMedium();
+                              void handleConnect(entry.provider, entry.label);
+                              return;
+                            }
                             if (connected && entry.provider) {
                               tapMedium();
                               setPrompt({ kind: 'disconnect', provider: entry.provider, name: entry.label });
@@ -703,12 +720,22 @@ export function ProfileScreen() {
                           accessibilityLabel={buttonA11y}
                           style={({ pressed }) => [
                             styles.providerAction,
-                            connected ? styles.providerActionDanger : blocked ? styles.providerActionMuted : styles.providerActionDefault,
+                            // Reconnect takes the neutral "default" style, not
+                            // the danger style. Danger red signals destructive
+                            // intent — reconnect is a restore action, the
+                            // opposite of destructive.
+                            isExpired
+                              ? styles.providerActionDefault
+                              : connected
+                                ? styles.providerActionDanger
+                                : blocked
+                                  ? styles.providerActionMuted
+                                  : styles.providerActionDefault,
                             pressed && styles.pressed,
                           ]}
                         >
                           <MonoText style={[textStyles.monoBold, styles.providerActionText]}>
-                            {connected ? 'UNPATCH' : 'PATCH'}
+                            {isExpired ? 'RECONNECT' : connected ? 'UNPATCH' : 'PATCH'}
                           </MonoText>
                         </Pressable>
                       )}

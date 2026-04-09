@@ -15,7 +15,6 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.frequenc.app",
-      "buildNumber": "1",
       "appleTeamId": "H2QNN353KH",
       "associatedDomains": [
         "applinks:frequenc.app",
