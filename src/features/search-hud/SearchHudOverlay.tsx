@@ -180,7 +180,11 @@ export function SearchHudOverlay({
     }
 
     if (providerStates[key] === 'off') {
-      return 'READY';
+      // Maintain the structural "PATCHED" claim for connected providers while
+      // the search is in flight. Regressing from PATCHED → READY mid-type
+      // implies the connection dropped, which is misleading. READY is reserved
+      // for providers that were never connected (e.g. appleMusic catalog).
+      return diagnostics?.authSnapshot[key]?.connected ? 'PATCHED' : 'READY';
     }
 
     const state = providerStates[key];
