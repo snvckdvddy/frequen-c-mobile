@@ -9,6 +9,7 @@ import { mockUser, mockSessions, mockQueue, mockSearchResults, mockUsers, mockDe
 import { User, Session, Track, MockUser, ConnectedServices } from '../types';
 import { USE_MOCKS, AI_USE_REAL_BACKEND } from './config';
 import { logger } from '../utils/logger';
+import { isEffectivelyConnected } from './adapters/musicServiceAdapter';
 
 // Re-export from fetchClient so existing consumers don't break
 export { apiFetch, getStoredToken, storeToken, clearToken, ApiError } from './fetchClient';
@@ -113,15 +114,15 @@ function clearLastSearchDiagnosticsSnapshot(): void {
 function getSearchConnectionSnapshot(): Record<SearchHudProvider, SearchConnectionSnapshot> {
   return {
     spotify: {
-      connected: !!currentServices?.spotify?.connected,
+      connected: isEffectivelyConnected(currentServices?.spotify),
       username: currentServices?.spotify?.username,
     },
     soundcloud: {
-      connected: !!currentServices?.soundcloud?.connected,
+      connected: isEffectivelyConnected(currentServices?.soundcloud),
       username: currentServices?.soundcloud?.username,
     },
     tidal: {
-      connected: !!currentServices?.tidal?.connected,
+      connected: isEffectivelyConnected(currentServices?.tidal),
       username: currentServices?.tidal?.username,
     },
     appleMusic: {

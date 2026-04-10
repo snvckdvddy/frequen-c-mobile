@@ -115,14 +115,17 @@ function summarizeConnectedServices(user: User | null) {
     spotify: {
       connected: !!user?.connectedServices?.spotify?.connected,
       username: user?.connectedServices?.spotify?.username,
+      expiresAt: user?.connectedServices?.spotify?.expiresAt,
     },
     soundcloud: {
       connected: !!user?.connectedServices?.soundcloud?.connected,
       username: user?.connectedServices?.soundcloud?.username,
+      expiresAt: user?.connectedServices?.soundcloud?.expiresAt,
     },
     tidal: {
       connected: !!user?.connectedServices?.tidal?.connected,
       username: user?.connectedServices?.tidal?.username,
+      expiresAt: user?.connectedServices?.tidal?.expiresAt,
     },
     lastfm: {
       connected: !!user?.connectedServices?.lastfm?.connected,

@@ -396,7 +396,7 @@ export function ProfileScreen() {
 
             <SonicAuraCard roomsHosted={profileUser?.sessionsHosted ?? 0} duelWinRate={profileUser?.duelWinRate ?? 0} topArtists={profileUser?.topArtists ?? []} />
 
-            <MonoText style={[textStyles.mono, styles.sectionLabel]}>LOCAL ROUTING</MonoText>
+            <View accessibilityRole="header"><MonoText style={[textStyles.mono, styles.sectionLabel]}>LOCAL ROUTING</MonoText></View>
             <View style={styles.panel}>
               <View style={styles.row}>
                 <View style={styles.rowCopy}>
@@ -521,7 +521,7 @@ export function ProfileScreen() {
             {/* ── Security Section ─────────────────────────── */}
             {(biometric.isAvailable || isSocialOnly) && (
               <>
-                <MonoText style={[textStyles.mono, styles.sectionLabel]}>SECURITY</MonoText>
+                <View accessibilityRole="header"><MonoText style={[textStyles.mono, styles.sectionLabel]}>SECURITY</MonoText></View>
                 <View style={styles.panel}>
                   {biometric.isAvailable && (
                     <View style={styles.row}>
@@ -614,7 +614,7 @@ export function ProfileScreen() {
               </>
             )}
 
-            <MonoText style={[textStyles.mono, styles.sectionLabel]}>PATCH CABLES</MonoText>
+            <View accessibilityRole="header"><MonoText style={[textStyles.mono, styles.sectionLabel]}>PATCH CABLES</MonoText></View>
             <View style={styles.panel}>
               {PROVIDERS.map((entry, index) => {
                 // Tier classification — only valid for music sources, not lastfm.
@@ -669,7 +669,7 @@ export function ProfileScreen() {
                 // user-hostile for assistive tech.
                 const baseA11y = isExpired
                   ? `Reconnect ${entry.label}`
-                  : `${connected ? 'Disconnect' : 'Connect'} ${entry.label}`;
+                  : `${connected ? 'Unpatch' : 'Patch'} ${entry.label}`;
                 const buttonA11y = isRestrictedBeta ? `${baseA11y}, restricted beta` : baseA11y;
 
                 return (
@@ -717,6 +717,7 @@ export function ProfileScreen() {
                           }}
                           accessibilityRole="button"
                           accessibilityLabel={buttonA11y}
+                          accessibilityState={{ disabled: blocked }}
                           style={({ pressed }) => [
                             styles.providerAction,
                             // Reconnect takes the neutral "default" style, not
@@ -744,7 +745,7 @@ export function ProfileScreen() {
               })}
             </View>
 
-            <MonoText style={[textStyles.mono, styles.sectionLabel]}>CONFIG BUS</MonoText>
+            <View accessibilityRole="header"><MonoText style={[textStyles.mono, styles.sectionLabel]}>CONFIG BUS</MonoText></View>
             <View style={styles.panel}>
               {([
                 ['COPY DIAGNOSTICS', diagnostics.isExpoGo ? 'EXPO GO RUNTIME' : diagnostics.appOwnership.toUpperCase(), () => void handleCopyDiagnostics(), 'copy-outline'] as const,
@@ -868,12 +869,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   manualStatusCopy: { fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.1 },
-  toggle: { width: 48, height: 28, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, justifyContent: 'center', paddingHorizontal: 2 },
+  toggle: { width: 48, height: 28, minHeight: 44, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, justifyContent: 'center', paddingHorizontal: 2 },
   toggleActive: { borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A' },
   toggleKnob: { width: 20, height: 20, backgroundColor: tacticalTokens.colors.textMuted },
   toggleKnobActive: { alignSelf: 'flex-end', backgroundColor: tacticalTokens.colors.ice },
   segmentRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  segment: { flex: 1, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },
+  segment: { flex: 1, borderWidth: 1, borderColor: tacticalTokens.colors.border, backgroundColor: tacticalTokens.colors.matte, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, minHeight: 44 },
   segmentActive: { borderColor: tacticalTokens.colors.white, backgroundColor: tacticalTokens.colors.white },
   segmentText: { fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.4 },
   segmentTextActive: { color: tacticalTokens.colors.void },
@@ -896,7 +897,7 @@ const styles = StyleSheet.create({
     fontFamily: tacticalTokens.fonts.monoBold,
     letterSpacing: 0.7,
   },
-  providerAction: { minWidth: 92, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
+  providerAction: { minWidth: 92, minHeight: 44, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
   providerActionDefault: { borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A' },
   providerActionDanger: { borderColor: tacticalTokens.colors.orange, backgroundColor: '#1A120D' },
   providerActionMuted: { borderColor: tacticalTokens.colors.borderGhost, backgroundColor: tacticalTokens.colors.matte },

@@ -247,6 +247,12 @@ describe('getConnectedSources — expiry-aware filtering', () => {
         expect(sources).toEqual([]);
     });
 
+    it('filters out SoundCloud when its token has already expired', () => {
+        const sources = getConnectedSources(servicesWithExpired('soundcloud'));
+        expect(sources).not.toContain('soundcloud');
+        expect(sources).toEqual([]);
+    });
+
     it('keeps non-expired providers while filtering expired ones', () => {
         // Tidal connected-and-fresh, Spotify connected-but-expired
         const cs: ConnectedServices = {
