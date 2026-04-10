@@ -1,4 +1,4 @@
-// app.config.js — Dynamic Expo config
+// app.config.js â€” Dynamic Expo config
 // Merges app.json with environment-aware overrides.
 // EAS Build injects APP_ENV at build time via eas.json env blocks.
 
