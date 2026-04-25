@@ -25,6 +25,7 @@ import { getAuthDiagnostics, consumeAppleWebAuthState } from '../services/authDi
 import { showToast } from '../components/ui';
 import { useBiometric } from '../hooks/useBiometric';
 import type { BiometricState } from '../hooks/useBiometric';
+import { handshakeBus } from '../services/handshake/handshakeBus';
 
 WebBrowser.maybeCompleteAuthSession();
 const BYPASS_AUTH = (process.env.EXPO_PUBLIC_BYPASS_AUTH || 'false') === 'true';
@@ -293,6 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         });
         showToast('Spotify patched', 'success');
+        handshakeBus.fire('spotify');
       }).catch(err => {
         console.error('Failed to connect Spotify on backend:', err);
         showToast(friendlyAuthError('Spotify', (err as Error)?.message), 'error');
@@ -318,6 +320,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { user } = await authApi.me();
         dispatch({ type: 'SET_USER', payload: { user, token: state.token! } });
         showToast('Tidal patched', 'success');
+        handshakeBus.fire('tidal');
       }).catch(err => {
         console.error('Failed to connect Tidal on backend:', err);
         showToast(friendlyAuthError('Tidal', (err as Error)?.message), 'error');
@@ -349,6 +352,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { user } = await authApi.me();
       dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
       showToast('Last.fm patched', 'success');
+      handshakeBus.fire('lastfm');
     } catch (err) {
       console.error('Failed to connect Last.fm:', err);
       showToast(friendlyProviderError('Last.fm', (err as Error)?.message), 'error');
@@ -372,6 +376,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { user } = await authApi.me();
         dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
         showToast('SoundCloud patched', 'success');
+        handshakeBus.fire('soundcloud');
       } catch (err) {
         console.error('Failed to refresh user after SoundCloud callback:', err);
         showToast('SoundCloud callback returned, but account refresh failed.', 'error');
@@ -452,6 +457,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { user } = await authApi.me();
       dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
       showToast('Apple Music patched', 'success');
+      handshakeBus.fire('appleMusic');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to connect Apple Music';
       showToast(message, 'error');

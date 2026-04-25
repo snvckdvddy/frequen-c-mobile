@@ -18,6 +18,7 @@ import { ToastProvider } from './src/components/ui';
 import { useDesignFonts } from './src/design/loadFonts';
 
 import { GlobalSessionRoomProvider } from './src/contexts/GlobalSessionRoomContext';
+import { HardwareHandshakeProvider } from './src/components/effects/HardwareHandshakeProvider';
 
 export default function App() {
   const [fontsLoaded, fontError] = useDesignFonts();
@@ -41,6 +42,13 @@ export default function App() {
                 <ThemeProvider>
                   <AppNavigator />
                   <ToastProvider />
+                  {/*
+                   * HardwareHandshakeProvider mounts a fullscreen Modal
+                   * overlay that fires on successful provider connect. The
+                   * overlay is render-as-needed (null when idle), so the
+                   * cost of mounting is negligible.
+                   */}
+                  <HardwareHandshakeProvider />
                 </ThemeProvider>
               </FavoritesProvider>
             </GlobalSessionRoomProvider>
