@@ -49,23 +49,23 @@ import Svg, { Circle } from 'react-native-svg';
 import { palette, withAlpha } from '../../design/tokens/materials';
 import { fontFamily } from '../../design/tokens/typography';
 import type { HandshakeSource } from '../../services/handshake/handshakeBus';
+import { SOURCE_TIER, type SourceTier } from '../../services/adapters/musicServiceAdapter';
 
 // ─── Tier mapping ─────────────────────────────────────────────
-// Mirrors `SOURCE_TIER` in musicServiceAdapter.ts but extends it with
-// `lastfm` (which isn't a TrackSource so isn't in the canonical map).
-// Keep these in sync if the canonical tier map ever changes.
+// Music sources pull their tier from the canonical `SOURCE_TIER` so this
+// component auto-tracks any future tier rebalancing without a comment-based
+// "keep in sync" contract. Last.fm is handled separately because it's
+// metadata-only (not a TrackSource) and isn't in the canonical map.
 
-type Tier = 1 | 2 | 3;
-
-const SOURCE_TO_TIER: Record<HandshakeSource, Tier> = {
-  appleMusic: 1,
-  soundcloud: 1,
-  tidal: 2,
-  lastfm: 2,
-  spotify: 3,
+const SOURCE_TO_TIER: Record<HandshakeSource, SourceTier> = {
+  spotify: SOURCE_TIER.spotify,
+  soundcloud: SOURCE_TIER.soundcloud,
+  tidal: SOURCE_TIER.tidal,
+  appleMusic: SOURCE_TIER.appleMusic,
+  lastfm: 2, // Tier 2 — premium metadata source
 };
 
-const TIER_PALETTE: Record<Tier, { primary: string; glow: string }> = {
+const TIER_PALETTE: Record<SourceTier, { primary: string; glow: string }> = {
   1: { primary: palette.green, glow: withAlpha(palette.green, 0.3) },
   2: { primary: palette.ice, glow: palette.iceGlow },
   3: { primary: palette.orange, glow: palette.orangeGlow },
@@ -100,6 +100,11 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
   // play() always sees the freshest value without triggering re-renders).
   const reduceMotionRef = useRef(false);
 
+  // Safety timeout that hides the overlay even if a Reanimated worklet
+  // fails to deliver its completion callback. Belt-and-suspenders for
+  // rare JS-thread pause/resume edge cases on Android.
+  const safetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const overlayOpacity = useSharedValue(0);
   const filamentOpacity = useSharedValue(0);
   const meterFill = useSharedValue(0);
@@ -116,6 +121,11 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
     return () => {
       mounted = false;
       sub.remove();
+      // Defensive cleanup — clear pending safety timeout on unmount.
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current);
+        safetyTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -123,7 +133,18 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
     ref,
     () => ({
       play: (source: HandshakeSource) => {
-        // Reset all animated values to base state. Worklet-safe assignment.
+        // Cancel the previous run's safety timeout if any. The Reanimated
+        // values themselves are reset by reassignment below — Reanimated 3
+        // cancels in-flight animations when a SharedValue is reassigned, so
+        // the prior run's `withTiming` completion callback receives done=false
+        // and never calls runOnJS(finish). This second `play()` call's finish
+        // is the sole owner of the overlay-hide transition from this point on.
+        if (safetyTimeoutRef.current) {
+          clearTimeout(safetyTimeoutRef.current);
+          safetyTimeoutRef.current = null;
+        }
+
+        // Reset all animated values to base state.
         overlayOpacity.value = 0;
         filamentOpacity.value = 0;
         meterFill.value = 0;
@@ -131,7 +152,13 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
 
         setActiveSource(source);
 
-        const finish = () => setActiveSource(null);
+        const finish = () => {
+          if (safetyTimeoutRef.current) {
+            clearTimeout(safetyTimeoutRef.current);
+            safetyTimeoutRef.current = null;
+          }
+          setActiveSource(null);
+        };
 
         if (reduceMotionRef.current) {
           // Reduced-motion path: snap to "ONLINE" state, hold 1.5s, fade out.
@@ -147,6 +174,9 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
               if (done) runOnJS(finish)();
             })
           );
+          // Safety net for the reduced-motion path. 1500ms hold + 300ms fade
+          // = 1800ms; pad to 2300ms.
+          safetyTimeoutRef.current = setTimeout(finish, 2300);
           return;
         }
 
@@ -178,17 +208,22 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
           withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) })
         );
 
-        // Phase 5 (2800-4000ms): hold + fade out + finish
+        // Phase 5 (2800-4000ms): hold 800ms, then fade out 400ms, then finish.
+        // The hold is expressed as `withDelay(800, ...)` rather than a
+        // 1.0→1.0 tween — same outcome, but self-documenting (no future
+        // reader will wonder if the same-value tween was intentional).
         overlayOpacity.value = withDelay(
-          2800,
-          withSequence(
-            withTiming(1, { duration: 800 }),
-            withTiming(0, { duration: 400, easing: Easing.in(Easing.quad) }, (done) => {
-              'worklet';
-              if (done) runOnJS(finish)();
-            })
-          )
+          2800 + 800,
+          withTiming(0, { duration: 400, easing: Easing.in(Easing.quad) }, (done) => {
+            'worklet';
+            if (done) runOnJS(finish)();
+          })
         );
+
+        // Safety net: if the worklet completion never delivers (rare,
+        // Android JS-pause edge case), force-hide at total budget + 500ms.
+        // finish() is idempotent so a double-fire is harmless.
+        safetyTimeoutRef.current = setTimeout(finish, 4500);
       },
     }),
     [overlayOpacity, filamentOpacity, meterFill, labelOpacity]
@@ -235,7 +270,10 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
               <Circle cx={60} cy={60} r={42} fill={tierColors.glow} />
               <Circle cx={60} cy={60} r={26} fill={tierColors.primary} fillOpacity={0.45} />
               <Circle cx={60} cy={60} r={14} fill={tierColors.primary} />
-              <Circle cx={60} cy={60} r={5} fill={palette.frost} />
+              {/* `palette.white` (#E8E6F0) used here as a bright neutral
+                  highlight, not as a text color. `palette.frost` was avoided
+                  to keep text-hierarchy tokens semantically clean. */}
+              <Circle cx={60} cy={60} r={5} fill={palette.white} />
             </Svg>
           </Animated.View>
 
