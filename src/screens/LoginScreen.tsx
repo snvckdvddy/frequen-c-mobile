@@ -347,7 +347,10 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
                 </Pressable>
               </View>
 
-              <MonoText style={[styles.mono, styles.buildTag]}>DESN 374-040</MonoText>
+              {/* Build/version tag — left blank intentionally. The previous
+                  "DESN 374-040" course code signaled "this is a class
+                  project" to users in production. Wire to a real version
+                  string (expo-application, app.json) when ready. */}
             </ScrollView>
           </View>
         </KeyboardAvoidingView>

@@ -264,8 +264,13 @@ export function HomeScreen({
       setMyRooms(sessions);
       setError(null);
     } catch (err) {
+      // Shown to the user when /api/sessions/mine fails. Old copy was
+      // "ENTRY BUS OFFLINE // USING LOCAL SHELL" — accurate to the
+      // module/system aesthetic but jargon-walled to a confused user.
+      // The retained terseness keeps the LED-style banner; the words
+      // are the human meaning.
       setMyRooms([]);
-      setError('ENTRY BUS OFFLINE // USING LOCAL SHELL');
+      setError('OFFLINE · SHOWING CACHED ROOMS');
     }
   }, []);
 

@@ -40,12 +40,18 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
 
   const validate = () => {
     const next: Record<string, string> = {};
+    // `else if` chains so the empty-input message isn't immediately
+    // overwritten by the format-check message (e.g., empty email also
+    // fails the @-check, but "Email required" is the more useful error).
     if (!username.trim()) next.username = 'Pick a handle';
-    if (username.trim().length < 3) next.username = 'At least 3 characters';
+    else if (username.trim().length < 3) next.username = 'At least 3 characters';
+
     if (!email.trim()) next.email = 'Email required';
-    if (!email.includes('@')) next.email = 'Invalid email';
+    else if (!email.includes('@')) next.email = 'Invalid email';
+
     if (!password) next.password = 'Password required';
-    if (password.length < 6) next.password = 'At least 6 characters';
+    else if (password.length < 6) next.password = 'At least 6 characters';
+
     if (password !== confirmPassword) next.confirmPassword = "Signals don't match";
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -183,11 +189,16 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
               <View style={styles.switchRow}>
                 <MonoText style={[styles.mono, styles.switchCopy]}>ALREADY PATCHED IN?</MonoText>
                 <Pressable onPress={onSwitchToLogin} accessibilityRole="button" accessibilityLabel="Switch to login" style={({ pressed }) => [pressed && styles.pressed]}>
-                  <MonoText style={[styles.monoBold, styles.switchAction]}>RECONNECT</MonoText>
+                  {/* Action verb intentionally matches LoginScreen's primary
+                      CTA ("PATCH IN") — using "RECONNECT" here meant the
+                      user tapped one verb and landed on a screen showing
+                      a different verb for the same action. */}
+                  <MonoText style={[styles.monoBold, styles.switchAction]}>PATCH IN</MonoText>
                 </Pressable>
               </View>
 
-              <MonoText style={[styles.mono, styles.buildTag]}>DESN 374-040</MonoText>
+              {/* Build/version tag — left blank intentionally. See LoginScreen
+                  for context on why "DESN 374-040" was removed. */}
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
