@@ -188,10 +188,17 @@ export function ProfileScreen() {
       // Need the current token to store behind biometric gate
       const token = await getStoredToken();
       if (!token) return;
-      const success = await biometric.enableBiometric(token);
-      if (success) {
+      const result = await biometric.enableBiometric(token);
+      if (result.ok) {
         notifySuccess();
         showToast('Biometric unlock enabled.', 'success', '!');
+      } else if (result.reason === 'error') {
+        // System error (e.g., biometric not enrolled, hardware lockout, secure
+        // store write failure). Cancellation stays silent — the user just
+        // chose not to enable. Without this branch a real error left the
+        // user staring at an unchanged toggle wondering if their tap registered.
+        notifyError();
+        showToast('Couldn\'t enable biometric unlock. Try again.', 'error');
       }
     }
   }, [biometric.isEnabled, biometric.disableBiometric, biometric.enableBiometric]);

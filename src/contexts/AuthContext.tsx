@@ -24,7 +24,7 @@ import { useAuthRequest, ResponseType } from 'expo-auth-session';
 import { getAuthDiagnostics, consumeAppleWebAuthState } from '../services/authDiagnostics';
 import { showToast } from '../components/ui';
 import { useBiometric } from '../hooks/useBiometric';
-import type { BiometricState } from '../hooks/useBiometric';
+import type { BiometricState, EnableBiometricResult } from '../hooks/useBiometric';
 import { handshakeBus } from '../services/handshake/handshakeBus';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -95,7 +95,7 @@ interface AuthContextValue extends AuthState {
   disconnectService: (provider: DisconnectableProvider) => Promise<void>;
   /** Biometric state + controls exposed so UI can show toggles / offer opt-in. */
   biometric: BiometricState & {
-    enableBiometric: (token: string) => Promise<boolean>;
+    enableBiometric: (token: string) => Promise<EnableBiometricResult>;
     disableBiometric: () => Promise<void>;
     markOffered: () => Promise<void>;
   };
@@ -271,7 +271,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const redirectUri = request?.redirectUri;
 
       if (!codeVerifier || !redirectUri) {
+        // Auth flow state was lost mid-OAuth (app reload, deep-link race, etc).
+        // Without a toast the user gets a "did anything happen?" silence —
+        // they came back from Spotify expecting either success or a clear
+        // failure and a guided retry.
         console.error('Missing codeVerifier or redirectUri for PKCE exchange');
+        showToast('Spotify auth state was lost. Tap PATCH to try again.', 'error');
         return;
       }
 

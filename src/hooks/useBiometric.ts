@@ -35,9 +35,19 @@ export interface BiometricState {
   isLoading: boolean;
 }
 
+/**
+ * Result of `enableBiometric`. Distinguishes the user-cancelled path
+ * (silent — they chose) from a real system error (caller should show a
+ * "couldn't enable, try again" toast). A bare `boolean` was lossy: the
+ * caller couldn't tell whether to surface a problem or stay quiet.
+ */
+export type EnableBiometricResult =
+  | { ok: true }
+  | { ok: false; reason: 'cancelled' | 'error'; detail?: string };
+
 export interface UseBiometricReturn extends BiometricState {
   /** Enable biometric and store the current JWT behind OS auth. */
-  enableBiometric: (token: string) => Promise<boolean>;
+  enableBiometric: (token: string) => Promise<EnableBiometricResult>;
   /** Disable biometric and wipe the stored token. */
   disableBiometric: () => Promise<void>;
   /** Mark that the user was offered biometric (persist so we don't re-ask). */
@@ -94,7 +104,7 @@ export function useBiometric(): UseBiometricReturn {
   }, []);
 
   // ── Enable biometric ─────────────────────────────────────
-  const enableBiometric = useCallback(async (token: string): Promise<boolean> => {
+  const enableBiometric = useCallback(async (token: string): Promise<EnableBiometricResult> => {
     try {
       // Explicit "confirm intent" prompt before storing the token.
       // On iOS this is the only biometric gate (keychain write doesn't re-prompt).
@@ -106,7 +116,20 @@ export function useBiometric(): UseBiometricReturn {
         disableDeviceFallback: false,
       });
 
-      if (!result.success) return false;
+      if (!result.success) {
+        // LocalAuthentication's `error` field on a failed result distinguishes
+        // a user cancellation ('user_cancel', 'system_cancel', 'app_cancel')
+        // from a genuine failure ('lockout', 'not_enrolled', 'unknown', etc.).
+        // Caller should stay silent for cancels and toast for errors.
+        const errorCode = (result as { error?: string }).error;
+        const wasCancel =
+          errorCode === 'user_cancel' ||
+          errorCode === 'system_cancel' ||
+          errorCode === 'app_cancel';
+        return wasCancel
+          ? { ok: false, reason: 'cancelled' }
+          : { ok: false, reason: 'error', detail: errorCode };
+      }
 
       // Store token behind biometric gate
       await SecureStore.setItemAsync(BIOMETRIC_TOKEN_KEY, token, {
@@ -123,10 +146,14 @@ export function useBiometric(): UseBiometricReturn {
         hasBeenOffered: true,
       }));
 
-      return true;
+      return { ok: true };
     } catch (err) {
       console.warn('[useBiometric] enableBiometric error:', err);
-      return false;
+      return {
+        ok: false,
+        reason: 'error',
+        detail: err instanceof Error ? err.message : String(err),
+      };
     }
   }, []);
 
