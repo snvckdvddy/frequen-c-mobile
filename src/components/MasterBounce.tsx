@@ -391,13 +391,12 @@ export function MasterBounce({
             />
           </View>
 
-          {/* Footer / build tag */}
+          {/* Footer / build tag — second DESN 374-040 line removed for the
+              same reason as Login + Register screens (course code visible
+              in production read as "class project, not real product"). */}
           <View style={styles.footer}>
             <Text variant="labelSmall" color={palette.slate} style={styles.buildTag}>
               FREQUEN-C // MASTER BOUNCE
-            </Text>
-            <Text variant="labelSmall" color={palette.slate} style={styles.buildTag}>
-              DESN 374-040
             </Text>
           </View>
         </ScrollView>
