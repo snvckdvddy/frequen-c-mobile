@@ -322,6 +322,22 @@ export function ProfileScreen() {
     providerUnavailable,
   ]);
 
+  // Wraps handleConnect with the per-button pending-state lifecycle:
+  // sets pendingProvider for instant visual feedback ("OPENING…" on the
+  // tapped button + disabled-style on its siblings), defers the actual
+  // launch to the next tick so React commits the pending render BEFORE
+  // the native browser-launch transition begins (~1-2s OS animation),
+  // and clears pending in .finally so the UI returns to a clean state
+  // regardless of OAuth outcome (success / error / cancel).
+  // Use this from button onPress handlers; do NOT call handleConnect
+  // directly from a button or you'll lose the pending-state UX.
+  const startConnect = useCallback((provider: DisconnectableProvider, label: string) => {
+    setPendingProvider(provider);
+    setTimeout(() => {
+      void handleConnect(provider, label).finally(() => setPendingProvider(null));
+    }, 0);
+  }, [handleConnect]);
+
   const confirmDisconnect = useCallback(async (provider: DisconnectableProvider, name: string) => {
     try {
       await disconnectService(provider);
@@ -504,17 +520,7 @@ export function ProfileScreen() {
                             // (UNPATCH → confirm → PATCH) for a one-tap reflow.
                             if (isExpired && entry.provider) {
                               tapMedium();
-                              setPendingProvider(entry.provider);
-                              // Defer the actual connect to the next tick so React
-                              // commits the pending state (and re-renders the button
-                              // as "OPENING…") BEFORE the native OS browser-launch
-                              // animation begins. Otherwise the tap-to-feedback gap
-                              // is the full ~1-2s OS transition window.
-                              const provider = entry.provider;
-                              const label = entry.label;
-                              setTimeout(() => {
-                                void handleConnect(provider, label).finally(() => setPendingProvider(null));
-                              }, 0);
+                              startConnect(entry.provider, entry.label);
                               return;
                             }
                             if (connected && entry.provider) {
@@ -524,12 +530,7 @@ export function ProfileScreen() {
                             }
                             if (entry.provider) {
                               tapMedium();
-                              setPendingProvider(entry.provider);
-                              const provider = entry.provider;
-                              const label = entry.label;
-                              setTimeout(() => {
-                                void handleConnect(provider, label).finally(() => setPendingProvider(null));
-                              }, 0);
+                              startConnect(entry.provider, entry.label);
                             }
                           }}
                           // Disable the *other* PATCH/UNPATCH buttons while one is
