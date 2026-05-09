@@ -8,8 +8,9 @@
  * Replaces the previous 3-tab jargon layout (Patch Bay | Flight Cases | Profile).
  */
 
-import React, { useEffect, useRef } from 'react';
-import { NavigationContainer, LinkingOptions, NavigationContainerRef, useNavigation, getStateFromPath as defaultGetStateFromPath } from '@react-navigation/native';
+import React, { useEffect } from 'react';
+import { NavigationContainer, LinkingOptions, useNavigation, getStateFromPath as defaultGetStateFromPath } from '@react-navigation/native';
+import { navigationRef } from './navigationRef';
 import { createNativeStackNavigator, type NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -54,7 +55,7 @@ type AuthStackParamList = {
   Register: undefined;
 };
 
-type MainStackParamList = {
+export type MainStackParamList = {
   WelcomeBoot: undefined;
   FirstSourcePicker: undefined;
   Tabs: undefined;
@@ -512,7 +513,6 @@ const linking: LinkingOptions<MainStackParamList> = {
 
 export function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
-  const navigationRef = useRef<NavigationContainerRef<MainStackParamList>>(null);
 
   // Wire notification tap → navigate to session room
   useEffect(() => {
@@ -520,7 +520,7 @@ export function AppNavigator() {
 
     // Handle notification taps while app is running
     const unsubscribe = onNotificationResponse((sessionId) => {
-      navigationRef.current?.navigate('SessionRoom', { sessionId });
+      navigationRef.navigate('SessionRoom', { sessionId });
     });
 
     // Handle cold-start from notification tap
@@ -528,7 +528,7 @@ export function AppNavigator() {
       if (sessionId) {
         // Small delay to let navigator mount
         setTimeout(() => {
-          navigationRef.current?.navigate('SessionRoom', { sessionId });
+          navigationRef.navigate('SessionRoom', { sessionId });
         }, 500);
       }
     }).catch(() => {});
