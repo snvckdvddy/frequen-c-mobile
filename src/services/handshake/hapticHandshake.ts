@@ -87,6 +87,10 @@ const LASTFM_TIER: SourceTier = 2;
 export async function fireHapticHandshake(source: HandshakeSource): Promise<void> {
   if (Platform.OS !== 'ios') return;
 
+  // HandshakeSource is intentionally narrower than TrackSource — `itunes` and
+  // `youtube` are preview sources that don't go through the connect/handshake
+  // flow. If HandshakeSource is ever expanded to include them, add their tier
+  // mappings to TIER_PATTERNS to avoid silent no-ops on pattern() lookup.
   const tier: SourceTier = source === 'lastfm' ? LASTFM_TIER : SOURCE_TIER[source];
   const pattern = TIER_PATTERNS[tier];
 

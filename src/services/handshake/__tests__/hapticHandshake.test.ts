@@ -17,12 +17,17 @@ import { fireHapticHandshake } from '../hapticHandshake';
 // ─── Mocks ────────────────────────────────────────────────────
 
 // Break the expo-device ESM chain. Only SOURCE_TIER is used by hapticHandshake.
+// IMPORTANT: keep these values in sync with musicServiceAdapter.ts SOURCE_TIER.
+// `itunes` and `youtube` are included to match the full Record<TrackSource, SourceTier>
+// shape — omitting them would leave undefined lookups that silently swallow haptics.
 jest.mock('../../adapters/musicServiceAdapter', () => ({
   SOURCE_TIER: {
     spotify: 3,
     soundcloud: 1,
     tidal: 2,
     appleMusic: 1,
+    itunes: 1,   // preview-only source; Tier 1 — matches musicServiceAdapter.ts
+    youtube: 1,  // preview-only source; Tier 1 — matches musicServiceAdapter.ts
   },
 }));
 
