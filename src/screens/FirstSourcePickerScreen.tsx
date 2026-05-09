@@ -75,10 +75,11 @@ function MonoText(props: { children: React.ReactNode; style?: StyleProp<TextStyl
 // connecting a service without a subscription gives at best 30s
 // previews, which is worse than not connecting it at all.
 //
-// The underlying SOURCE_TIER mapping in musicServiceAdapter.ts is
-// unchanged — those tiers drive cross-match resolution priority
-// and other product logic. This refactor only changes how the
-// tiers are *presented* to users on the picker.
+// The underlying SOURCE_META `access` field in musicServiceAdapter.ts
+// drives both this picker's labels AND the Hardware Handshake
+// color/haptic, so what users see here matches what fires on connect.
+// (The orthogonal `crossMatchPriority` field is resolver-only and
+// doesn't surface to users.)
 
 // Picker-local narrowing of the canonical AccessClass — the picker only
 // renders connectable streaming sources, so 'metadata-only' (used for

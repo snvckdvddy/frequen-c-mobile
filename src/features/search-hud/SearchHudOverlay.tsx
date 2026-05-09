@@ -408,10 +408,10 @@ export function SearchHudOverlay({
                   {PROVIDER_ORDER.map((key) => {
                     const meta = PROVIDER_META[key];
                     const active = sources[key];
-                    // Tier 3 sources (currently just Spotify) carry a "BETA" chip
-                    // so the Restricted Beta status reads up front, not after a
-                    // failed search. Same single source of truth as the Library
-                    // tab pills — getTierForSource from musicServiceAdapter.
+                    // Restricted-beta sources (currently just Spotify) carry a
+                    // "BETA" chip so the access status reads up front, not after
+                    // a failed search. Same single source of truth as the Library
+                    // tab pills — getAccessForSource from musicServiceAdapter.
                     const isRestrictedBeta = getAccessForSource(key) === 'subscription-beta';
                     return (
                       <Pressable

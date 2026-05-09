@@ -39,6 +39,9 @@ client_secret*.json
 # typescript
 *.tsbuildinfo
 
+# tooling artifacts
+.serena/
+
 # generated native folders
 /ios
 /android

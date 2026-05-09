@@ -46,7 +46,7 @@ const WALK_ON_OPTIONS = ['808 KICK', 'VINYL CRACKLE', 'SYNTH STAB', 'DOOR CHIME'
 
 // Type guard: which DisconnectableProvider values are also valid TrackSource
 // values (i.e. actual playback sources, not scrobbling/social services)?
-// Used by the patch bay row to safely call getTierForSource — Last.fm is the
+// Used by the patch bay row to safely call getAccessForSource — Last.fm is the
 // outlier we exclude here.
 //
 // The narrowed type uses Extract<> to compute the intersection of the two
