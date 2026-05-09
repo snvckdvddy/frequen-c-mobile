@@ -20,7 +20,6 @@ import { useDesignFonts } from './src/design/loadFonts';
 import { GlobalSessionRoomProvider } from './src/contexts/GlobalSessionRoomContext';
 import { HardwareHandshakeProvider } from './src/components/effects/HardwareHandshakeProvider';
 import { HapticHandshakeProvider } from './src/components/effects/HapticHandshakeProvider';
-import { OnConnectToastProvider } from './src/components/effects/OnConnectToastProvider';
 
 export default function App() {
   const [fontsLoaded, fontError] = useDesignFonts();
@@ -53,16 +52,9 @@ export default function App() {
                    * HapticHandshakeProvider subscribes to the same bus and
                    * fires per-source haptic textures (Section 5b). iOS-only;
                    * no-ops on Android. No rendered output.
-                   *
-                   * OnConnectToastProvider subscribes to the same bus and
-                   * fires a delayed discovery toast pointing users to
-                   * Profile › PATCH CABLES (where they connect more
-                   * services). Delay lets the handshake modal own the
-                   * foreground first. No rendered output.
                    */}
                   <HardwareHandshakeProvider />
                   <HapticHandshakeProvider />
-                  <OnConnectToastProvider />
                 </ThemeProvider>
               </FavoritesProvider>
             </GlobalSessionRoomProvider>
