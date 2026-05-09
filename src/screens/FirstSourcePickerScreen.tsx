@@ -203,7 +203,7 @@ export function FirstSourcePickerScreen({ onSelected, onSkipped }: FirstSourcePi
                 <MonoText style={styles.title}>PICK YOUR FIRST SOURCE</MonoText>
               </View>
               <MonoText style={styles.subtitle}>
-                Connect a music service to queue tracks. You can add more later.
+                Start with one service. Add more later in Profile › PATCH CABLES.
               </MonoText>
             </View>
 
