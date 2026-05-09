@@ -140,6 +140,15 @@ export function ProfileScreen() {
   const [noiseGate, setNoiseGate] = useState<NoiseGate>('medium');
   const [walkOnTransient, setWalkOnTransient] = useState<(typeof WALK_ON_OPTIONS)[number]>('808 KICK');
 
+  // Tracks which provider's connect flow is mid-launch. Set on PATCH-button
+  // tap, cleared when the underlying handleConnect promise resolves. Used to
+  // (a) give the tapped button instant visual feedback ("OPENING…") instead
+  // of staring at a stale "PATCH" while the OS animates the OAuth browser
+  // open (~1-2s of native transition during which JS isn't blocked but the
+  // screen feels frozen), and (b) disable other PATCH/UNPATCH buttons in
+  // the same row group so accidental taps mid-launch don't pile up.
+  const [pendingProvider, setPendingProvider] = useState<DisconnectableProvider | null>(null);
+
   // ── Security section state ───────────────────────────────
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -485,6 +494,9 @@ export function ProfileScreen() {
                       ) : (
                         <Pressable
                           onPress={() => {
+                            // Guard: a connect flow is already mid-launch — ignore
+                            // re-taps so we don't pile up multiple OAuth opens.
+                            if (pendingProvider) return;
                             // isExpired branch must come BEFORE the `connected`
                             // branch — an expired token still has connected===true,
                             // so the old order would route to the Disconnect
@@ -492,7 +504,17 @@ export function ProfileScreen() {
                             // (UNPATCH → confirm → PATCH) for a one-tap reflow.
                             if (isExpired && entry.provider) {
                               tapMedium();
-                              void handleConnect(entry.provider, entry.label);
+                              setPendingProvider(entry.provider);
+                              // Defer the actual connect to the next tick so React
+                              // commits the pending state (and re-renders the button
+                              // as "OPENING…") BEFORE the native OS browser-launch
+                              // animation begins. Otherwise the tap-to-feedback gap
+                              // is the full ~1-2s OS transition window.
+                              const provider = entry.provider;
+                              const label = entry.label;
+                              setTimeout(() => {
+                                void handleConnect(provider, label).finally(() => setPendingProvider(null));
+                              }, 0);
                               return;
                             }
                             if (connected && entry.provider) {
@@ -500,11 +522,27 @@ export function ProfileScreen() {
                               setPrompt({ kind: 'disconnect', provider: entry.provider, name: entry.label });
                               return;
                             }
-                            if (entry.provider) void handleConnect(entry.provider, entry.label);
+                            if (entry.provider) {
+                              tapMedium();
+                              setPendingProvider(entry.provider);
+                              const provider = entry.provider;
+                              const label = entry.label;
+                              setTimeout(() => {
+                                void handleConnect(provider, label).finally(() => setPendingProvider(null));
+                              }, 0);
+                            }
                           }}
+                          // Disable the *other* PATCH/UNPATCH buttons while one is
+                          // mid-launch. The pending button itself stays interactive
+                          // (the onPress guard catches re-taps) so its pressed style
+                          // still gives tactile feedback.
+                          disabled={pendingProvider !== null && pendingProvider !== entry.provider}
                           accessibilityRole="button"
                           accessibilityLabel={buttonA11y}
-                          accessibilityState={{ disabled: blocked }}
+                          accessibilityState={{
+                            disabled: blocked || (pendingProvider !== null && pendingProvider !== entry.provider),
+                            busy: pendingProvider === entry.provider,
+                          }}
                           style={({ pressed }) => [
                             styles.providerAction,
                             // Reconnect takes the neutral "default" style, not
@@ -519,10 +557,13 @@ export function ProfileScreen() {
                                   ? styles.providerActionMuted
                                   : styles.providerActionDefault,
                             pressed && styles.pressed,
+                            pendingProvider !== null && pendingProvider !== entry.provider && styles.providerActionMuted,
                           ]}
                         >
                           <MonoText style={[textStyles.monoBold, styles.providerActionText]}>
-                            {isExpired ? 'RECONNECT' : connected ? 'UNPATCH' : 'PATCH'}
+                            {pendingProvider === entry.provider
+                              ? 'OPENING…'
+                              : isExpired ? 'RECONNECT' : connected ? 'UNPATCH' : 'PATCH'}
                           </MonoText>
                         </Pressable>
                       )}
