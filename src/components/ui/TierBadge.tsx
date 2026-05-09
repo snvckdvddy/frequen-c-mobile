@@ -34,7 +34,7 @@ import {
   type StyleProp,
 } from 'react-native';
 import { palette, withAlpha } from '../../design/tokens/materials';
-import { getTierForSource } from '../../services/adapters/musicServiceAdapter';
+import { getAccessForSource } from '../../services/adapters/musicServiceAdapter';
 import type { TrackSource } from '../../types';
 
 // Note: this primitive uses react-native `Text` directly rather than the
@@ -81,9 +81,10 @@ export function TierBadge({
   style,
   textStyle,
 }: TierBadgeProps) {
-  // Single source of truth — defer to the tier model. If a future change
-  // promotes another source to Tier 3, the chip moves with it automatically.
-  if (getTierForSource(source) !== 3) return null;
+  // Single source of truth — defer to the access-class model. If a future
+  // change adds another beta-restricted source, the chip moves with it
+  // automatically.
+  if (getAccessForSource(source) !== 'subscription-beta') return null;
 
   return (
     <View style={[styles.badge, size === 'md' && styles.badgeMd, style]}>

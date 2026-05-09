@@ -45,6 +45,7 @@ import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { palette } from '../design/tokens/materials';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
 import type { HandshakeSource } from '../services/handshake/handshakeBus';
+import type { AccessClass as CanonicalAccessClass } from '../services/adapters/musicServiceAdapter';
 
 interface FirstSourcePickerScreenProps {
   /** Called after a tile is tapped — AppNavigator handles the navigate-to-Tabs. */
@@ -79,7 +80,12 @@ function MonoText(props: { children: React.ReactNode; style?: StyleProp<TextStyl
 // and other product logic. This refactor only changes how the
 // tiers are *presented* to users on the picker.
 
-type AccessClass = 'subscription' | 'subscription-beta';
+// Picker-local narrowing of the canonical AccessClass — the picker only
+// renders connectable streaming sources, so 'metadata-only' (used for
+// itunes/youtube) is excluded by intent. Importing the canonical type
+// keeps us in lockstep when new access classes are added (e.g. 'local'
+// in Phase B for the MY LIBRARY tile).
+type AccessClass = Extract<CanonicalAccessClass, 'subscription' | 'subscription-beta'>;
 
 interface ProviderTile {
   source: HandshakeSource;

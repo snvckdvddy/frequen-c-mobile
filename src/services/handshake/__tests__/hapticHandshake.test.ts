@@ -1,14 +1,22 @@
 /**
  * Tests for fireHapticHandshake (Section 5b — Haptic Patch Bay)
  *
- * All tests mock expo-haptics, react-native's Platform, and musicServiceAdapter
- * so we validate the pattern logic (impact style sequence, delays) without
- * requiring a real device, native module, or expo-device's ESM import chain.
+ * Updated 2026-05-09 alongside the SOURCE_TIER → SOURCE_META refactor:
+ * the haptic patterns are now keyed per-HandshakeSource directly (named
+ * by feel, not tier number) and the implementation no longer imports
+ * from musicServiceAdapter. The pattern-to-source mapping reflects the
+ * new access-class story:
  *
- * Pattern: musicServiceAdapter transitively imports expo-device (via
- * fetchClient → config), which Jest's ts-jest preset can't transform.
- * We mock it with just the SOURCE_TIER constant we need. See
- * `musicServiceAdapter.test.ts` for the same technique.
+ *   • Subscription streaming (Apple Music / SoundCloud / Tidal):
+ *     "heavy-mechanical" — Heavy → 120ms → Medium (2 impacts)
+ *   • Subscription + beta allowlist (Spotify):
+ *     "industrial-latch" — Medium → 80ms → Medium → 120ms → Heavy (3 impacts)
+ *   • Scrobble/metadata (Last.fm):
+ *     "smooth-electric" — single Heavy (1 impact)
+ *
+ * All tests mock expo-haptics and react-native's Platform so we validate
+ * the pattern logic (impact style sequence, delays) without requiring a
+ * real device or native module.
  */
 
 import * as Haptics from 'expo-haptics';
@@ -16,24 +24,9 @@ import { fireHapticHandshake } from '../hapticHandshake';
 
 // ─── Mocks ────────────────────────────────────────────────────
 
-// Break the expo-device ESM chain. Only SOURCE_TIER is used by hapticHandshake.
-// IMPORTANT: keep these values in sync with musicServiceAdapter.ts SOURCE_TIER.
-// `itunes` and `youtube` are included to match the full Record<TrackSource, SourceTier>
-// shape — omitting them would leave undefined lookups that silently swallow haptics.
-jest.mock('../../adapters/musicServiceAdapter', () => ({
-  SOURCE_TIER: {
-    spotify: 3,
-    soundcloud: 1,
-    tidal: 2,
-    appleMusic: 1,
-    itunes: 1,   // preview-only source; Tier 1 — matches musicServiceAdapter.ts
-    youtube: 1,  // preview-only source; Tier 1 — matches musicServiceAdapter.ts
-  },
-}));
-
 // Mock Platform.OS so tests can control the iOS/Android branch without
-// importing the real react-native (which uses ESM and can't be transformed
-// in this Jest config).
+// importing the real react-native (ESM, can't be transformed in this
+// Jest config).
 let mockPlatformOS: string = 'ios';
 
 jest.mock('react-native', () => ({
@@ -73,7 +66,7 @@ describe('iOS-only guard', () => {
   it('fires haptics on iOS', async () => {
     mockPlatformOS = 'ios';
     const promise = fireHapticHandshake('soundcloud');
-    jest.runAllTimers();
+    await jest.runAllTimersAsync();
     await promise;
     expect(impactAsync).toHaveBeenCalled();
   });
@@ -81,36 +74,36 @@ describe('iOS-only guard', () => {
   it('is a no-op on Android', async () => {
     mockPlatformOS = 'android';
     const promise = fireHapticHandshake('spotify');
-    jest.runAllTimers();
+    await jest.runAllTimersAsync();
     await promise;
     expect(impactAsync).not.toHaveBeenCalled();
   });
 });
 
-// ─── Tier patterns ────────────────────────────────────────────
+// ─── Subscription streaming — "heavy-mechanical" ──────────────
 
-describe('Tier 1 — smooth electric', () => {
-  it('soundcloud (Tier 1) fires exactly one Heavy impact', async () => {
-    const promise = fireHapticHandshake('soundcloud');
-    jest.runAllTimers();
-    await promise;
-
-    expect(impactAsync).toHaveBeenCalledTimes(1);
-    expect(impactAsync).toHaveBeenCalledWith(Haptics.ImpactFeedbackStyle.Heavy);
-  });
-
-  it('appleMusic (Tier 1) fires exactly one Heavy impact', async () => {
+describe('subscription streaming sources fire heavy-mechanical', () => {
+  it('appleMusic fires Heavy then Medium — two impacts', async () => {
     const promise = fireHapticHandshake('appleMusic');
-    jest.runAllTimers();
+    await jest.runAllTimersAsync();
     await promise;
 
-    expect(impactAsync).toHaveBeenCalledTimes(1);
-    expect(impactAsync).toHaveBeenCalledWith(Haptics.ImpactFeedbackStyle.Heavy);
+    expect(impactAsync).toHaveBeenCalledTimes(2);
+    expect(impactAsync).toHaveBeenNthCalledWith(1, Haptics.ImpactFeedbackStyle.Heavy);
+    expect(impactAsync).toHaveBeenNthCalledWith(2, Haptics.ImpactFeedbackStyle.Medium);
   });
-});
 
-describe('Tier 2 — heavy mechanical', () => {
-  it('tidal (Tier 2) fires Heavy then Medium — two impacts total', async () => {
+  it('soundcloud fires Heavy then Medium — two impacts', async () => {
+    const promise = fireHapticHandshake('soundcloud');
+    await jest.runAllTimersAsync();
+    await promise;
+
+    expect(impactAsync).toHaveBeenCalledTimes(2);
+    expect(impactAsync).toHaveBeenNthCalledWith(1, Haptics.ImpactFeedbackStyle.Heavy);
+    expect(impactAsync).toHaveBeenNthCalledWith(2, Haptics.ImpactFeedbackStyle.Medium);
+  });
+
+  it('tidal fires Heavy then Medium — two impacts', async () => {
     const promise = fireHapticHandshake('tidal');
     await jest.runAllTimersAsync();
     await promise;
@@ -119,20 +112,12 @@ describe('Tier 2 — heavy mechanical', () => {
     expect(impactAsync).toHaveBeenNthCalledWith(1, Haptics.ImpactFeedbackStyle.Heavy);
     expect(impactAsync).toHaveBeenNthCalledWith(2, Haptics.ImpactFeedbackStyle.Medium);
   });
-
-  it('lastfm (metadata Tier 2) fires Heavy then Medium', async () => {
-    const promise = fireHapticHandshake('lastfm');
-    await jest.runAllTimersAsync();
-    await promise;
-
-    expect(impactAsync).toHaveBeenCalledTimes(2);
-    expect(impactAsync).toHaveBeenNthCalledWith(1, Haptics.ImpactFeedbackStyle.Heavy);
-    expect(impactAsync).toHaveBeenNthCalledWith(2, Haptics.ImpactFeedbackStyle.Medium);
-  });
 });
 
-describe('Tier 3 — industrial latch', () => {
-  it('spotify (Tier 3) fires Medium, Medium, Heavy — ascending weight', async () => {
+// ─── Subscription + beta — "industrial-latch" ─────────────────
+
+describe('spotify (subscription-beta) fires industrial-latch', () => {
+  it('fires Medium, Medium, Heavy — ascending weight, three impacts', async () => {
     const promise = fireHapticHandshake('spotify');
     await jest.runAllTimersAsync();
     await promise;
@@ -144,14 +129,27 @@ describe('Tier 3 — industrial latch', () => {
   });
 });
 
+// ─── Last.fm — "smooth-electric" ──────────────────────────────
+
+describe('lastfm (scrobble/metadata) fires smooth-electric', () => {
+  it('fires exactly one Heavy impact', async () => {
+    const promise = fireHapticHandshake('lastfm');
+    await jest.runAllTimersAsync();
+    await promise;
+
+    expect(impactAsync).toHaveBeenCalledTimes(1);
+    expect(impactAsync).toHaveBeenCalledWith(Haptics.ImpactFeedbackStyle.Heavy);
+  });
+});
+
 // ─── Error resilience ─────────────────────────────────────────
 
 describe('error resilience', () => {
   it('swallows expo-haptics errors and resolves cleanly', async () => {
     impactAsync.mockRejectedValueOnce(new Error('haptics unavailable'));
 
-    const promise = fireHapticHandshake('soundcloud');
-    jest.runAllTimers();
+    const promise = fireHapticHandshake('lastfm');
+    await jest.runAllTimersAsync();
 
     await expect(promise).resolves.toBeUndefined();
   });

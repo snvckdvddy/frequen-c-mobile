@@ -22,7 +22,7 @@ import TacticalGridBackground from '../session-v2/components/TacticalGridBackgro
 import { tacticalTokens } from '../session-v2/theme/tacticalTokens';
 import type { SearchHudSource } from '../../hooks/useSearch';
 import type { SearchDiagnostics, SearchProviderState } from '../../services/api';
-import { getTierForSource } from '../../services/adapters/musicServiceAdapter';
+import { getAccessForSource } from '../../services/adapters/musicServiceAdapter';
 import { TierBadge } from '@/components/ui';
 
 type SearchMode = 'database' | 'oracle';
@@ -412,7 +412,7 @@ export function SearchHudOverlay({
                     // so the Restricted Beta status reads up front, not after a
                     // failed search. Same single source of truth as the Library
                     // tab pills — getTierForSource from musicServiceAdapter.
-                    const isRestrictedBeta = getTierForSource(key) === 3;
+                    const isRestrictedBeta = getAccessForSource(key) === 'subscription-beta';
                     return (
                       <Pressable
                         key={key}

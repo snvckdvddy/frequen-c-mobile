@@ -49,26 +49,37 @@ import Svg, { Circle } from 'react-native-svg';
 import { palette, withAlpha } from '../../design/tokens/materials';
 import { fontFamily } from '../../design/tokens/typography';
 import type { HandshakeSource } from '../../services/handshake/handshakeBus';
-import { SOURCE_TIER, type SourceTier } from '../../services/adapters/musicServiceAdapter';
+import { getAccessForSource, type AccessClass } from '../../services/adapters/musicServiceAdapter';
 
-// ─── Tier mapping ─────────────────────────────────────────────
-// Music sources pull their tier from the canonical `SOURCE_TIER` so this
-// component auto-tracks any future tier rebalancing without a comment-based
-// "keep in sync" contract. Last.fm is handled separately because it's
-// metadata-only (not a TrackSource) and isn't in the canonical map.
+// ─── Access mapping ───────────────────────────────────────────
+// Color is keyed by the canonical `access` class so the handshake
+// stays in lockstep with the picker's honest labels. Tap an
+// "ice / SUBSCRIPTION" tile in the picker → see an ice handshake fire
+// when the OAuth resolves. No more visual discontinuity.
+//
+// Last.fm isn't a TrackSource (it's metadata/scrobbling, not a
+// streaming source), so it can't go through getAccessForSource.
+// It does have a connect flow, so we map it to 'subscription' for
+// the handshake — same color story as the streaming services.
 
-const SOURCE_TO_TIER: Record<HandshakeSource, SourceTier> = {
-  spotify: SOURCE_TIER.spotify,
-  soundcloud: SOURCE_TIER.soundcloud,
-  tidal: SOURCE_TIER.tidal,
-  appleMusic: SOURCE_TIER.appleMusic,
-  lastfm: 2, // Tier 2 — premium metadata source
+const SOURCE_TO_ACCESS: Record<HandshakeSource, AccessClass> = {
+  spotify: getAccessForSource('spotify'),
+  soundcloud: getAccessForSource('soundcloud'),
+  tidal: getAccessForSource('tidal'),
+  appleMusic: getAccessForSource('appleMusic'),
+  // Last.fm: not a TrackSource. Treat as subscription-class for the
+  // handshake color (it does require an account/login). If we add
+  // a 'social' or 'metadata' access class for it later, swap here.
+  lastfm: 'subscription',
 };
 
-const TIER_PALETTE: Record<SourceTier, { primary: string; glow: string }> = {
-  1: { primary: palette.green, glow: withAlpha(palette.green, 0.3) },
-  2: { primary: palette.ice, glow: palette.iceGlow },
-  3: { primary: palette.orange, glow: palette.orangeGlow },
+// Only the access classes that actually appear in HandshakeSource
+// need palette entries here. 'metadata-only' isn't included because
+// HandshakeSource excludes iTunes/YouTube (those don't have a
+// connect flow — they're preview-only and resolved automatically).
+const ACCESS_PALETTE: Record<'subscription' | 'subscription-beta', { primary: string; glow: string }> = {
+  subscription: { primary: palette.ice, glow: palette.iceGlow },
+  'subscription-beta': { primary: palette.orange, glow: palette.orangeGlow },
 };
 
 const SOURCE_LABEL: Record<HandshakeSource, string> = {
@@ -242,8 +253,10 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
     return null;
   }
 
-  const tier = SOURCE_TO_TIER[activeSource];
-  const tierColors = TIER_PALETTE[tier];
+  const access = SOURCE_TO_ACCESS[activeSource];
+  // Cast is safe — SOURCE_TO_ACCESS only ever produces classes covered
+  // by ACCESS_PALETTE (no HandshakeSource maps to 'metadata-only').
+  const accessColors = ACCESS_PALETTE[access as 'subscription' | 'subscription-beta'];
   const label = SOURCE_LABEL[activeSource];
   const accessibilityLabel = `${label} connected`;
 
@@ -267,9 +280,9 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
           {/* Vacuum tube filament — concentric SVG circles with glow */}
           <Animated.View style={filamentStyle}>
             <Svg width={FILAMENT_SIZE} height={FILAMENT_SIZE} viewBox="0 0 120 120">
-              <Circle cx={60} cy={60} r={42} fill={tierColors.glow} />
-              <Circle cx={60} cy={60} r={26} fill={tierColors.primary} fillOpacity={0.45} />
-              <Circle cx={60} cy={60} r={14} fill={tierColors.primary} />
+              <Circle cx={60} cy={60} r={42} fill={accessColors.glow} />
+              <Circle cx={60} cy={60} r={26} fill={accessColors.primary} fillOpacity={0.45} />
+              <Circle cx={60} cy={60} r={14} fill={accessColors.primary} />
               {/* `palette.white` (#E8E6F0) used here as a bright neutral
                   highlight, not as a text color. `palette.frost` was avoided
                   to keep text-hierarchy tokens semantically clean. */}
@@ -282,7 +295,7 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
             <Animated.View
               style={[
                 styles.meterFill,
-                { backgroundColor: tierColors.primary },
+                { backgroundColor: accessColors.primary },
                 meterStyle,
               ]}
             />
@@ -290,7 +303,7 @@ export const HardwareHandshake = forwardRef<HardwareHandshakeRef>((_props, ref) 
 
           {/* Source label — fades in last */}
           <Animated.View style={labelStyle}>
-            <Text style={[styles.labelText, { color: tierColors.primary }]}>
+            <Text style={[styles.labelText, { color: accessColors.primary }]}>
               {label} · ONLINE
             </Text>
           </Animated.View>

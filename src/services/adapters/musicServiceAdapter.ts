@@ -6,50 +6,92 @@ import { appleMusicAdapter } from './appleMusicAdapter';
 import { youtubeAdapter, itunesAdapter } from './stubAdapter';
 import { ConnectedServices, ServiceConnection, TrackSource } from '../../types';
 
-// ─── Source Tiering ──────────────────────────────────────────
-// See plans/modular-tinkering-robin.md §1 for the strategic context.
+// ─── Source metadata ─────────────────────────────────────────
+// Two orthogonal axes per source — replaces the previous SOURCE_TIER 1/2/3
+// mapping that was conflating "what does the user need" with "what order
+// should we try sources." Decoupled 2026-05-09 because the conflation was
+// producing UX inconsistencies (picker showed honest "SUBSCRIPTION" labels
+// while Hardware Handshake / TierBadge still rendered "Tier 1/2/3" with
+// colors that didn't match the picker).
 //
-// Tier 1 — Universal access. No auth (or trivial auth) required to use the
-//          source's core surface (search/browse). Used as the default routing
-//          target whenever possible.
-//   • appleMusic: catalog search always works via the public iTunes API;
-//                 library + full playback unlock once MusicKit auth completes.
-//   • soundcloud: permissive guest access for catalog; OAuth unlocks library.
-//   • itunes / youtube: preview-only fallbacks; always callable.
+// Two axes:
 //
-// Tier 2 — Subscription required, but every paying user can connect (no
-//          allowlist). Provider-side scaling is unrestricted.
-//   • tidal: PKCE OAuth + search + stream wired; library browsing TODO.
+//   • `access` — user-facing requirement. Drives picker tile labels,
+//     Hardware Handshake colors, TierBadge / "BETA" chip, error messages,
+//     and any other UI that has to tell the user what they need to bring.
 //
-// Tier 3 — Restricted beta for user-OAuth PLAYBACK only. Spotify's Feb 2026
-//          Dev Mode tightening caps OAuth'd users at 5 until 250k MAU is
-//          reached. However, Spotify CATALOG is available to EVERY user via
-//          the backend Client Credentials metadata proxy (/api/catalog/spotify
-//          + ISRC cross-match via /api/match). Phase 5 therefore makes Tier 3
-//          gate ONLY full-track Spotify playback on allowlisted devices.
-//          Search/discovery works for everyone; enqueued Spotify tracks are
-//          cross-matched to a Tier 1/2 playable equivalent before the queue
-//          sees them. See plans/graceful-plotting-storm.md Phase 5.
-//   • spotify: search works for everyone; full-track playback is allowlist-only.
+//   • `crossMatchPriority` — backend/resolver-only. Higher = preferred
+//     when resolving a Spotify-discovered track to a playable equivalent
+//     (Phase 5 ISRC cross-match). Eventually layered with user preference
+//     ("default service" setting) at consumer sites — see
+//     plans/modular-tinkering-robin.md.
+//
+// The previous 1/2/3 tier numbers conflated these — Tier 1 implied both
+// "no requirements" AND "try first," but no streaming source actually
+// has zero requirements (all need a subscription for full playback). The
+// "Tier 1" label was a fiction. Replacing it with two honest axes:
+//   • appleMusic / tidal / soundcloud — access: 'subscription'
+//   • spotify                          — access: 'subscription-beta'
+//   • itunes / youtube                 — access: 'metadata-only'
+//
+// Future Phase B addition: local files would join as
+//   { access: 'local', crossMatchPriority: 110 }  // preferred over streaming
+// because a local file is the most reliable playback path when available.
+//
+// See plans/modular-tinkering-robin.md §1 for strategic context and
+// plans/graceful-plotting-storm.md Phase 5 for cross-match resolver.
 
-export type SourceTier = 1 | 2 | 3;
+export type AccessClass =
+  | 'subscription'        // Paid streaming service. Full playback requires
+                          // an active subscription. Connecting without one
+                          // gives 30-second previews — Frequen-C is a
+                          // streaming-first app, so honest labeling at the
+                          // picker prevents that wasted-OAuth case.
+  | 'subscription-beta'   // Subscription PLUS device on Frequen-C beta
+                          // allowlist. Today: Spotify (Dev Mode 5-user cap).
+                          // Will collapse to 'subscription' if/when Spotify
+                          // approves Frequen-C for Extended Quota Mode.
+  | 'metadata-only';      // Catalog/search/discovery only. No playback.
+                          // Used for iTunes Search API (cross-match metadata
+                          // source) and YouTube (preview-only fallback).
 
-export const SOURCE_TIER: Record<TrackSource, SourceTier> = {
-    appleMusic: 1,
-    soundcloud: 1,
-    itunes: 1,
-    youtube: 1,
-    tidal: 2,
-    spotify: 3,
+export interface SourceMeta {
+    /** User-facing access requirement — drives all visible labels + colors */
+    access: AccessClass;
+    /**
+     * Resolver priority — higher number tried first during ISRC cross-match.
+     * Values use a 10-point step so future sources (esp. local files,
+     * which should outrank streaming) can slot in without renumbering.
+     */
+    crossMatchPriority: number;
+}
+
+export const SOURCE_META: Record<TrackSource, SourceMeta> = {
+    // Streaming services that require a paid subscription for full playback.
+    // Cross-match priority orders them so Apple Music wins by default
+    // (broadest catalog + best metadata), then Tidal (hi-fi but smaller),
+    // then SoundCloud (broad but uneven licensing).
+    appleMusic: { access: 'subscription',      crossMatchPriority: 100 },
+    tidal:      { access: 'subscription',      crossMatchPriority: 90  },
+    soundcloud: { access: 'subscription',      crossMatchPriority: 80  },
+    // Subscription PLUS allowlist. Sits below the universally-available
+    // subscription sources because cross-match exists specifically to
+    // resolve away FROM Spotify when the playback-allowlist gate fails.
+    spotify:    { access: 'subscription-beta', crossMatchPriority: 70  },
+    // Metadata-only sources — no full playback. Used as last-ditch
+    // cross-match candidates and as catalog fillers.
+    itunes:     { access: 'metadata-only',     crossMatchPriority: 60  },
+    youtube:    { access: 'metadata-only',     crossMatchPriority: 50  },
 };
 
-/**
- * Returns the access tier of a given source. Used by UI components to render
- * tier badges ("Restricted Beta", "Subscription Required", etc.) and by the
- * routing layer to walk sources from most-universal → most-restricted.
- */
-export function getTierForSource(source: TrackSource): SourceTier {
-    return SOURCE_TIER[source];
+/** User-facing access class for a source — drives badges, colors, copy. */
+export function getAccessForSource(source: TrackSource): AccessClass {
+    return SOURCE_META[source].access;
+}
+
+/** Resolver priority for a source — backend/cross-match consumers only. */
+export function getCrossMatchPriority(source: TrackSource): number {
+    return SOURCE_META[source].crossMatchPriority;
 }
 
 // ─── Connection-state predicates ─────────────────────────────

@@ -26,7 +26,7 @@ import { TacticalActionPrompt } from '../features/session-v2/components/Tactical
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { authApi, getStoredToken, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
 import { formatFullDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
-import { getTierForSource, isServiceExpired } from '../services/adapters/musicServiceAdapter';
+import { getAccessForSource, isServiceExpired } from '../services/adapters/musicServiceAdapter';
 import { config } from '../config';
 import type { User, TrackSource } from '../types';
 import { notifyError, notifySuccess, tapHeavy, tapLight, tapMedium } from '../utils/haptics';
@@ -636,7 +636,7 @@ export function ProfileScreen() {
                 // narrows entry.provider to TrackSource so getTierForSource can
                 // accept it without a cast.
                 const isRestrictedBeta =
-                  isMusicTrackSource(entry.provider) && getTierForSource(entry.provider) === 3;
+                  isMusicTrackSource(entry.provider) && getAccessForSource(entry.provider) === 'subscription-beta';
 
                 // Read the service connection object once per row so `connected`,
                 // `username`, and the new expiry check all derive from the same

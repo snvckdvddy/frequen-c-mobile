@@ -20,7 +20,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { palette, withAlpha } from '@/design/tokens/materials';
 import { TrackSource } from '../../types';
-import { getTierForSource } from '../../services/adapters/musicServiceAdapter';
+import { getAccessForSource } from '../../services/adapters/musicServiceAdapter';
 import { TierBadge } from '@/components/ui';
 
 // ─── Service metadata ───────────────────────────────────────
@@ -80,7 +80,7 @@ export function ServiceSelectorPills({
         // scarcity is communicated up front, not after a failed connect.
         // The visual chip lives in <TierBadge />; we still need this boolean
         // locally so the accessibility label can be enriched at the parent.
-        const isRestrictedBeta = getTierForSource(svc.key) === 3;
+        const isRestrictedBeta = getAccessForSource(svc.key) === 'subscription-beta';
 
         // Build accessibility label: include the tier framing for screen-reader
         // users so they hear *why* a service might be different, not just its name.

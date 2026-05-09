@@ -25,7 +25,6 @@
 
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
-import { SOURCE_TIER, type SourceTier } from '../adapters/musicServiceAdapter';
 import type { HandshakeSource } from './handshakeBus';
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -34,35 +33,46 @@ import type { HandshakeSource } from './handshakeBus';
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-// ─── Tier patterns ────────────────────────────────────────────
+// ─── Pattern map (per-source, named by haptic feel) ────────────
+// Patterns describe the TACTILE feel, not an abstract tier number.
+// Mapping is per-HandshakeSource directly — simpler than going through
+// the access-class indirection because the pattern choice is about
+// emotional weight (rare/restricted = bigger reward), and not all
+// access classes deserve different feels (subscription Apple Music
+// and subscription Tidal can share the same pattern without losing
+// meaning).
 
+type HapticPatternKey = 'smooth-electric' | 'heavy-mechanical' | 'industrial-latch';
 type HapticPattern = () => Promise<void>;
 
-const TIER_PATTERNS: Record<SourceTier, HapticPattern> = {
+const PATTERNS: Record<HapticPatternKey, HapticPattern> = {
   /**
-   * Tier 1 — "smooth electric"
-   * One clean Heavy impact. Fast, authoritative, no aftertaste.
+   * "smooth electric" — one clean Heavy impact.
+   * Fast, authoritative, no aftertaste. The lightest tactile reward
+   * for sources that connect with minimal ceremony.
    */
-  1: async () => {
+  'smooth-electric': async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
   },
 
   /**
-   * Tier 2 — "heavy mechanical"
-   * Heavy → pause → Medium. Like a relay closing in two stages.
+   * "heavy mechanical" — Heavy → pause → Medium.
+   * Two-stage relay close. The default for paid streaming subscriptions —
+   * a moderate reward that confirms a real connection has been latched.
    */
-  2: async () => {
+  'heavy-mechanical': async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     await delay(120);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   },
 
   /**
-   * Tier 3 — "industrial latch"
-   * Medium → pause → Medium → pause → Heavy.
-   * Three beats with an ascending weight — builds anticipation, then locks.
+   * "industrial latch" — Medium → Medium → Heavy.
+   * Triple-pulse with ascending weight. Reserved for the
+   * subscription-beta tier (Spotify) — the rarest connection, biggest
+   * tactile payoff to match.
    */
-  3: async () => {
+  'industrial-latch': async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await delay(80);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -71,13 +81,21 @@ const TIER_PATTERNS: Record<SourceTier, HapticPattern> = {
   },
 };
 
-// Last.fm isn't in SOURCE_TIER (metadata-only); treat as Tier 2.
-const LASTFM_TIER: SourceTier = 2;
+const SOURCE_PATTERN: Record<HandshakeSource, HapticPatternKey> = {
+  // Subscription streaming — moderate reward
+  appleMusic: 'heavy-mechanical',
+  soundcloud: 'heavy-mechanical',
+  tidal: 'heavy-mechanical',
+  // Subscription + beta allowlist — biggest reward
+  spotify: 'industrial-latch',
+  // Last.fm (scrobble/metadata) — lightest reward
+  lastfm: 'smooth-electric',
+};
 
 // ─── Public API ───────────────────────────────────────────────
 
 /**
- * Fire the per-tier haptic pattern for a successfully connected provider.
+ * Fire the per-source haptic pattern for a successfully connected provider.
  *
  * - iOS-only. Silently resolves on Android.
  * - Fire-and-forget: async but callers don't need to await it.
@@ -87,12 +105,8 @@ const LASTFM_TIER: SourceTier = 2;
 export async function fireHapticHandshake(source: HandshakeSource): Promise<void> {
   if (Platform.OS !== 'ios') return;
 
-  // HandshakeSource is intentionally narrower than TrackSource — `itunes` and
-  // `youtube` are preview sources that don't go through the connect/handshake
-  // flow. If HandshakeSource is ever expanded to include them, add their tier
-  // mappings to TIER_PATTERNS to avoid silent no-ops on pattern() lookup.
-  const tier: SourceTier = source === 'lastfm' ? LASTFM_TIER : SOURCE_TIER[source];
-  const pattern = TIER_PATTERNS[tier];
+  const patternKey = SOURCE_PATTERN[source];
+  const pattern = PATTERNS[patternKey];
 
   try {
     await pattern();

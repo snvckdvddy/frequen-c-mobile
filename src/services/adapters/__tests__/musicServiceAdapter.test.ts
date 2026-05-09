@@ -46,8 +46,9 @@ jest.mock('../stubAdapter', () => ({
 }));
 
 import {
-    SOURCE_TIER,
-    getTierForSource,
+    SOURCE_META,
+    getAccessForSource,
+    getCrossMatchPriority,
     getActiveAdapter,
     getConnectedSources,
     getAllConnectedAdapters,
@@ -83,26 +84,23 @@ function servicesWithExpired(
     return base;
 }
 
-describe('SOURCE_TIER mapping', () => {
-    it('classifies appleMusic as Tier 1 (universal access via iTunes catalog)', () => {
-        expect(SOURCE_TIER.appleMusic).toBe(1);
+describe('SOURCE_META — access classification', () => {
+    it('classifies subscription-required streaming sources as "subscription"', () => {
+        // Apple Music, Tidal, SoundCloud all gate full playback behind a paid
+        // subscription. The 2026-05-09 honest-label refactor stopped pretending
+        // any of them was Tier-1 universally accessible.
+        expect(SOURCE_META.appleMusic.access).toBe('subscription');
+        expect(SOURCE_META.tidal.access).toBe('subscription');
+        expect(SOURCE_META.soundcloud.access).toBe('subscription');
     });
 
-    it('classifies soundcloud as Tier 1 (permissive guest access)', () => {
-        expect(SOURCE_TIER.soundcloud).toBe(1);
+    it('classifies spotify as "subscription-beta" (Feb 2026 Dev Mode 5-user cap + paid)', () => {
+        expect(SOURCE_META.spotify.access).toBe('subscription-beta');
     });
 
-    it('classifies itunes + youtube as Tier 1 (universal preview fallbacks)', () => {
-        expect(SOURCE_TIER.itunes).toBe(1);
-        expect(SOURCE_TIER.youtube).toBe(1);
-    });
-
-    it('classifies tidal as Tier 2 (subscription required, no allowlist)', () => {
-        expect(SOURCE_TIER.tidal).toBe(2);
-    });
-
-    it('classifies spotify as Tier 3 (Feb 2026 Dev Mode 5-user cap)', () => {
-        expect(SOURCE_TIER.spotify).toBe(3);
+    it('classifies itunes + youtube as "metadata-only" (no full-track playback)', () => {
+        expect(SOURCE_META.itunes.access).toBe('metadata-only');
+        expect(SOURCE_META.youtube.access).toBe('metadata-only');
     });
 
     it('covers every TrackSource (compile-time enforced via Record type)', () => {
@@ -110,24 +108,59 @@ describe('SOURCE_TIER mapping', () => {
             'spotify', 'soundcloud', 'tidal', 'appleMusic', 'youtube', 'itunes',
         ];
         expectedSources.forEach((source) => {
-            expect(SOURCE_TIER[source]).toBeGreaterThanOrEqual(1);
-            expect(SOURCE_TIER[source]).toBeLessThanOrEqual(3);
+            expect(SOURCE_META[source]).toBeDefined();
+            expect(SOURCE_META[source].access).toMatch(
+                /^(subscription|subscription-beta|metadata-only)$/,
+            );
         });
     });
 });
 
-describe('getTierForSource', () => {
-    it('returns 1 for Tier 1 sources', () => {
-        expect(getTierForSource('appleMusic')).toBe(1);
-        expect(getTierForSource('soundcloud')).toBe(1);
+describe('SOURCE_META — crossMatchPriority ordering', () => {
+    it('ranks subscription streaming sources above subscription-beta', () => {
+        // Cross-match exists specifically to resolve AWAY from Spotify when
+        // its allowlist gate fails. Subscription-class sources should be
+        // tried first so we land on a definitely-playable equivalent.
+        expect(SOURCE_META.appleMusic.crossMatchPriority).toBeGreaterThan(SOURCE_META.spotify.crossMatchPriority);
+        expect(SOURCE_META.tidal.crossMatchPriority).toBeGreaterThan(SOURCE_META.spotify.crossMatchPriority);
+        expect(SOURCE_META.soundcloud.crossMatchPriority).toBeGreaterThan(SOURCE_META.spotify.crossMatchPriority);
     });
 
-    it('returns 2 for Tier 2 sources', () => {
-        expect(getTierForSource('tidal')).toBe(2);
+    it('ranks subscription-beta above metadata-only fallbacks', () => {
+        // A Spotify-discovered track can fall back to itunes/youtube as a
+        // last-ditch metadata-only result, but that's worse than the original.
+        expect(SOURCE_META.spotify.crossMatchPriority).toBeGreaterThan(SOURCE_META.itunes.crossMatchPriority);
+        expect(SOURCE_META.spotify.crossMatchPriority).toBeGreaterThan(SOURCE_META.youtube.crossMatchPriority);
+    });
+});
+
+describe('getAccessForSource', () => {
+    it('returns "subscription" for paid streaming sources', () => {
+        expect(getAccessForSource('appleMusic')).toBe('subscription');
+        expect(getAccessForSource('soundcloud')).toBe('subscription');
+        expect(getAccessForSource('tidal')).toBe('subscription');
     });
 
-    it('returns 3 for Tier 3 sources', () => {
-        expect(getTierForSource('spotify')).toBe(3);
+    it('returns "subscription-beta" for spotify', () => {
+        expect(getAccessForSource('spotify')).toBe('subscription-beta');
+    });
+
+    it('returns "metadata-only" for catalog-only sources', () => {
+        expect(getAccessForSource('itunes')).toBe('metadata-only');
+        expect(getAccessForSource('youtube')).toBe('metadata-only');
+    });
+});
+
+describe('getCrossMatchPriority', () => {
+    it('returns numeric priority for every TrackSource', () => {
+        const sources: TrackSource[] = [
+            'appleMusic', 'tidal', 'soundcloud', 'spotify', 'itunes', 'youtube',
+        ];
+        sources.forEach((source) => {
+            const priority = getCrossMatchPriority(source);
+            expect(typeof priority).toBe('number');
+            expect(priority).toBeGreaterThan(0);
+        });
     });
 });
 
