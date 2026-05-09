@@ -44,6 +44,7 @@ import { FriendsScreen } from '../screens/FriendsScreen';
 import { UserProfileScreen } from '../screens/UserProfileScreen';
 import { ActivityFeedScreen } from '../screens/ActivityFeedScreen';
 import { WelcomeBootScreen } from '../screens/WelcomeBootScreen';
+import { FirstSourcePickerScreen } from '../screens/FirstSourcePickerScreen';
 import { clearWelcomeBoot, shouldShowWelcomeBoot } from '../features/onboarding/welcomeBootState';
 
 // ─── Types ──────────────────────────────────────────────────
@@ -55,6 +56,7 @@ type AuthStackParamList = {
 
 type MainStackParamList = {
   WelcomeBoot: undefined;
+  FirstSourcePicker: undefined;
   Tabs: undefined;
   CreateSession: undefined;
   JoinSession: { joinCode?: string } | undefined;
@@ -329,20 +331,44 @@ function MainNavigator() {
         {({ navigation }) => (
           <ErrorBoundary screenName="WelcomeBoot">
             <WelcomeBootScreen
-              // Primary CTA — drop into Tabs and immediately push the
-              // Profile modal on top so the user can patch a music
-              // service. The reset() preserves a "back" path to Home so
-              // the user isn't stranded on Profile with no way back.
+              // Primary CTA — route to the dedicated First Source Picker.
+              // Replaces the prior "land on Profile and scroll to find it"
+              // pattern, which forced new users to navigate a settings
+              // screen during their most fragile onboarding moment.
+              // The picker is a single-task screen (research-backed
+              // higher activation than multi-task settings pages).
+              // We do NOT clearWelcomeBoot here — the picker is part of
+              // the same first-run arc and will clear it when the user
+              // picks/skips.
               onConnectService={() => {
-                clearWelcomeBoot();
-                navigation.reset({
-                  index: 1,
-                  routes: [{ name: 'Tabs' }, { name: 'Profile' }],
-                });
+                navigation.replace('FirstSourcePicker');
               }}
-              // Secondary CTA — straight to Tabs (Home), the same
-              // destination the legacy `onContinue` callback used.
+              // Secondary CTA — straight to Tabs (Home).
               onBrowseRooms={() => {
+                clearWelcomeBoot();
+                navigation.replace('Tabs');
+              }}
+            />
+          </ErrorBoundary>
+        )}
+      </MainStack.Screen>
+      <MainStack.Screen
+        name="FirstSourcePicker"
+        options={{ animation: 'slide_from_right' }}
+      >
+        {({ navigation }) => (
+          <ErrorBoundary screenName="FirstSourcePicker">
+            <FirstSourcePickerScreen
+              // After tile tap, the OAuth flow is already in flight.
+              // Navigate to Tabs so the user lands on Home; the
+              // Hardware Handshake animation fires (via handshakeBus)
+              // when OAuth resolves, on whichever screen they're on.
+              onSelected={() => {
+                clearWelcomeBoot();
+                navigation.replace('Tabs');
+              }}
+              // Skip — same destination as Browse Rooms from welcome.
+              onSkipped={() => {
                 clearWelcomeBoot();
                 navigation.replace('Tabs');
               }}
