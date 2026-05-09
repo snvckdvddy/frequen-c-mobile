@@ -132,6 +132,11 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
                   error={errors.username}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  // Hint to the OS that this becomes the username for the
+                  // saved-credential record. Combined with new-password
+                  // below, the device offers to save the full set on submit.
+                  autoComplete="username-new"
+                  textContentType="username"
                   returnKeyType="next"
                   accessibilityLabel="Username or handle input"
                 />
@@ -144,6 +149,8 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
                   returnKeyType="next"
                   accessibilityLabel="Email address input"
                 />
@@ -154,6 +161,11 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
                   onChangeText={setPassword}
                   error={errors.password}
                   secureTextEntry
+                  // `new-password` triggers iOS Strong Password generation
+                  // and tells password managers this is a freshly-created
+                  // credential pair (not an existing one to autofill).
+                  autoComplete="new-password"
+                  textContentType="newPassword"
                   returnKeyType="next"
                   accessibilityLabel="Password input"
                 />
@@ -164,6 +176,8 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
                   onChangeText={setConfirmPassword}
                   error={errors.confirmPassword}
                   secureTextEntry
+                  autoComplete="new-password"
+                  textContentType="newPassword"
                   returnKeyType="done"
                   onSubmitEditing={handleRegister}
                   accessibilityLabel="Confirm password input"

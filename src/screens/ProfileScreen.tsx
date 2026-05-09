@@ -567,6 +567,11 @@ export function ProfileScreen() {
                           value={newPassword}
                           onChangeText={setNewPassword}
                           secureTextEntry
+                          // `new-password` opts into iOS Strong Password
+                          // and password-manager save prompt for the new
+                          // credential being created here.
+                          autoComplete="new-password"
+                          textContentType="newPassword"
                           returnKeyType="next"
                           accessibilityLabel="New password"
                         />
@@ -576,6 +581,8 @@ export function ProfileScreen() {
                           value={confirmNewPassword}
                           onChangeText={setConfirmNewPassword}
                           secureTextEntry
+                          autoComplete="new-password"
+                          textContentType="newPassword"
                           returnKeyType="done"
                           onSubmitEditing={() => { void handleSetPassword(); }}
                           accessibilityLabel="Confirm new password"

@@ -307,6 +307,11 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  // Pairs with the password field's `autoComplete` so iOS
+                  // / Android recognise this as a username+password combo
+                  // and offer to save credentials after a successful login.
+                  autoComplete="email"
+                  textContentType="emailAddress"
                   returnKeyType="next"
                   accessibilityLabel="Email address input"
                 />
@@ -317,6 +322,12 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
                   onChangeText={setPassword}
                   error={errors.password}
                   secureTextEntry
+                  // Enables iOS Keychain / Android Autofill so the device
+                  // remembers a successful credential after first use.
+                  // For users with multiple test passwords, this is the
+                  // pro-fix: log in once, autofill from then on.
+                  autoComplete="current-password"
+                  textContentType="password"
                   returnKeyType="done"
                   onSubmitEditing={handleLogin}
                   accessibilityLabel="Password input"
