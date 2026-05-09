@@ -1,3 +1,20 @@
+/**
+ * WelcomeBootScreen
+ *
+ * Shown ONCE after a successful registration (gated by the in-memory
+ * `welcomeBootState` flag set by RegisterScreen). Returning users on
+ * subsequent app launches go straight to Tabs — they don't see this.
+ *
+ * Purpose: first-impression brand moment + concrete next-action prompt.
+ * Earlier versions of this screen had decorative-only "FREQUENCY CODE"
+ * boxes that looked tappable but weren't, plus a "CROSSFADER DUEL" tab
+ * that previewed an unbuilt feature, plus an "AWAITING FREQUENCY
+ * OVERRIDE..." log line that was a literal lie. All cut. The boot
+ * terminal aesthetic is preserved (3 trimmed log lines) because that's
+ * the brand identity, but it's now flanked by real onboarding content
+ * with two clear CTAs.
+ */
+
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
@@ -15,7 +32,10 @@ import TacticalGridBackground from '../features/session-v2/components/TacticalGr
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 
 interface WelcomeBootScreenProps {
-  onContinue: () => void;
+  /** Primary action — navigate to Profile so the user can patch a music service. */
+  onConnectService: () => void;
+  /** Secondary action — drop the user on HomeScreen to browse live rooms. */
+  onBrowseRooms: () => void;
 }
 
 function MonoText(props: { children: React.ReactNode; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
@@ -27,7 +47,7 @@ function LogLine({
   tone = 'muted',
 }: {
   text: string;
-  tone?: 'muted' | 'success' | 'guide';
+  tone?: 'muted' | 'success';
 }) {
   return (
     <View style={styles.logLine}>
@@ -36,7 +56,6 @@ function LogLine({
         style={[
           styles.logText,
           tone === 'success' && styles.logTextSuccess,
-          tone === 'guide' && styles.logTextGuide,
         ]}
       >
         {text}
@@ -45,34 +64,27 @@ function LogLine({
   );
 }
 
-export function WelcomeBootScreen({ onContinue }: WelcomeBootScreenProps) {
+export function WelcomeBootScreen({ onConnectService, onBrowseRooms }: WelcomeBootScreenProps) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'boot' | 'duel'>('boot');
 
-  const handleCode = useMemo(() => {
-    const normalized = (user?.username || 'FREQ')
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '');
-    return normalized.slice(0, 2).padEnd(2, 'X').split('');
-  }, [user?.username]);
-  const frequencyCode = useMemo(
-    () => [handleCode[0] || '', handleCode[1] || '', '—', ''],
-    [handleCode],
+  const userTag = useMemo(
+    () => (user?.username || 'NEW_NODE').toUpperCase().replace(/\s+/g, '_'),
+    [user?.username],
   );
-  const activeCodeIndex = 2;
 
-  const userTag = (user?.username || 'NEW_NODE').toUpperCase().replace(/\s+/g, '_');
-  const bootActive = activeTab === 'boot';
+  // Boot log: 3 lines instead of the prior 5. The trimmed set keeps the
+  // brand-aesthetic moment without padding the user's first-impression
+  // with fake status text. The "READY" close-out is the natural handoff
+  // to the welcome content below.
   const bootLines = useMemo(
     () => [
       { text: 'ESTABLISHING SECURE HANDSHAKE...', tone: 'muted' as const },
-      { text: 'CONNECTED TO AUDIO NODE 04', tone: 'success' as const },
-      { text: 'VERIFYING USER TOKENS...', tone: 'muted' as const },
       { text: `AUTH VALID (${userTag})`, tone: 'success' as const },
-      { text: 'AWAITING FREQUENCY OVERRIDE...', tone: 'muted' as const },
+      { text: 'READY', tone: 'success' as const },
     ],
     [userTag],
   );
+
   const [typingLineIndex, setTypingLineIndex] = useState(0);
   const [typingCharCount, setTypingCharCount] = useState(0);
   const [typingDone, setTypingDone] = useState(false);
@@ -84,7 +96,7 @@ export function WelcomeBootScreen({ onContinue }: WelcomeBootScreenProps) {
   }, [userTag]);
 
   useEffect(() => {
-    if (!bootActive || typingDone) return;
+    if (typingDone) return;
     const currentLine = bootLines[typingLineIndex];
     if (!currentLine) {
       setTypingDone(true);
@@ -103,10 +115,10 @@ export function WelcomeBootScreen({ onContinue }: WelcomeBootScreenProps) {
       }
       setTypingLineIndex((index) => index + 1);
       setTypingCharCount(0);
-    }, lineComplete ? 170 : 18);
+    }, lineComplete ? 140 : 14);
 
     return () => clearTimeout(timeout);
-  }, [bootActive, bootLines, typingCharCount, typingDone, typingLineIndex]);
+  }, [bootLines, typingCharCount, typingDone, typingLineIndex]);
 
   const revealAllBootLines = () => {
     setTypingLineIndex(bootLines.length - 1);
@@ -119,138 +131,85 @@ export function WelcomeBootScreen({ onContinue }: WelcomeBootScreenProps) {
       <VoidSurface style={{ flex: 1 }}>
         <View style={styles.screen}>
           <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <TacticalGridBackground opacity={0.58} />
+            <TacticalGridBackground opacity={0.45} />
           </View>
 
           <ScrollView
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.devBar}>
-              <Pressable
-                onPress={() => setActiveTab('boot')}
-                accessibilityRole="button"
-                accessibilityLabel="Show initiate boot onboarding"
-                style={({ pressed }) => [
-                  styles.devButton,
-                  bootActive && styles.devButtonActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <MonoText style={[styles.devButtonText, bootActive && styles.devButtonTextActive]}>
-                  [ INITIATE BOOT ]
+            {/* Boot terminal — brand-aesthetic moment. Tap to skip the
+                typing animation if it's still in progress. */}
+            <Pressable
+              onPress={typingDone ? undefined : revealAllBootLines}
+              disabled={typingDone}
+              accessibilityRole="button"
+              accessibilityLabel={typingDone ? 'Boot sequence complete' : 'Skip boot sequence'}
+              style={({ pressed }) => [
+                styles.terminal,
+                pressed && !typingDone && styles.pressed,
+              ]}
+            >
+              <View style={styles.terminalHeader}>
+                <MonoText style={styles.terminalTitle}>SYS_BOOT</MonoText>
+                <MonoText style={styles.terminalStatus}>
+                  {typingDone ? 'AUTH OK_' : 'BOOTING_'}
                 </MonoText>
-              </Pressable>
-              <Pressable
-                onPress={() => setActiveTab('duel')}
-                accessibilityRole="button"
-                accessibilityLabel="Show crossfader duel preview"
-                style={({ pressed }) => [
-                  styles.devButton,
-                  !bootActive && styles.devButtonActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <MonoText style={[styles.devButtonText, !bootActive && styles.devButtonTextActive]}>
-                  [ CROSSFADER DUEL ]
-                </MonoText>
-              </Pressable>
+              </View>
+
+              <View style={styles.logStack}>
+                {bootLines.map((line, index) => {
+                  if (typingDone || index < typingLineIndex) {
+                    return <LogLine key={line.text} text={line.text} tone={line.tone} />;
+                  }
+                  if (index > typingLineIndex) {
+                    return null;
+                  }
+                  const visibleText = line.text.slice(0, typingCharCount);
+                  return (
+                    <LogLine
+                      key={line.text}
+                      text={`${visibleText}${typingDone ? '' : '_'}`}
+                      tone={line.tone}
+                    />
+                  );
+                })}
+              </View>
+            </Pressable>
+
+            {/* Welcome content — the actual onboarding payload. */}
+            <View style={styles.welcomeCard}>
+              <MonoText style={styles.welcomeEyebrow}>SYS.FREQ // ONLINE</MonoText>
+              <View accessibilityRole="header">
+                <MonoText style={styles.welcomeTitle}>WELCOME, {userTag}</MonoText>
+              </View>
+              <MonoText style={styles.welcomeBody}>
+                Frequen-C is a collaborative music room. Connect a service to
+                queue tracks together, or jump into a room someone&apos;s
+                already hosting.
+              </MonoText>
             </View>
 
-            <View style={styles.terminal}>
-              {bootActive ? (
-                <>
-                  <View style={styles.terminalHeader}>
-                    <MonoText style={styles.terminalTitle}>SYS_BOOT</MonoText>
-                    <MonoText style={styles.terminalStatus}>AWAITING INPUT_</MonoText>
-                  </View>
+            {/* Two clear CTAs — primary "connect" path, secondary "browse" path.
+                Both are persistent until the user picks one (no auto-skip). */}
+            <View style={styles.actions}>
+              <Pressable
+                onPress={onConnectService}
+                accessibilityRole="button"
+                accessibilityLabel="Connect a music service"
+                style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
+              >
+                <MonoText style={styles.primaryActionText}>CONNECT A SERVICE</MonoText>
+              </Pressable>
 
-                  <Pressable
-                    onPress={typingDone ? undefined : revealAllBootLines}
-                    disabled={typingDone}
-                    accessibilityRole="button"
-                    accessibilityLabel="Skip boot sequence"
-                    style={({ pressed }) => [styles.logArea, pressed && !typingDone && styles.pressed]}
-                  >
-                    <View style={styles.logStack}>
-                      {bootLines.map((line, index) => {
-                        if (typingDone || index < typingLineIndex) {
-                          return <LogLine key={line.text} text={line.text} tone={line.tone} />;
-                        }
-                        if (index > typingLineIndex) {
-                          return null;
-                        }
-                        const visibleText = line.text.slice(0, typingCharCount);
-                        return (
-                          <LogLine
-                            key={line.text}
-                            text={`${visibleText}${typingDone ? '' : '_'}`}
-                            tone={line.tone}
-                          />
-                        );
-                      })}
-                    </View>
-                  </Pressable>
-                </>
-                ) : (
-                <>
-                  <View style={styles.terminalHeader}>
-                    <MonoText style={styles.terminalTitle}>SIGNAL_DUEL</MonoText>
-                    <MonoText style={styles.terminalStatus}>HOLDING_PATTERN_</MonoText>
-                  </View>
-
-                  <View style={styles.duelTeaser}>
-                    <MonoText style={styles.duelEyebrow}>WORLD BUILDING // MODE PREVIEW</MonoText>
-                    <MonoText style={styles.duelTitle}>CROSSFADER DUEL</MonoText>
-                    <MonoText style={styles.duelCopy}>
-                      A live head-to-head vote battle. The host pits two tracks against each other. Everyone votes. Loser gets dropped. 18 seconds on the clock.
-                    </MonoText>
-                    <MonoText style={styles.duelCopyMuted}>
-                      The host can launch a duel from the room settings panel. Look for the CROSSFADER DUEL action once you are in a session.
-                    </MonoText>
-                  </View>
-                </>
-              )}
-
-              <View style={styles.inputZone}>
-                {bootActive ? (
-                  <>
-                    <MonoText style={styles.inputLabel}>YOUR FREQUENCY CODE:</MonoText>
-                    <View style={styles.codeRow}>
-                      {frequencyCode.map((character, index) => (
-                        <View
-                          key={`${character}-${index}`}
-                          style={[
-                            styles.codeBox,
-                            index === activeCodeIndex && styles.codeBoxActive,
-                          ]}
-                        >
-                          <MonoText
-                            style={[
-                              styles.codeText,
-                              character === '—' && styles.codeTextPlaceholder,
-                              !character && styles.codeTextEmpty,
-                            ]}
-                          >
-                            {character}
-                          </MonoText>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.summaryRail} />
-                )}
-
-                <Pressable
-                  onPress={onContinue}
-                  accessibilityRole="button"
-                  accessibilityLabel="Patch into the app"
-                  style={({ pressed }) => [styles.patchButton, pressed && styles.pressed]}
-                >
-                  <MonoText style={styles.patchButtonText}>PATCH IN</MonoText>
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={onBrowseRooms}
+                accessibilityRole="button"
+                accessibilityLabel="Browse live rooms"
+                style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
+              >
+                <MonoText style={styles.secondaryActionText}>BROWSE ROOMS</MonoText>
+              </Pressable>
             </View>
           </ScrollView>
         </View>
@@ -268,44 +227,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: tacticalTokens.spacing.lg,
     paddingTop: tacticalTokens.spacing.md,
     paddingBottom: tacticalTokens.spacing.xl,
+    gap: tacticalTokens.spacing.lg,
   },
-  devBar: {
-    flexDirection: 'row',
-    gap: tacticalTokens.spacing.xs,
-    marginBottom: tacticalTokens.spacing.sm,
-  },
-  devButton: {
-    flex: 1,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: tacticalTokens.colors.border,
-    backgroundColor: tacticalTokens.colors.matte,
-    paddingHorizontal: tacticalTokens.spacing.sm,
-  },
-  devButtonActive: {
-    backgroundColor: tacticalTokens.colors.white,
-    borderColor: tacticalTokens.colors.white,
-  },
-  devButtonText: {
-    fontFamily: tacticalTokens.fonts.monoBold,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.textMuted,
-    letterSpacing: 1.2,
-  },
-  devButtonTextActive: {
-    color: tacticalTokens.colors.void,
-  },
+
+  // Boot terminal — preserved brand aesthetic, slimmer footprint
   terminal: {
-    flex: 1,
     borderWidth: 1,
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.void,
     paddingHorizontal: tacticalTokens.spacing.lg,
-    paddingTop: tacticalTokens.spacing.xl,
-    paddingBottom: tacticalTokens.spacing.lg,
-    minHeight: 748,
+    paddingTop: tacticalTokens.spacing.md,
+    paddingBottom: tacticalTokens.spacing.md,
   },
   terminalHeader: {
     flexDirection: 'row',
@@ -313,7 +245,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: tacticalTokens.spacing.sm,
     paddingBottom: tacticalTokens.spacing.sm,
-    marginBottom: tacticalTokens.spacing.lg,
+    marginBottom: tacticalTokens.spacing.md,
     borderBottomWidth: 2,
     borderBottomColor: tacticalTokens.colors.ice,
   },
@@ -327,9 +259,6 @@ const styles = StyleSheet.create({
     fontSize: tacticalTokens.fontSize.sys,
     color: tacticalTokens.colors.acid,
     letterSpacing: 1.4,
-  },
-  logArea: {
-    minHeight: 430,
   },
   logStack: {
     gap: tacticalTokens.spacing.xs,
@@ -356,109 +285,67 @@ const styles = StyleSheet.create({
   logTextSuccess: {
     color: tacticalTokens.colors.acid,
   },
-  logTextGuide: {
-    color: tacticalTokens.colors.guide,
+
+  // Welcome card — the human-readable handoff
+  welcomeCard: {
+    paddingHorizontal: tacticalTokens.spacing.sm,
+    paddingTop: tacticalTokens.spacing.lg,
   },
-  duelTeaser: {
-    borderWidth: 1,
-    borderColor: tacticalTokens.colors.borderGhost,
-    backgroundColor: tacticalTokens.colors.matteGhost,
-    paddingHorizontal: tacticalTokens.spacing.md,
-    paddingVertical: tacticalTokens.spacing.md,
-    minHeight: 232,
-  },
-  duelEyebrow: {
+  welcomeEyebrow: {
     fontFamily: tacticalTokens.fonts.mono,
-    fontSize: 9,
-    color: tacticalTokens.colors.guide,
-    letterSpacing: 1.3,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.6,
+    marginBottom: tacticalTokens.spacing.sm,
   },
-  duelTitle: {
-    marginTop: tacticalTokens.spacing.xs,
+  welcomeTitle: {
     fontFamily: tacticalTokens.fonts.display,
-    fontSize: tacticalTokens.fontSize.title - 2,
+    fontSize: tacticalTokens.fontSize.display,
     color: tacticalTokens.colors.white,
+    marginBottom: tacticalTokens.spacing.md,
   },
-  duelCopy: {
-    marginTop: tacticalTokens.spacing.md,
+  welcomeBody: {
     fontFamily: tacticalTokens.fonts.mono,
     fontSize: tacticalTokens.fontSize.micro,
     color: tacticalTokens.colors.textSoft,
-    lineHeight: 17,
-    letterSpacing: 1,
+    lineHeight: 22,
+    letterSpacing: 0.8,
   },
-  duelCopyMuted: {
-    marginTop: tacticalTokens.spacing.md,
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.guideSoft,
-    lineHeight: 17,
-    letterSpacing: 1,
-  },
-  inputZone: {
-    marginTop: 'auto',
-    paddingTop: tacticalTokens.spacing.xl,
-    borderTopWidth: 1,
-    borderTopColor: tacticalTokens.colors.borderGhost,
-    borderStyle: 'dashed',
-  },
-  summaryRail: {
-    minHeight: 116,
-    marginBottom: tacticalTokens.spacing.lg,
-  },
-  inputLabel: {
-    marginBottom: tacticalTokens.spacing.sm,
-    fontFamily: tacticalTokens.fonts.mono,
-    fontSize: tacticalTokens.fontSize.sys,
-    color: tacticalTokens.colors.ice,
-    letterSpacing: 1.4,
-  },
-  codeRow: {
-    flexDirection: 'row',
+
+  // Action stack — primary then secondary
+  actions: {
     gap: tacticalTokens.spacing.sm,
-    marginBottom: tacticalTokens.spacing.xl,
+    marginTop: 'auto',
+    paddingTop: tacticalTokens.spacing.lg,
   },
-  codeBox: {
-    flex: 1,
-    aspectRatio: 1,
-    borderWidth: 2,
-    borderColor: tacticalTokens.colors.border,
-    backgroundColor: tacticalTokens.colors.matte,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  codeBoxActive: {
-    borderColor: tacticalTokens.colors.ice,
-    shadowColor: tacticalTokens.colors.ice,
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 3,
-  },
-  codeText: {
-    fontFamily: tacticalTokens.fonts.display,
-    fontSize: 26,
-    color: tacticalTokens.colors.white,
-  },
-  codeTextPlaceholder: {
-    color: tacticalTokens.colors.ice,
-  },
-  codeTextEmpty: {
-    color: 'transparent',
-  },
-  patchButton: {
-    minHeight: 68,
+  primaryAction: {
+    minHeight: 60,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: tacticalTokens.colors.ice,
-    marginBottom: 0,
   },
-  patchButtonText: {
+  primaryActionText: {
     fontFamily: tacticalTokens.fonts.display,
     fontSize: tacticalTokens.fontSize.label + 4,
     color: tacticalTokens.colors.void,
+    letterSpacing: 1.2,
   },
+  secondaryAction: {
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+  },
+  secondaryActionText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.4,
+  },
+
   pressed: {
-    opacity: 0.82,
+    opacity: 0.7,
   },
 });

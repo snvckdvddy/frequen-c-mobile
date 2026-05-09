@@ -329,7 +329,20 @@ function MainNavigator() {
         {({ navigation }) => (
           <ErrorBoundary screenName="WelcomeBoot">
             <WelcomeBootScreen
-              onContinue={() => {
+              // Primary CTA — drop into Tabs and immediately push the
+              // Profile modal on top so the user can patch a music
+              // service. The reset() preserves a "back" path to Home so
+              // the user isn't stranded on Profile with no way back.
+              onConnectService={() => {
+                clearWelcomeBoot();
+                navigation.reset({
+                  index: 1,
+                  routes: [{ name: 'Tabs' }, { name: 'Profile' }],
+                });
+              }}
+              // Secondary CTA — straight to Tabs (Home), the same
+              // destination the legacy `onContinue` callback used.
+              onBrowseRooms={() => {
                 clearWelcomeBoot();
                 navigation.replace('Tabs');
               }}
