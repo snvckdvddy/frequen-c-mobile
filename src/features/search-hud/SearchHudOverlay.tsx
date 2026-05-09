@@ -23,7 +23,7 @@ import { tacticalTokens } from '../session-v2/theme/tacticalTokens';
 import type { SearchHudSource } from '../../hooks/useSearch';
 import type { SearchDiagnostics, SearchProviderState } from '../../services/api';
 import { getAccessForSource } from '../../services/adapters/musicServiceAdapter';
-import { TierBadge } from '@/components/ui';
+import { BetaBadge } from '@/components/ui';
 
 type SearchMode = 'database' | 'oracle';
 type HudTab = 'search' | 'library';
@@ -453,10 +453,10 @@ export function SearchHudOverlay({
                           <Text style={[styles.sourceText, active && { color: meta.color }]}>
                             {`[ ${meta.label} ]`}
                           </Text>
-                          <TierBadge
+                          <BetaBadge
                             source={key}
-                            style={styles.tierBadgeOffset}
-                            textStyle={styles.tierBadgeMono}
+                            style={styles.betaBadgeOffset}
+                            textStyle={styles.betaBadgeMono}
                           />
                         </View>
                         <Text
@@ -871,19 +871,19 @@ const styles = StyleSheet.create({
     fontSize: 6,
     letterSpacing: 0.7,
   },
-  // ─── Tier 3 "Restricted Beta" status chip overrides ────────
-  // The shared <TierBadge /> primitive (components/ui/TierBadge.tsx)
+  // ─── Restricted-beta status chip overrides ─────────────────
+  // The shared <BetaBadge /> primitive (components/ui/BetaBadge.tsx)
   // owns the visual styling — orange accent, border, padding, shape.
   // These two styles are surface-local *overrides* the primitive accepts:
-  //   • tierBadgeOffset → layout (marginLeft) is the parent's job
-  //   • tierBadgeMono   → font override so this tactical surface keeps
+  //   • betaBadgeOffset → layout (marginLeft) is the parent's job
+  //   • betaBadgeMono   → font override so this tactical surface keeps
   //     its monoBold typography instead of the primitive's system font
   // Primitives in components/ui/ can't import session-v2 tokens, so
   // surfaces that want the tactical font opt in via the textStyle prop.
-  tierBadgeOffset: {
+  betaBadgeOffset: {
     marginLeft: 5,
   },
-  tierBadgeMono: {
+  betaBadgeMono: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: 8,
     letterSpacing: 0.6,

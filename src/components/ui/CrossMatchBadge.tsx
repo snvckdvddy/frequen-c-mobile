@@ -18,7 +18,7 @@
  *   signal — not just the classification — keeps every surface honest
  *   to a single affordance, instead of slightly-different chips
  *   drifting over time. This is the same argument that justifies
- *   `TierBadge`, and the implementation follows the same shape.
+ *   `BetaBadge`, and the implementation follows the same shape.
  *
  * Currently used by:
  *   • TrackListItem            (Convergence Strategy rows)
@@ -44,7 +44,7 @@ import { palette, withAlpha } from '../../design/tokens/materials';
 import type { TrackSource } from '../../types';
 
 // Note: this primitive uses react-native `Text` directly rather than the
-// custom themed Text wrapper at `./Text`. Same reasoning as `TierBadge`:
+// custom themed Text wrapper at `./Text`. Same reasoning as `BetaBadge`:
 // the chip is a tightly-styled, surface-agnostic micro-component that owns
 // all of its text properties explicitly. Using the variant wrapper would
 // introduce a silent precedence collision between variant presets and
@@ -122,9 +122,9 @@ export function CrossMatchBadge({
 }
 
 const styles = StyleSheet.create({
-  // Visual language mirrors `TierBadge`: same orange accent, same pill
+  // Visual language mirrors `BetaBadge`: same orange accent, same pill
   // shape, same border radius. "Restricted origin" signals should read
-  // as one family across the app — TierBadge says "this provider is in
+  // as one family across the app — BetaBadge says "this provider is in
   // restricted-beta", CrossMatchBadge says "this result came from a
   // restricted provider and was resolved elsewhere." Related concepts,
   // related visuals.

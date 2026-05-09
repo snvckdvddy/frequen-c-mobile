@@ -15,7 +15,7 @@ import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { SafeScreen, showToast, TierBadge } from '../components/ui';
+import { SafeScreen, showToast, BetaBadge } from '../components/ui';
 import { VoidSurface } from '../design/components';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { SonicAuraCard } from '../components/profile/SonicAuraCard';
@@ -695,10 +695,10 @@ export function ProfileScreen() {
                           <View style={styles.providerTitleRow}>
                             <MonoText style={[textStyles.display, styles.providerTitle]}>{entry.label}</MonoText>
                             {isMusicTrackSource(entry.provider) && (
-                              <TierBadge
+                              <BetaBadge
                                 source={entry.provider}
                                 size="md"
-                                textStyle={styles.tierBadgeMono}
+                                textStyle={styles.betaBadgeMono}
                               />
                             )}
                           </View>
@@ -900,14 +900,14 @@ const styles = StyleSheet.create({
   providerTitle: { fontSize: 16, color: tacticalTokens.colors.white },
   providerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   providerStatus: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
-  // ─── Tier 3 "Restricted Beta" status chip override ─────────
-  // The shared <TierBadge size="md" /> primitive owns the visual
+  // ─── Restricted-beta status chip override ──────────────────
+  // The shared <BetaBadge size="md" /> primitive owns the visual
   // styling — orange accent, border, padding, shape. This single
   // override exists so the patch bay's tactical aesthetic keeps its
   // monoBold font instead of inheriting the primitive's system font.
   // Layering rule: components/ui/ primitives can't import session-v2
   // tokens, so this surface opts in via the textStyle prop.
-  tierBadgeMono: {
+  betaBadgeMono: {
     fontFamily: tacticalTokens.fonts.monoBold,
     letterSpacing: 0.7,
   },

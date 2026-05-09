@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   },
   // Phase 5: tactical-font override for the shared `CrossMatchBadge`
   // primitive. The base chip owns color + shape (orange pill that matches
-  // `TierBadge`); this override just swaps the sans-serif default for the
+  // `BetaBadge`); this override just swaps the sans-serif default for the
   // session-v2 mono font so the label reads as one language with the
   // neighboring `sourceBadge` glyphs. Kept here (not on the primitive) so
   // `components/ui/` never imports feature-scoped tokens.

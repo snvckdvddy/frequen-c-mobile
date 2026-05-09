@@ -1,27 +1,30 @@
 /**
- * TierBadge — Source tier indicator chip.
+ * BetaBadge — Restricted-beta access status chip.
  * ─────────────────────────────────────────────────────────────
  *
- * Cross-surface "BETA" status chip for Tier 3 music sources.
+ * Cross-surface "BETA" status chip for sources whose access class
+ * is `subscription-beta` (currently: Spotify under the closed-beta
+ * allowlist).
  *
- * Renders an orange-tinted compact badge whenever the given source
- * is classified as Tier 3 in the tier model (musicServiceAdapter).
- * Returns `null` for Tier 1 and Tier 2 sources so call sites can
- * render `<TierBadge source={x} />` unconditionally — the conditional
- * lives inside the component, not duplicated at every consumer.
+ * Renders an orange-tinted compact badge whenever the given source's
+ * access class is `subscription-beta`. Returns `null` for any other
+ * access class so call sites can render `<BetaBadge source={x} />`
+ * unconditionally — the conditional lives inside the component, not
+ * duplicated at every consumer.
  *
  * Why a shared primitive:
- *   The tier model is the load-bearing piece of the Frequen-C
- *   post-Spotify-wall response (see plans/modular-tinkering-robin.md).
- *   Centralizing the visual rendering of the tier signal — not just
- *   the classification — keeps every surface honest to a single
- *   "this provider is in restricted-beta" affordance, instead of
- *   slightly-different chips drifting over time.
+ *   The access-class model (SOURCE_META in musicServiceAdapter.ts) is
+ *   the load-bearing piece of how Frequen-C communicates restricted
+ *   access to users. Centralizing the visual rendering of the
+ *   "this provider is in restricted-beta" affordance — not just the
+ *   classification — keeps every surface honest to a single chip,
+ *   instead of slightly-different chips drifting over time.
  *
  * Currently used by:
  *   • Library tab pills           (ServiceSelectorPills)
  *   • Search source filter pills  (SearchHudOverlay)
  *   • Patch bay rows              (ProfileScreen)
+ *   • Signal chain queue rows     (SignalChainSheetV2)
  */
 
 import React from 'react';
@@ -48,8 +51,8 @@ import type { TrackSource } from '../../types';
 // instead of being legible at the call site. Owning the text style here
 // keeps the chip stable against future variant changes in `./Text`.
 
-export interface TierBadgeProps {
-  /** Music source whose tier should be displayed */
+export interface BetaBadgeProps {
+  /** Music source whose access class should be displayed */
   source: TrackSource;
   /**
    * Visual size variant. Default `'sm'`.
@@ -75,12 +78,12 @@ export interface TierBadgeProps {
   textStyle?: StyleProp<TextStyle>;
 }
 
-export function TierBadge({
+export function BetaBadge({
   source,
   size = 'sm',
   style,
   textStyle,
-}: TierBadgeProps) {
+}: BetaBadgeProps) {
   // Single source of truth — defer to the access-class model. If a future
   // change adds another beta-restricted source, the chip moves with it
   // automatically.
@@ -117,4 +120,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TierBadge;
+export default BetaBadge;

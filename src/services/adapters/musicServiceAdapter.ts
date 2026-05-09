@@ -11,13 +11,13 @@ import { ConnectedServices, ServiceConnection, TrackSource } from '../../types';
 // mapping that was conflating "what does the user need" with "what order
 // should we try sources." Decoupled 2026-05-09 because the conflation was
 // producing UX inconsistencies (picker showed honest "SUBSCRIPTION" labels
-// while Hardware Handshake / TierBadge still rendered "Tier 1/2/3" with
+// while Hardware Handshake / BetaBadge still rendered "Tier 1/2/3" with
 // colors that didn't match the picker).
 //
 // Two axes:
 //
 //   • `access` — user-facing requirement. Drives picker tile labels,
-//     Hardware Handshake colors, TierBadge / "BETA" chip, error messages,
+//     Hardware Handshake colors, BetaBadge / "BETA" chip, error messages,
 //     and any other UI that has to tell the user what they need to bring.
 //
 //   • `crossMatchPriority` — backend/resolver-only. Higher = preferred

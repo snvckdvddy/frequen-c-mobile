@@ -13,8 +13,8 @@ export { showToast, ToastProvider } from './Toast';
 
 // Convergence Strategy components
 export { RoomModeBadge } from './RoomModeBadge';
-export { TierBadge } from './TierBadge';
-export type { TierBadgeProps } from './TierBadge';
+export { BetaBadge } from './BetaBadge';
+export type { BetaBadgeProps } from './BetaBadge';
 export { CrossMatchBadge } from './CrossMatchBadge';
 export type { CrossMatchBadgeProps } from './CrossMatchBadge';
 export { TrackListItem } from './TrackListItem';

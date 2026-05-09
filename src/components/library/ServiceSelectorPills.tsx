@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { palette, withAlpha } from '@/design/tokens/materials';
 import { TrackSource } from '../../types';
 import { getAccessForSource } from '../../services/adapters/musicServiceAdapter';
-import { TierBadge } from '@/components/ui';
+import { BetaBadge } from '@/components/ui';
 
 // ─── Service metadata ───────────────────────────────────────
 
@@ -77,7 +77,7 @@ export function ServiceSelectorPills({
         // "Restricted Beta" treatment. The badge stays visible whether
         // the user is connected or not so the scarcity is communicated
         // up front, not after a failed connect. The visual chip lives in
-        // <TierBadge />; we still need this boolean locally so the
+        // <BetaBadge />; we still need this boolean locally so the
         // accessibility label can be enriched at the parent.
         const isRestrictedBeta = getAccessForSource(svc.key) === 'subscription-beta';
 
@@ -131,7 +131,7 @@ export function ServiceSelectorPills({
             >
               {isConnected ? svc.label : 'Connect'}
             </Text>
-            <TierBadge source={svc.key} style={styles.tierBadgeOffset} />
+            <BetaBadge source={svc.key} style={styles.betaBadgeOffset} />
           </TouchableOpacity>
         );
       })}
@@ -183,12 +183,12 @@ const styles = StyleSheet.create({
   pillTextDisabled: {
     color: palette.slate,
   },
-  // ─── Tier 3 "Restricted Beta" badge offset ─────────────────
-  // Layout-only spacer for the shared <TierBadge /> primitive when it
+  // ─── Restricted-beta badge offset ──────────────────────────
+  // Layout-only spacer for the shared <BetaBadge /> primitive when it
   // sits inline at the trailing edge of the Spotify pill. Visual styling
-  // (color, border, padding, font) lives in components/ui/TierBadge.tsx —
+  // (color, border, padding, font) lives in components/ui/BetaBadge.tsx —
   // sizing belongs to the primitive, spacing belongs to the parent.
-  tierBadgeOffset: {
+  betaBadgeOffset: {
     marginLeft: 6,
   },
 });

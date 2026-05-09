@@ -27,7 +27,7 @@ import SignalChainTrackBlock from './SignalChainTrackBlock';
 import { tacticalTokens } from '../theme/tacticalTokens';
 import { theme } from '../../../theme/theme';
 import { getSourceColor, getSourceLabel } from '../../../design/tokens/sourceColors';
-import { TierBadge } from '../../../components/ui';
+import { BetaBadge } from '../../../components/ui';
 import type { TrackSource } from '../../../types';
 
 interface SignalChainSheetV2Props {
@@ -131,7 +131,7 @@ function SearchResultRow({
             {availabilitySources.map((availabilitySource) => (
               // Fragment carries the iteration key so the data chip + tier
               // status chip render as a sibling pair inside searchTagCluster.
-              // The TierBadge primitive returns null for Tier 1/2 sources, so
+              // The BetaBadge primitive returns null for non-beta sources, so
               // it only appears next to the Spotify chip — communicating the
               // restricted-beta scarcity at the queue-add moment, before the
               // user attempts an add that would silently fail at playback.
@@ -151,10 +151,10 @@ function SearchResultRow({
                     {getSourceLabel(availabilitySource as TrackSource)}
                   </Text>
                 </View>
-                <TierBadge
+                <BetaBadge
                   source={availabilitySource}
-                  style={styles.tierBadgeChip}
-                  textStyle={styles.tierBadgeMono}
+                  style={styles.betaBadgeChip}
+                  textStyle={styles.betaBadgeMono}
                 />
               </React.Fragment>
             ))}
@@ -929,22 +929,22 @@ const styles = StyleSheet.create({
     fontSize: tacticalTokens.fontSize.sys - 1,
     letterSpacing: 0.7,
   },
-  // ─── Tier 3 "Restricted Beta" status chip overrides ────────
-  // The shared <TierBadge /> primitive (components/ui/TierBadge.tsx)
+  // ─── Restricted-beta status chip overrides ─────────────────
+  // The shared <BetaBadge /> primitive (components/ui/BetaBadge.tsx)
   // owns the visual styling — orange accent, border, padding, shape.
   // These two styles are surface-local overrides:
-  //   • tierBadgeChip → match the data chips' minHeight so the cluster
+  //   • betaBadgeChip → match the data chips' minHeight so the cluster
   //     row aligns visually (otherwise the BETA chip would sit shorter
   //     than the SPOTIFY chip and break the row's horizontal baseline)
-  //   • tierBadgeMono → font override so this tactical surface keeps
+  //   • betaBadgeMono → font override so this tactical surface keeps
   //     its monoBold typography instead of the primitive's system font
   // Primitives in components/ui/ can't import session-v2 tokens, so
   // surfaces that want the tactical font opt in via the textStyle prop.
-  tierBadgeChip: {
+  betaBadgeChip: {
     minHeight: 16,
     justifyContent: 'center',
   },
-  tierBadgeMono: {
+  betaBadgeMono: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys - 1,
     letterSpacing: 0.7,
