@@ -1,7 +1,7 @@
 /**
  * HapticHandshakeProvider
  *
- * Subscribes to the `handshakeBus` and fires the per-tier haptic pattern
+ * Subscribes to the `handshakeBus` and fires the per-source haptic pattern
  * whenever a provider successfully connects. Mounts at the app root as a
  * sibling to `HardwareHandshakeProvider` so visual + tactile feedback fire
  * together from the same bus event.

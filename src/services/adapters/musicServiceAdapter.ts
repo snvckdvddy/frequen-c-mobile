@@ -68,12 +68,14 @@ export interface SourceMeta {
 
 export const SOURCE_META: Record<TrackSource, SourceMeta> = {
     // Streaming services that require a paid subscription for full playback.
-    // Cross-match priority orders them so Apple Music wins by default
-    // (broadest catalog + best metadata), then Tidal (hi-fi but smaller),
-    // then SoundCloud (broad but uneven licensing).
+    // Cross-match priority preserves the empirical fallback order from the
+    // pre-refactor resolver (Apple → SoundCloud → Tidal → iTunes). The
+    // numeric gaps are wide enough to slot future sources between any two
+    // existing entries without renumbering. Re-tune values when real usage
+    // data shows which providers actually win cross-matches most often.
     appleMusic: { access: 'subscription',      crossMatchPriority: 100 },
-    tidal:      { access: 'subscription',      crossMatchPriority: 90  },
-    soundcloud: { access: 'subscription',      crossMatchPriority: 80  },
+    soundcloud: { access: 'subscription',      crossMatchPriority: 90  },
+    tidal:      { access: 'subscription',      crossMatchPriority: 80  },
     // Subscription PLUS allowlist. Sits below the universally-available
     // subscription sources because cross-match exists specifically to
     // resolve away FROM Spotify when the playback-allowlist gate fails.

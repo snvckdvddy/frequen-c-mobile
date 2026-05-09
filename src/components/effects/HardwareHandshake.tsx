@@ -8,10 +8,13 @@
  *
  * Canonical design: docs/ops/decisions/2026-04-25-hardware-handshake-design.md
  *
- * Color is keyed by TIER (per `SOURCE_TIER` in musicServiceAdapter.ts) rather
- * than per-source — reinforces the existing TierBadge metaphor and tells a
- * cleaner visual story (tier IS the meaningful axis; source identity lives
- * in the typography). Last.fm is metadata-only and treated as Tier 2.
+ * Color is keyed by ACCESS class (per SOURCE_META in musicServiceAdapter.ts)
+ * so the handshake stays in lockstep with the picker's honest labels —
+ * tap an "ice / SUBSCRIPTION" tile in the picker, see an ice handshake
+ * fire when the OAuth resolves. Source identity lives in the typography
+ * ("SPOTIFY · ONLINE"). Last.fm is metadata/scrobble (not a TrackSource)
+ * but does have a connect flow, so it's mapped to 'subscription' for the
+ * handshake color.
  *
  * Reduced motion is respected (WCAG 2.3.3): when the user has requested
  * reduced motion via OS settings, the animation collapses to a 1.5s static

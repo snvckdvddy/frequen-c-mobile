@@ -6,31 +6,31 @@
  * playback is restricted to the ≤5 allowlisted users inside
  * Spotify's Feb 2026 Dev Mode cap. For everyone else, a queued
  * Spotify track must be resolved to a playable equivalent on
- * Apple Music / Tidal / SoundCloud / iTunes-preview via ISRC
+ * Apple Music / SoundCloud / Tidal / iTunes-preview via ISRC
  * (and title+artist fuzzy fallback for sources without ISRC APIs).
  *
  * This module is NOT a React hook — the `use*` prefix is kept for
  * naming consistency with other hook files in `src/hooks/`. It's a
  * pure async function that hits `POST /api/match/resolve` on the
- * backend and swaps the track shape in-place if a better Tier 1/2
+ * backend and swaps the track shape in-place if a better playable
  * equivalent is found. The real call site is `SessionRoomScreen`'s
  * `handleAddTrack` (wrapped in a fire-and-forget IIFE so the sync
  * boolean return contract is preserved for prop-type compatibility).
  *
- * Resolution priority (highest tier wins):
- *   1. Apple Music  (Tier 1, ISRC-exact)
- *   2. SoundCloud   (Tier 1, title+artist fuzzy)
- *   3. Tidal        (Tier 2, ISRC-exact)
- *   4. iTunes       (Tier 1 preview, title+artist fuzzy)
- *   5. Original track (Tier 3 Spotify — the allowlist path)
+ * Resolution order is derived from `SOURCE_META.crossMatchPriority`
+ * — the canonical declaration in musicServiceAdapter.ts. Higher
+ * priority wins. Updating priorities there automatically updates
+ * the resolver order here without code changes. As of 2026-05-09:
+ *   appleMusic 100 → soundcloud 90 → tidal 80 → itunes 60
  *
  * The backend service is infallible: provider failures settle as
  * `undefined` in the response rather than throwing. On total API
  * failure we return the original track so the queue still works.
  */
 
-import { Track } from '../types';
+import { Track, type TrackSource } from '../types';
 import { apiFetch } from '../services/fetchClient';
+import { getCrossMatchPriority } from '../services/adapters/musicServiceAdapter';
 import { logger } from '../utils/logger';
 
 /**
@@ -44,6 +44,16 @@ interface CrossMatchResponse {
   tidal?: Track;
   itunes?: Track;
 }
+
+// Resolver order derived from SOURCE_META.crossMatchPriority. Computed
+// once at module load — re-sorts only on hot-reload, not per call. If
+// SOURCE_META gains a new source that should also be in the response
+// shape, add it to RESOLVE_KEYS and the backend response interface above.
+const RESOLVE_KEYS = (
+  ['appleMusic', 'soundcloud', 'tidal', 'itunes'] as const satisfies readonly (keyof CrossMatchResponse & TrackSource)[]
+)
+  .slice()
+  .sort((a, b) => getCrossMatchPriority(b) - getCrossMatchPriority(a));
 
 /**
  * Resolve a discovered track to its highest-tier playable equivalent.
@@ -75,14 +85,20 @@ export async function resolvePlayableTrack(track: Track): Promise<Track> {
       }),
     });
 
-    // Priority walk — highest tier first.
-    const resolved =
-      match.appleMusic || match.soundcloud || match.tidal || match.itunes;
+    // Priority walk — highest crossMatchPriority first. Order comes from
+    // SOURCE_META so changes there propagate to the resolver automatically.
+    let resolved: Track | undefined;
+    for (const key of RESOLVE_KEYS) {
+      if (match[key]) {
+        resolved = match[key];
+        break;
+      }
+    }
 
     if (!resolved) {
       // No cross-match hit on any provider. The allowlist path (full
-      // Spotify playback) is still viable for Tier 3 users, so keep the
-      // original track.
+      // Spotify playback) is still viable for subscription-beta users, so
+      // keep the original track.
       return track;
     }
 

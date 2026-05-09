@@ -31,12 +31,10 @@ interface ServiceMeta {
   icon: keyof typeof Ionicons.glyphMap;
 }
 
-// Order matches the tier model in musicServiceAdapter.ts:
-//   Tier 1 — universal (Apple Music, SoundCloud)
-//   Tier 2 — subscription required (Tidal)
-//   Tier 3 — restricted beta, Spotify Feb 2026 Dev Mode 5-user cap
-// Pills render left→right in this order so the most-universal source
-// is the first thing the user sees and the restricted source is last.
+// Order matches SOURCE_META.crossMatchPriority in musicServiceAdapter.ts —
+// pills render left→right in priority order so the highest-quality source
+// is the first thing the user sees and the restricted-beta source is last.
+// As of 2026-05-09: Apple Music → SoundCloud → Tidal → Spotify (BETA).
 const SERVICES: ServiceMeta[] = [
   { key: 'appleMusic',  label: 'Apple Music', icon: 'logo-apple' },
   { key: 'soundcloud',  label: 'SoundCloud',  icon: 'cloud-outline' },
@@ -75,14 +73,15 @@ export function ServiceSelectorPills({
       {SERVICES.map((svc) => {
         const isConnected = connectedServices.includes(svc.key);
         const isSelected = selectedService === svc.key;
-        // Tier 3 (Spotify, as of Feb 2026) is treated as "Restricted Beta".
-        // The badge stays visible whether the user is connected or not so the
-        // scarcity is communicated up front, not after a failed connect.
-        // The visual chip lives in <TierBadge />; we still need this boolean
-        // locally so the accessibility label can be enriched at the parent.
+        // Subscription-beta sources (Spotify as of Feb 2026) carry a
+        // "Restricted Beta" treatment. The badge stays visible whether
+        // the user is connected or not so the scarcity is communicated
+        // up front, not after a failed connect. The visual chip lives in
+        // <TierBadge />; we still need this boolean locally so the
+        // accessibility label can be enriched at the parent.
         const isRestrictedBeta = getAccessForSource(svc.key) === 'subscription-beta';
 
-        // Build accessibility label: include the tier framing for screen-reader
+        // Build accessibility label: include the beta framing for screen-reader
         // users so they hear *why* a service might be different, not just its name.
         const a11yBase = isConnected
           ? `${svc.label}${isSelected ? ', selected' : ''}`
