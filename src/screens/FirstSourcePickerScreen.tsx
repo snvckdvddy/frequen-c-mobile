@@ -42,7 +42,7 @@ import { VoidSurface } from '../design/components';
 import { useAuth } from '../contexts/AuthContext';
 import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
-import { palette, withAlpha } from '../design/tokens/materials';
+import { palette } from '../design/tokens/materials';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
 import type { HandshakeSource } from '../services/handshake/handshakeBus';
 
