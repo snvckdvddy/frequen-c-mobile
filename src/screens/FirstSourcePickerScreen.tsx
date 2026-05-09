@@ -61,14 +61,31 @@ function MonoText(props: { children: React.ReactNode; style?: StyleProp<TextStyl
 // Last.fm is intentionally excluded — it's a scrobbling/metadata
 // service, not a playback source. This screen is for "pick where
 // your tracks come from" decisions only.
+//
+// Reframed 2026-05-09 from abstract "TIER 1/2/3" labels to concrete
+// access requirements ("SUBSCRIPTION", "BETA · SUBSCRIPTION").
+// The prior labels were Frequen-C-product abstractions that didn't
+// match how the underlying services actually gate playback. Apple
+// Music being labeled "TIER 1" implied universal access — but full
+// playback always requires an Apple Music subscription. Honest
+// labels at the picker means users know what they need *before*
+// they tap a tile and run an OAuth flow that ends in a
+// preview-only experience. Frequen-C is a streaming-first app;
+// connecting a service without a subscription gives at best 30s
+// previews, which is worse than not connecting it at all.
+//
+// The underlying SOURCE_TIER mapping in musicServiceAdapter.ts is
+// unchanged — those tiers drive cross-match resolution priority
+// and other product logic. This refactor only changes how the
+// tiers are *presented* to users on the picker.
 
-type Tier = 1 | 2 | 3;
+type AccessClass = 'subscription' | 'subscription-beta';
 
 interface ProviderTile {
   source: HandshakeSource;
   serviceKey: string; // for ServiceIcon
   label: string;
-  tier: Tier;
+  access: AccessClass;
   badge: string;
 }
 
@@ -77,42 +94,45 @@ const PROVIDER_TILES: ProviderTile[] = [
     source: 'appleMusic',
     serviceKey: 'apple-music',
     label: 'APPLE MUSIC',
-    tier: 1,
-    badge: 'TIER 1',
+    access: 'subscription',
+    badge: 'SUBSCRIPTION',
   },
   {
     source: 'soundcloud',
     serviceKey: 'soundcloud',
     label: 'SOUNDCLOUD',
-    tier: 1,
-    badge: 'TIER 1',
+    access: 'subscription',
+    badge: 'SUBSCRIPTION',
   },
   {
     source: 'tidal',
     serviceKey: 'tidal',
     label: 'TIDAL',
-    tier: 2,
-    badge: 'TIER 2',
+    access: 'subscription',
+    badge: 'SUBSCRIPTION',
   },
   {
     source: 'spotify',
     serviceKey: 'spotify',
     label: 'SPOTIFY',
-    tier: 3,
-    badge: 'TIER 3 · BETA',
+    access: 'subscription-beta',
+    badge: 'BETA · SUBSCRIPTION',
   },
 ];
 
-const TIER_ACCENT: Record<Tier, string> = {
-  1: palette.green, // matches Hardware Handshake Tier 1 color
-  2: palette.ice,   // matches Hardware Handshake Tier 2 color
-  3: palette.orange, // matches Hardware Handshake Tier 3 color
+// Accent + glow per access class. Same Hardware-Handshake-aligned
+// palette. Subscription-required services share the ice (teal)
+// accent — they're functionally equivalent from a "what do I need"
+// standpoint. Spotify's BETA + SUBSCRIPTION combo gets orange to
+// signal the additional restriction (allowlist) on top of subscription.
+const ACCESS_ACCENT: Record<AccessClass, string> = {
+  subscription: palette.ice,
+  'subscription-beta': palette.orange,
 };
 
-const TIER_GLOW: Record<Tier, string> = {
-  1: withAlpha(palette.green, 0.18),
-  2: palette.iceGlow,
-  3: palette.orangeGlow,
+const ACCESS_GLOW: Record<AccessClass, string> = {
+  subscription: palette.iceGlow,
+  'subscription-beta': palette.orangeGlow,
 };
 
 // ─── Component ────────────────────────────────────────────────
@@ -184,8 +204,8 @@ export function FirstSourcePickerScreen({ onSelected, onSkipped }: FirstSourcePi
             {/* 2x2 tile grid */}
             <View style={styles.grid}>
               {PROVIDER_TILES.map((tile) => {
-                const accent = TIER_ACCENT[tile.tier];
-                const glow = TIER_GLOW[tile.tier];
+                const accent = ACCESS_ACCENT[tile.access];
+                const glow = ACCESS_GLOW[tile.access];
                 const isPending = pendingSource === tile.source;
                 const isDisabled = pendingSource !== null && !isPending;
 
@@ -219,11 +239,11 @@ export function FirstSourcePickerScreen({ onSelected, onSkipped }: FirstSourcePi
               })}
             </View>
 
-            {/* Tier explainer — expandable */}
+            {/* Access-class explainer — expandable */}
             <Pressable
               onPress={() => setExplainerOpen((o) => !o)}
               accessibilityRole="button"
-              accessibilityLabel="What do tiers mean"
+              accessibilityLabel="What do these labels mean"
               accessibilityState={{ expanded: explainerOpen }}
               style={({ pressed }) => [
                 styles.explainerToggle,
@@ -231,7 +251,7 @@ export function FirstSourcePickerScreen({ onSelected, onSkipped }: FirstSourcePi
               ]}
             >
               <MonoText style={styles.explainerToggleText}>
-                WHAT DO TIERS MEAN?
+                WHAT DO THESE LABELS MEAN?
               </MonoText>
               <Ionicons
                 name={explainerOpen ? 'chevron-up' : 'chevron-down'}
@@ -242,31 +262,29 @@ export function FirstSourcePickerScreen({ onSelected, onSkipped }: FirstSourcePi
 
             {explainerOpen && (
               <View style={styles.explainerBody}>
+                <MonoText style={styles.explainerIntro}>
+                  Frequen-C plays full tracks, not previews. Connect a service you
+                  have an active subscription with — otherwise the service will
+                  return 30-second samples instead of the song.
+                </MonoText>
                 <View style={styles.explainerRow}>
-                  <View style={[styles.explainerDot, { backgroundColor: TIER_ACCENT[1] }]} />
+                  <View style={[styles.explainerDot, { backgroundColor: ACCESS_ACCENT['subscription'] }]} />
                   <View style={styles.explainerText}>
-                    <MonoText style={styles.explainerTitle}>TIER 1 — UNIVERSAL</MonoText>
+                    <MonoText style={styles.explainerTitle}>SUBSCRIPTION</MonoText>
                     <MonoText style={styles.explainerCopy}>
-                      Always available. Tracks play for everyone in the room.
+                      Requires an active paid subscription with the service. No
+                      subscription means no full-track playback.
                     </MonoText>
                   </View>
                 </View>
                 <View style={styles.explainerRow}>
-                  <View style={[styles.explainerDot, { backgroundColor: TIER_ACCENT[2] }]} />
+                  <View style={[styles.explainerDot, { backgroundColor: ACCESS_ACCENT['subscription-beta'] }]} />
                   <View style={styles.explainerText}>
-                    <MonoText style={styles.explainerTitle}>TIER 2 — SUBSCRIPTION</MonoText>
+                    <MonoText style={styles.explainerTitle}>BETA · SUBSCRIPTION</MonoText>
                     <MonoText style={styles.explainerCopy}>
-                      Plays for users who have the same subscription.
-                    </MonoText>
-                  </View>
-                </View>
-                <View style={styles.explainerRow}>
-                  <View style={[styles.explainerDot, { backgroundColor: TIER_ACCENT[3] }]} />
-                  <View style={styles.explainerText}>
-                    <MonoText style={styles.explainerTitle}>TIER 3 — RESTRICTED BETA</MonoText>
-                    <MonoText style={styles.explainerCopy}>
-                      Search and discovery work for everyone. Full-track playback
-                      is allowlist-only during beta.
+                      Subscription required AND your device has to be on the
+                      Frequen-C beta allowlist. Search and discovery work for
+                      everyone; full-track playback is gated until we exit beta.
                     </MonoText>
                   </View>
                 </View>
@@ -409,6 +427,14 @@ const styles = StyleSheet.create({
     paddingTop: tacticalTokens.spacing.md,
     paddingBottom: tacticalTokens.spacing.lg,
     gap: tacticalTokens.spacing.md,
+  },
+  explainerIntro: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.micro,
+    color: tacticalTokens.colors.textSoft,
+    lineHeight: 20,
+    letterSpacing: 0.6,
+    marginBottom: tacticalTokens.spacing.sm,
   },
   explainerRow: {
     flexDirection: 'row',
