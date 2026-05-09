@@ -19,6 +19,7 @@ import { useDesignFonts } from './src/design/loadFonts';
 
 import { GlobalSessionRoomProvider } from './src/contexts/GlobalSessionRoomContext';
 import { HardwareHandshakeProvider } from './src/components/effects/HardwareHandshakeProvider';
+import { HapticHandshakeProvider } from './src/components/effects/HapticHandshakeProvider';
 
 export default function App() {
   const [fontsLoaded, fontError] = useDesignFonts();
@@ -47,8 +48,13 @@ export default function App() {
                    * overlay that fires on successful provider connect. The
                    * overlay is render-as-needed (null when idle), so the
                    * cost of mounting is negligible.
+                   *
+                   * HapticHandshakeProvider subscribes to the same bus and
+                   * fires per-tier haptic textures (Section 5b). iOS-only;
+                   * no-ops on Android. No rendered output.
                    */}
                   <HardwareHandshakeProvider />
+                  <HapticHandshakeProvider />
                 </ThemeProvider>
               </FavoritesProvider>
             </GlobalSessionRoomProvider>
