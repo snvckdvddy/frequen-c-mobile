@@ -52,7 +52,6 @@ export function AddToRoomSheet({
 
     addToQueue(activeSession.sessionId, queueTrack);
     notifySuccess();
-    showToast('Added to queue');
     onClose();
   };
 

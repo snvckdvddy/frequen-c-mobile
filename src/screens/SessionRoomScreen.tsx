@@ -454,7 +454,6 @@ export function SessionRoomScreen() {
     if (!session?.joinCode) return;
     await Clipboard.setStringAsync(session.joinCode);
     tapLight();
-    showToast(`Room code ${session.joinCode} copied.`, 'success', '!');
   }, [session]);
 
   // ─── Leave / End Session ───────────────────────────────
