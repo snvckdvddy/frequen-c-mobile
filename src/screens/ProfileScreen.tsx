@@ -560,11 +560,16 @@ export function ProfileScreen() {
                             pendingProvider !== null && pendingProvider !== entry.provider && styles.providerActionMuted,
                           ]}
                         >
-                          <MonoText style={[textStyles.monoBold, styles.providerActionText]}>
-                            {pendingProvider === entry.provider
-                              ? 'OPENING…'
-                              : isExpired ? 'RECONNECT' : connected ? 'UNPATCH' : 'PATCH'}
-                          </MonoText>
+                          {pendingProvider === entry.provider ? (
+                            <View style={styles.providerActionPending}>
+                              <ActivityIndicator size="small" color={tacticalTokens.colors.white} />
+                              <MonoText style={[textStyles.monoBold, styles.providerActionText]}>OPENING</MonoText>
+                            </View>
+                          ) : (
+                            <MonoText style={[textStyles.monoBold, styles.providerActionText]}>
+                              {isExpired ? 'RECONNECT' : connected ? 'UNPATCH' : 'PATCH'}
+                            </MonoText>
+                          )}
                         </Pressable>
                       )}
                     </View>
@@ -953,6 +958,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
   },
   providerAction: { minWidth: 92, minHeight: 44, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
+  // Inline row layout for the pending state — spinner + "OPENING" label sit
+  // side-by-side so the button width stays close to its idle dimensions.
+  // Spinner adds the motion that pure-text "OPENING…" was missing — under
+  // the OS browser-launch transition the static text was hard to notice
+  // against the visually-muted surrounding row.
+  providerActionPending: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   providerActionDefault: { borderColor: tacticalTokens.colors.ice, backgroundColor: '#04161A' },
   providerActionDanger: { borderColor: tacticalTokens.colors.orange, backgroundColor: '#1A120D' },
   providerActionMuted: { borderColor: tacticalTokens.colors.borderGhost, backgroundColor: tacticalTokens.colors.matte },
