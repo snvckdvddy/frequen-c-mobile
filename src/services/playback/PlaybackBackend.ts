@@ -16,8 +16,22 @@ import type { TrackSource } from '../../types';
  * Sources that require SDK playback via the hidden WebView.
  * Shared constant — used by PlaybackRouter and playbackEngine.ts so
  * the definition stays in one place.
+ *
+ * Why each entry is here:
+ * - `spotify`     — Web Playback SDK (DRM)
+ * - `appleMusic`  — MusicKit JS (FairPlay DRM)
+ * - `soundcloud`  — SoundCloud Widget API (sanctioned third-party iframe
+ *                   player; the legacy /tracks/{id}/stream redirect we
+ *                   used previously returns 30s preview clips from
+ *                   cf-preview-media.sndcdn.com regardless of OAuth.
+ *                   See playback_model.md canon for full diagnosis.)
+ *
+ * NOTE: keeping this set in sync with `WebViewSDKBackend.supportedSources`
+ * (in WebViewBridge.ts) is the authoritative pairing for routing — the
+ * router uses this set to decide whether to route to the WebView SDK
+ * backend, and the backend itself reports the same set for cross-check.
  */
-export const SDK_SOURCES: ReadonlySet<TrackSource> = new Set(['spotify', 'appleMusic']);
+export const SDK_SOURCES: ReadonlySet<TrackSource> = new Set(['spotify', 'appleMusic', 'soundcloud']);
 
 export interface PlaybackProgress {
   isPlaying: boolean;

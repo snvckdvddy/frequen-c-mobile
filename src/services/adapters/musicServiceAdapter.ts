@@ -111,6 +111,13 @@ export const SOURCE_META: Record<TrackSource, SourceMeta> = {
     // Spotify, native DASH player for Tidal). See known_debt.md V1-BLOCKER
     // section for the full diagnosis + fix paths.
     appleMusic: { access: 'subscription',      crossMatchPriority: 100, playbackCapability: 'preview' },
+    // SoundCloud: full playback via the SoundCloud Widget API in the
+    // hidden WebView (PlaybackWebView → backend /api/playback/bridge).
+    // Flipped from 'preview' → 'full' 2026-05-10 when the Widget pipeline
+    // landed in the bridge HTML. The legacy /tracks/{id}/stream redirect
+    // we hit previously returned 30s preview-only URLs regardless of
+    // OAuth tier; the Widget API plays the full track for any public
+    // SoundCloud upload (which Pro+ artists' own tracks are by default).
     soundcloud: { access: 'subscription',      crossMatchPriority: 90,  playbackCapability: 'full'    },
     tidal:      { access: 'subscription',      crossMatchPriority: 80,  playbackCapability: 'preview' },
     // Subscription PLUS allowlist. Sits below the universally-available

@@ -157,14 +157,24 @@ const APPLE_CREDS = {
 // ─── Tests ─────────────────────────────────────────────────
 
 describe('SDK_SOURCES constant', () => {
-  test('contains exactly spotify and appleMusic', () => {
+  test('contains all WebView-SDK-backed services (spotify, appleMusic, soundcloud)', () => {
+    // Spotify Web Playback SDK + Apple MusicKit JS + SoundCloud Widget API
+    // all run inside the hidden PlaybackWebView. SoundCloud joined this set
+    // 2026-05-10 when its Widget pipeline landed — third-party OAuth on
+    // SoundCloud's legacy /stream endpoint returns 30s preview clips
+    // regardless of subscription tier (see playback_model.md canon for the
+    // empirical diagnosis), so the Widget is the only third-party path
+    // for full-track playback.
     expect(SDK_SOURCES.has('spotify')).toBe(true);
     expect(SDK_SOURCES.has('appleMusic')).toBe(true);
-    expect(SDK_SOURCES.size).toBe(2);
+    expect(SDK_SOURCES.has('soundcloud')).toBe(true);
+    expect(SDK_SOURCES.size).toBe(3);
   });
 
-  test('does not contain CDN-backed sources', () => {
-    expect(SDK_SOURCES.has('soundcloud')).toBe(false);
+  test('does not contain remaining CDN-backed / metadata-only sources', () => {
+    // Tidal still lacks a sanctioned third-party WebView player (their
+    // streams are MPEG-DASH manifests we can't decode); itunes/youtube
+    // are search-only metadata sources that never have full audio paths.
     expect(SDK_SOURCES.has('tidal')).toBe(false);
     expect(SDK_SOURCES.has('itunes')).toBe(false);
     expect(SDK_SOURCES.has('youtube')).toBe(false);
@@ -203,15 +213,29 @@ describe('PlaybackRouter', () => {
       expect(mockExpoAv.load).not.toHaveBeenCalled();
     });
 
-    const cdnSources: TrackSource[] = ['soundcloud', 'tidal', 'itunes', 'youtube'];
+    test('routes soundcloud to WebViewSDK when available', async () => {
+      // SoundCloud uses the Widget API (cred-less response) but still
+      // routes through the WebView SDK backend like the other DRM-backed
+      // services. See SDK_SOURCES note above.
+      mockApiFetch.mockResolvedValue({
+        source: 'soundcloud',
+        sourceId: 'sc_track_123',
+        queuerId: 'usr_queuer',
+      });
+      await router.load(makeRequest('soundcloud'));
+      expect(mockWebViewSDK.load).toHaveBeenCalled();
+      expect(mockExpoAv.load).not.toHaveBeenCalled();
+    });
+
+    const cdnSources: TrackSource[] = ['tidal', 'itunes', 'youtube'];
     test.each(cdnSources)('routes %s to ExpoAv', async (source) => {
       await router.load(makeRequest(source));
       expect(mockExpoAv.load).toHaveBeenCalled();
       expect(mockWebViewSDK.load).not.toHaveBeenCalled();
     });
 
-    test('does NOT fetch credentials for CDN sources', async () => {
-      await router.load(makeRequest('soundcloud'));
+    test('does NOT fetch credentials for remaining CDN sources', async () => {
+      await router.load(makeRequest('tidal'));
       expect(mockApiFetch).not.toHaveBeenCalled();
     });
   });

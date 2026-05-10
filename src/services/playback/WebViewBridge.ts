@@ -50,7 +50,7 @@ interface WebViewEvent {
 
 export class WebViewSDKBackend implements PlaybackBackend {
   readonly name = 'WebViewSDK';
-  readonly supportedSources: ReadonlyArray<TrackSource> = ['spotify', 'appleMusic'];
+  readonly supportedSources: ReadonlyArray<TrackSource> = ['spotify', 'appleMusic', 'soundcloud'];
 
   private postMessage: PostMessageFn | null = null;
   private ready = false;
