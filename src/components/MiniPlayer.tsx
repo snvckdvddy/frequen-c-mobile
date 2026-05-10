@@ -102,11 +102,6 @@ export function MiniPlayer({
               {track.artist.toUpperCase()}
               {!playback.isLoading && playback.elapsed > 0 ? ` // ${formatTime(playback.elapsed)}` : ''}
             </MonoText>
-            {playback.debugUrlHost ? (
-              <MonoText style={[styles.mono, styles.debugMeta]} numberOfLines={1}>
-                {`SRC: ${track.source.toUpperCase()} · ${playback.debugUrlHost}`}
-              </MonoText>
-            ) : null}
           </View>
         </Pressable>
 
@@ -227,16 +222,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: tacticalTokens.colors.textSoft,
     letterSpacing: 1.1,
-  },
-  // TEMPORARY DIAGNOSTIC line — shows track source + URL host so we can
-  // see at a glance whether SoundCloud/Tidal tracks are using the
-  // service's CDN or silently degrading to iTunes 30s previews.
-  // Remove once the SoundCloud-30s investigation concludes.
-  debugMeta: {
-    marginTop: 1,
-    fontSize: 8,
-    color: tacticalTokens.colors.textMuted,
-    letterSpacing: 0.6,
   },
   controls: {
     flexDirection: 'row',

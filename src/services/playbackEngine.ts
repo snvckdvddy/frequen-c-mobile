@@ -28,28 +28,6 @@ export interface PlaybackState {
   progress: number;     // 0..1
   isLoading: boolean;   // true while buffering/loading
   error: string | null; // non-null if load failed
-  /**
-   * TEMPORARY DIAGNOSTIC: URL host of the audio being played, OR a marker
-   * for SDK-backed sources. Surfaced in the MiniPlayer so we can see at a
-   * glance whether SoundCloud/Tidal tracks are actually using the
-   * service's CDN (e.g. `cf-media.sndcdn.com`) vs. silently degrading to
-   * `itunes.apple.com` 30s previews when adapter resolution fails.
-   * Remove this field + its consumers once the SoundCloud-30s investigation
-   * concludes. Filed for cleanup in known_debt.
-   */
-  debugUrlHost?: string | null;
-}
-
-// Parse host from URL string, safely. Returns null if URL is empty/invalid.
-function parseHost(url: string | undefined | null): string | null {
-  if (!url) return null;
-  try {
-    return new URL(url).host || null;
-  } catch {
-    // Fallback for malformed URLs — extract substring between :// and /
-    const m = url.match(/^[a-z]+:\/\/([^/]+)/i);
-    return m?.[1] ?? null;
-  }
 }
 
 type ProgressListener = (state: PlaybackState) => void;
@@ -65,7 +43,6 @@ let state: PlaybackState = {
   progress: 0,
   isLoading: false,
   error: null,
-  debugUrlHost: null,
 };
 
 let progressListeners: ProgressListener[] = [];
@@ -167,12 +144,7 @@ export async function loadTrack(
   // Stop any current playback
   stopTimerFallback();
 
-  // Set initial state. debugUrlHost reflects what we'll actually pass to
-  // the playback router — for SDK sources we use a marker since there's no
-  // direct URL (the SDK plays by track ID with credentials).
-  const debugHost = source && SDK_SOURCES.has(source)
-    ? `(sdk:${source})`
-    : parseHost(previewUrl);
+  // Set initial state.
   state = {
     isPlaying: false,
     currentTrackId: trackId,
@@ -181,7 +153,6 @@ export async function loadTrack(
     progress: 0,
     isLoading: true,
     error: null,
-    debugUrlHost: debugHost,
   };
   emitProgress();
 
