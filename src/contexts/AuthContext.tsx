@@ -585,7 +585,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [bio.isLoading]);
 
   const login = useCallback(async (email: string, password: string) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
+    // Do NOT dispatch SET_LOADING true here. AppNavigator branches on
+    // state.isLoading and renders a full-screen spinner that UNMOUNTS
+    // LoginScreen — wiping its local form state (email/password/submitError)
+    // mid-request. On a failed login the user sees an empty form with no
+    // error message, exactly the "tapped login, nothing happened, fields
+    // disappeared" symptom reported 2026-05-10. isLoading is for cold-start
+    // bootstrap auth restoration only. Per-action loading lives in the
+    // screen's local useState. SET_USER (success) and SET_ERROR (failure)
+    // both correctly leave isLoading=false; nothing else needs to flip it.
     try {
       const { token, user } = await authApi.login(email, password);
       await storeToken(token);
@@ -598,7 +606,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [uploadPushToken]);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
+    // No SET_LOADING true — see login() above for full reasoning.
     try {
       const { token, user } = await authApi.register(username, email, password);
       await storeToken(token);
@@ -616,7 +624,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fullName?: string,
     email?: string,
   ): Promise<{ isNewUser: boolean }> => {
-    dispatch({ type: 'SET_LOADING', payload: true });
+    // No SET_LOADING true — see login() above for full reasoning.
     try {
       const { token, user: authedUser, isNewUser } = await authApi.apple(identityToken, user, fullName, email);
       await storeToken(token);
@@ -630,7 +638,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [uploadPushToken]);
 
   const loginWithGoogle = useCallback(async (idToken: string): Promise<{ isNewUser: boolean }> => {
-    dispatch({ type: 'SET_LOADING', payload: true });
+    // No SET_LOADING true — see login() above for full reasoning.
     try {
       const { token, user, isNewUser } = await authApi.google(idToken);
       await storeToken(token);
