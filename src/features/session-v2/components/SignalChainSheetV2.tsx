@@ -153,13 +153,13 @@ function SearchResultRow({
                 </View>
                 <BetaBadge
                   source={availabilitySource}
-                  style={styles.betaBadgeChip}
-                  textStyle={styles.betaBadgeMono}
+                  style={styles.inlineBadgeChip}
+                  textStyle={styles.inlineBadgeMono}
                 />
                 <PreviewBadge
                   source={availabilitySource}
-                  style={styles.betaBadgeChip}
-                  textStyle={styles.betaBadgeMono}
+                  style={styles.inlineBadgeChip}
+                  textStyle={styles.inlineBadgeMono}
                 />
               </React.Fragment>
             ))}
@@ -938,18 +938,18 @@ const styles = StyleSheet.create({
   // The shared <BetaBadge /> primitive (components/ui/BetaBadge.tsx)
   // owns the visual styling — orange accent, border, padding, shape.
   // These two styles are surface-local overrides:
-  //   • betaBadgeChip → match the data chips' minHeight so the cluster
+  //   • inlineBadgeChip → match the data chips' minHeight so the cluster
   //     row aligns visually (otherwise the BETA chip would sit shorter
   //     than the SPOTIFY chip and break the row's horizontal baseline)
-  //   • betaBadgeMono → font override so this tactical surface keeps
+  //   • inlineBadgeMono → font override so this tactical surface keeps
   //     its monoBold typography instead of the primitive's system font
   // Primitives in components/ui/ can't import session-v2 tokens, so
   // surfaces that want the tactical font opt in via the textStyle prop.
-  betaBadgeChip: {
+  inlineBadgeChip: {
     minHeight: 16,
     justifyContent: 'center',
   },
-  betaBadgeMono: {
+  inlineBadgeMono: {
     fontFamily: tacticalTokens.fonts.monoBold,
     fontSize: tacticalTokens.fontSize.sys - 1,
     letterSpacing: 0.7,
