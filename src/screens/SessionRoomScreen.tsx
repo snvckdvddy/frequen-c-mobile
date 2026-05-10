@@ -613,6 +613,17 @@ export function SessionRoomScreen() {
             ]}
             showsVerticalScrollIndicator={false}
           >
+            {/* TEMPORARY DIAGNOSTIC — surface the playback URL host so we
+                can diagnose the SoundCloud-30s issue without relying on JS
+                console (suppressed in OTA preview builds). Remove when the
+                investigation concludes (filed in known_debt). */}
+            {playback.debugUrlHost && currentTrack ? (
+              <View style={{ paddingHorizontal: 16, paddingVertical: 4 }}>
+                <Text style={{ color: '#ffaa00', fontSize: 11, fontFamily: 'monospace' }} numberOfLines={1}>
+                  {`DEBUG · src:${currentTrack.source} · host:${playback.debugUrlHost} · dur:${playback.duration}s`}
+                </Text>
+              </View>
+            ) : null}
             <TacticalAlbumHero track={currentTrack} readout={readout} />
             <TacticalTrackMeta
               track={currentTrack}
