@@ -44,7 +44,11 @@ const tidalDiscovery = {
 // ─── State ──────────────────────────────────────────────────
 
 type AuthAction =
-  | { type: 'SET_LOADING'; payload: boolean }
+  // Renamed from SET_LOADING (2026-05-10) to make the antipattern uncompilable:
+  // this action's only legitimate dispatch site is the cold-start bootstrap
+  // path. See AuthState.bootstrapLoading docstring + login() comment for the
+  // bug history that motivated the rename.
+  | { type: 'SET_BOOTSTRAP_LOADING'; payload: boolean }
   | { type: 'SET_USER'; payload: { user: User; token: string } }
   | { type: 'LOGOUT' }
   | { type: 'SET_ERROR'; payload: string };
@@ -52,26 +56,26 @@ type AuthAction =
 const initialState: AuthState = {
   user: null,
   token: null,
-  isLoading: true,
+  bootstrapLoading: true,
   isAuthenticated: false,
 };
 
 function authReducer(state: AuthState, action: AuthAction): AuthState {
   switch (action.type) {
-    case 'SET_LOADING':
-      return { ...state, isLoading: action.payload };
+    case 'SET_BOOTSTRAP_LOADING':
+      return { ...state, bootstrapLoading: action.payload };
     case 'SET_USER':
       return {
         ...state,
         user: action.payload.user,
         token: action.payload.token,
         isAuthenticated: true,
-        isLoading: false,
+        bootstrapLoading: false,
       };
     case 'LOGOUT':
-      return { ...initialState, isLoading: false };
+      return { ...initialState, bootstrapLoading: false };
     case 'SET_ERROR':
-      return { ...state, isLoading: false };
+      return { ...state, bootstrapLoading: false };
     default:
       return state;
   }
@@ -570,7 +574,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'SET_USER', payload: { user, token } });
           uploadPushToken();
         } else {
-          dispatch({ type: 'SET_LOADING', payload: false });
+          dispatch({ type: 'SET_BOOTSTRAP_LOADING', payload: false });
         }
       } catch {
         await clearToken();
@@ -585,15 +589,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [bio.isLoading]);
 
   const login = useCallback(async (email: string, password: string) => {
-    // Do NOT dispatch SET_LOADING true here. AppNavigator branches on
-    // state.isLoading and renders a full-screen spinner that UNMOUNTS
+    // Do NOT dispatch SET_BOOTSTRAP_LOADING true here. AppNavigator branches
+    // on state.bootstrapLoading and renders a full-screen spinner that UNMOUNTS
     // LoginScreen — wiping its local form state (email/password/submitError)
-    // mid-request. On a failed login the user sees an empty form with no
-    // error message, exactly the "tapped login, nothing happened, fields
-    // disappeared" symptom reported 2026-05-10. isLoading is for cold-start
-    // bootstrap auth restoration only. Per-action loading lives in the
-    // screen's local useState. SET_USER (success) and SET_ERROR (failure)
-    // both correctly leave isLoading=false; nothing else needs to flip it.
+    // mid-request. On a failed login the user would see an empty form with no
+    // error message, the "tapped login, nothing happened, fields disappeared"
+    // symptom reported 2026-05-10. The action was renamed from SET_LOADING ->
+    // SET_BOOTSTRAP_LOADING the same day so this antipattern is now uncompilable
+    // by name: the action only fires from the cold-start bootstrap effect.
+    // Per-action loading is a screen-local concern; LoginScreen and
+    // RegisterScreen each own their own useState(false) for button state.
+    // SET_USER (success) and SET_ERROR (failure) below both correctly leave
+    // bootstrapLoading=false; nothing else needs to flip it.
     try {
       const { token, user } = await authApi.login(email, password);
       await storeToken(token);
@@ -606,7 +613,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [uploadPushToken]);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
-    // No SET_LOADING true — see login() above for full reasoning.
+    // No SET_BOOTSTRAP_LOADING true — see login() above for full reasoning.
     try {
       const { token, user } = await authApi.register(username, email, password);
       await storeToken(token);
@@ -624,7 +631,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fullName?: string,
     email?: string,
   ): Promise<{ isNewUser: boolean }> => {
-    // No SET_LOADING true — see login() above for full reasoning.
+    // No SET_BOOTSTRAP_LOADING true — see login() above for full reasoning.
     try {
       const { token, user: authedUser, isNewUser } = await authApi.apple(identityToken, user, fullName, email);
       await storeToken(token);
@@ -638,7 +645,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [uploadPushToken]);
 
   const loginWithGoogle = useCallback(async (idToken: string): Promise<{ isNewUser: boolean }> => {
-    // No SET_LOADING true — see login() above for full reasoning.
+    // No SET_BOOTSTRAP_LOADING true — see login() above for full reasoning.
     try {
       const { token, user, isNewUser } = await authApi.google(idToken);
       await storeToken(token);

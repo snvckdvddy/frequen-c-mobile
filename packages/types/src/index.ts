@@ -50,7 +50,16 @@ export interface ServiceConnection {
 export interface AuthState {
   user: User | null;
   token: string | null;
-  isLoading: boolean;
+  /**
+   * True ONLY during cold-start auth restoration (before we know whether
+   * to mount the auth stack or the app stack). Do NOT flip this true for
+   * per-action loading (login attempts, OAuth flows, etc.) — AppNavigator
+   * branches on this and renders a full-screen spinner that unmounts the
+   * screen owning the action. Per-action loading is a screen-local concern;
+   * use a local useState in the screen instead. See AuthContext.tsx login()
+   * for the full bug-history rationale (2026-05-10).
+   */
+  bootstrapLoading: boolean;
   isAuthenticated: boolean;
 }
 

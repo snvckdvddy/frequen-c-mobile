@@ -511,7 +511,7 @@ const linking: LinkingOptions<MainStackParamList> = {
 // ─── Root ───────────────────────────────────────────────────
 
 export function AppNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, bootstrapLoading } = useAuth();
   const navigationRef = useRef<NavigationContainerRef<MainStackParamList>>(null);
 
   // Wire notification tap → navigate to session room
@@ -536,7 +536,7 @@ export function AppNavigator() {
     return unsubscribe;
   }, [isAuthenticated]);
 
-  if (isLoading) {
+  if (bootstrapLoading) {
     return (
       <View style={styles.loading}>
         <Text variant="label" color={palette.slate}>Loading...</Text>
