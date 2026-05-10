@@ -25,6 +25,7 @@ import TacticalGridBackground from '../features/session-v2/components/TacticalGr
 import { TacticalActionPrompt } from '../features/session-v2/components/TacticalActionPrompt';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { authApi, getStoredToken, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
+import { PatchCablesProviderRow } from './profile/PatchCablesProviderRow';
 import { formatFullDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
 import { getAccessForSource, isServiceExpired } from '../services/adapters/musicServiceAdapter';
 import { config } from '../config';
@@ -148,6 +149,15 @@ export function ProfileScreen() {
   // screen feels frozen), and (b) disable other PATCH/UNPATCH buttons in
   // the same row group so accidental taps mid-launch don't pile up.
   const [pendingProvider, setPendingProvider] = useState<DisconnectableProvider | null>(null);
+
+  // Stable callback for opening the disconnect confirm prompt — passed to
+  // PatchCablesProviderRow as a memo-friendly prop. Wrapping setPrompt in
+  // useCallback gives every row a reference-equal callback across parent
+  // re-renders, which is what makes React.memo on PatchCablesProviderRow
+  // actually skip re-renders on unrelated state changes.
+  const openDisconnectPrompt = useCallback((provider: DisconnectableProvider, name: string) => {
+    setPrompt({ kind: 'disconnect', provider, name });
+  }, []);
 
   // ── Security section state ───────────────────────────────
   const [newPassword, setNewPassword] = useState('');
@@ -428,18 +438,12 @@ export function ProfileScreen() {
             <View accessibilityRole="header"><MonoText style={[textStyles.mono, styles.sectionLabel]}>PATCH CABLES</MonoText></View>
             <View style={styles.panel}>
               {PROVIDERS.map((entry, index) => {
-                // Beta-access classification — only valid for music sources, not
-                // lastfm. The type predicate isMusicTrackSource (defined at module
-                // scope) narrows entry.provider to TrackSource so getAccessForSource
-                // can accept it without a cast.
-                const isRestrictedBeta =
-                  isMusicTrackSource(entry.provider) && getAccessForSource(entry.provider) === 'subscription-beta';
-
-                // Read the service connection object once per row so `connected`,
-                // `username`, and the new expiry check all derive from the same
-                // source. Previously we re-walked the ternary chain for each
-                // field, which made the expiry check (added below) awkward to
-                // bolt on without a third chain.
+                // Per-row data computed in the parent (which has access to
+                // profileUser/connectedServices and the useCallback'd helpers).
+                // Passing pre-computed primitives to the memoized row keeps
+                // its shallow comparison correct — when sibling rows' pending
+                // state changes, this row's props are unchanged and React.memo
+                // skips its re-render.
                 const service = entry.alwaysOn
                   ? undefined
                   : entry.provider === 'spotify' ? profileUser?.connectedServices?.spotify
@@ -456,11 +460,7 @@ export function ProfileScreen() {
                 // observed a 401 to flip the flag). Show this as a distinct
                 // layered claim — "PATCHED · EXPIRED" — matching the SearchHud
                 // chip vocabulary: PATCHED is structural, " · EXPIRED" is the
-                // behavioral qualifier. Providers without expiry (lastfm,
-                // appleMusic) stay in the plain PATCHED branch — the shared
-                // helper's typeof guard short-circuits when no expiresAt exists.
-                // The rule lives in musicServiceAdapter.ts so this UI check and
-                // the adapter-layer filter never drift.
+                // behavioral qualifier.
                 const isExpired = isServiceExpired(service);
                 const blocked = entry.provider ? mobileConfigMissing(entry.provider) || providerUnavailable(entry.provider) : false;
                 const status = entry.alwaysOn
@@ -473,107 +473,20 @@ export function ProfileScreen() {
                     : providerUnavailable(entry.provider!) ? 'BACKEND CONFIG MISSING'
                     : 'READY TO PATCH';
 
-                // A11y mirrors the three-way visible label: RECONNECT for
-                // expired, Disconnect for live, Connect for fresh. Without the
-                // isExpired branch, a screen reader would announce "Disconnect
-                // Spotify" on a button that actually re-runs the OAuth patch —
-                // user-hostile for assistive tech.
-                const baseA11y = isExpired
-                  ? `Reconnect ${entry.label}`
-                  : `${connected ? 'Unpatch' : 'Patch'} ${entry.label}`;
-                const buttonA11y = isRestrictedBeta ? `${baseA11y}, restricted beta` : baseA11y;
-
                 return (
-                  <View key={entry.key} style={index !== PROVIDERS.length - 1 ? styles.divider : undefined}>
-                    <View style={styles.providerRow}>
-                      <View style={styles.providerMeta}>
-                        <View style={styles.providerIcon}><ServiceIcon service={entry.serviceKey} size={18} connected={connected} /></View>
-                        <View style={{ flex: 1 }}>
-                          <View style={styles.providerTitleRow}>
-                            <MonoText style={[textStyles.display, styles.providerTitle]}>{entry.label}</MonoText>
-                            {isMusicTrackSource(entry.provider) && (
-                              <BetaBadge
-                                source={entry.provider}
-                                size="md"
-                                textStyle={styles.betaBadgeMono}
-                              />
-                            )}
-                          </View>
-                          <MonoText style={[textStyles.mono, styles.providerStatus]}>{status}</MonoText>
-                        </View>
-                      </View>
-                      {entry.alwaysOn ? (
-                        <View style={[styles.providerAction, styles.providerActionMuted]}>
-                          <MonoText style={[textStyles.monoBold, styles.providerActionText]}>AUTO</MonoText>
-                        </View>
-                      ) : (
-                        <Pressable
-                          onPress={() => {
-                            // Guard: a connect flow is already mid-launch — ignore
-                            // re-taps so we don't pile up multiple OAuth opens.
-                            if (pendingProvider) return;
-                            // isExpired branch must come BEFORE the `connected`
-                            // branch — an expired token still has connected===true,
-                            // so the old order would route to the Disconnect
-                            // confirm dialog and force a three-tap dance
-                            // (UNPATCH → confirm → PATCH) for a one-tap reflow.
-                            if (isExpired && entry.provider) {
-                              tapMedium();
-                              startConnect(entry.provider, entry.label);
-                              return;
-                            }
-                            if (connected && entry.provider) {
-                              tapMedium();
-                              setPrompt({ kind: 'disconnect', provider: entry.provider, name: entry.label });
-                              return;
-                            }
-                            if (entry.provider) {
-                              tapMedium();
-                              startConnect(entry.provider, entry.label);
-                            }
-                          }}
-                          // Disable the *other* PATCH/UNPATCH buttons while one is
-                          // mid-launch. The pending button itself stays interactive
-                          // (the onPress guard catches re-taps) so its pressed style
-                          // still gives tactile feedback.
-                          disabled={pendingProvider !== null && pendingProvider !== entry.provider}
-                          accessibilityRole="button"
-                          accessibilityLabel={buttonA11y}
-                          accessibilityState={{
-                            disabled: blocked || (pendingProvider !== null && pendingProvider !== entry.provider),
-                            busy: pendingProvider === entry.provider,
-                          }}
-                          style={({ pressed }) => [
-                            styles.providerAction,
-                            // Reconnect takes the neutral "default" style, not
-                            // the danger style. Danger red signals destructive
-                            // intent — reconnect is a restore action, the
-                            // opposite of destructive.
-                            isExpired
-                              ? styles.providerActionDefault
-                              : connected
-                                ? styles.providerActionDanger
-                                : blocked
-                                  ? styles.providerActionMuted
-                                  : styles.providerActionDefault,
-                            pressed && styles.pressed,
-                            pendingProvider !== null && pendingProvider !== entry.provider && styles.providerActionMuted,
-                          ]}
-                        >
-                          {pendingProvider === entry.provider ? (
-                            <View style={styles.providerActionPending}>
-                              <ActivityIndicator size="small" color={tacticalTokens.colors.white} />
-                              <MonoText style={[textStyles.monoBold, styles.providerActionText]}>OPENING</MonoText>
-                            </View>
-                          ) : (
-                            <MonoText style={[textStyles.monoBold, styles.providerActionText]}>
-                              {isExpired ? 'RECONNECT' : connected ? 'UNPATCH' : 'PATCH'}
-                            </MonoText>
-                          )}
-                        </Pressable>
-                      )}
-                    </View>
-                  </View>
+                  <PatchCablesProviderRow
+                    key={entry.key}
+                    entry={entry}
+                    isLast={index === PROVIDERS.length - 1}
+                    connected={connected}
+                    isExpired={isExpired}
+                    blocked={blocked}
+                    status={status}
+                    isPending={pendingProvider === entry.provider}
+                    isAnotherPending={pendingProvider !== null && pendingProvider !== entry.provider}
+                    onConnect={startConnect}
+                    onDisconnectPrompt={openDisconnectPrompt}
+                  />
                 );
               })}
             </View>
