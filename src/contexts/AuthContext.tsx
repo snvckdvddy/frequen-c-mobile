@@ -298,7 +298,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             token: state.token!,
           }
         });
-        showToast('Spotify patched', 'success');
         handshakeBus.fire('spotify');
       }).catch(err => {
         console.error('Failed to connect Spotify on backend:', err);
@@ -324,7 +323,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authApi.connectTidal(code, codeVerifier || '', redirectUri).then(async () => {
         const { user } = await authApi.me();
         dispatch({ type: 'SET_USER', payload: { user, token: state.token! } });
-        showToast('Tidal patched', 'success');
         handshakeBus.fire('tidal');
       }).catch(err => {
         console.error('Failed to connect Tidal on backend:', err);
@@ -356,7 +354,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authApi.connectLastfm(tokenParam);
       const { user } = await authApi.me();
       dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
-      showToast('Last.fm patched', 'success');
       handshakeBus.fire('lastfm');
     } catch (err) {
       console.error('Failed to connect Last.fm:', err);
@@ -380,7 +377,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { user } = await authApi.me();
         dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
-        showToast('SoundCloud patched', 'success');
         handshakeBus.fire('soundcloud');
       } catch (err) {
         console.error('Failed to refresh user after SoundCloud callback:', err);
@@ -418,8 +414,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await storeToken(token);
       const { user } = await authApi.me();
       dispatch({ type: 'SET_USER', payload: { user, token } });
-      const isNewUser = params.get('isNewUser') === 'true';
-      showToast(isNewUser ? 'Welcome to Frequen-C!' : 'Signed in with Apple', 'success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to complete Apple sign in';
       showToast(message, 'error');
@@ -461,7 +455,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authApi.connectAppleMusic(musicUserToken);
       const { user } = await authApi.me();
       dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
-      showToast('Apple Music patched', 'success');
       handshakeBus.fire('appleMusic');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to connect Apple Music';
@@ -952,8 +945,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           token: state.token,
         },
       });
-
-      showToast(`${providerLabel[provider]} unpatched`, 'success');
     } catch (error) {
       showToast(`Failed to unpatch ${providerLabel[provider]}. Try again.`, 'error');
       throw error;

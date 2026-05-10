@@ -342,7 +342,6 @@ export function ProfileScreen() {
     try {
       await disconnectService(provider);
       notifySuccess();
-      showToast(`${name} unpatched.`, 'success', '!');
       setPrompt(null);
       void refreshProfile(false);
     } catch {
