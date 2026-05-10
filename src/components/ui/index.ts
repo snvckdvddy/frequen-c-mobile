@@ -15,6 +15,8 @@ export { showToast, ToastProvider } from './Toast';
 export { RoomModeBadge } from './RoomModeBadge';
 export { BetaBadge } from './BetaBadge';
 export type { BetaBadgeProps } from './BetaBadge';
+export { PreviewBadge } from './PreviewBadge';
+export type { PreviewBadgeProps } from './PreviewBadge';
 export { CrossMatchBadge } from './CrossMatchBadge';
 export type { CrossMatchBadgeProps } from './CrossMatchBadge';
 export { TrackListItem } from './TrackListItem';

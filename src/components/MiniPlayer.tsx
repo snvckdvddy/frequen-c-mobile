@@ -13,6 +13,7 @@ import { formatTime, type PlaybackState } from '../services/playbackEngine';
 import type { QueueTrack } from '../types';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { getSourceColor } from '../design/tokens/sourceColors';
+import { PreviewBadge } from './ui';
 
 export const MINI_PLAYER_HEIGHT = 64;
 
@@ -91,6 +92,7 @@ export function MiniPlayer({
           <View style={styles.copy}>
             <View style={styles.labelRow}>
               <MonoText style={[styles.mono, styles.nowLabel]}>NOW PATCHED</MonoText>
+              <PreviewBadge source={track.source} />
               {playback.isLoading ? <ActivityIndicator size="small" color={tacticalTokens.colors.ice} /> : null}
             </View>
             <MonoText style={[styles.display, styles.title]} numberOfLines={1}>

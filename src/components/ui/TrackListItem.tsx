@@ -15,6 +15,7 @@ import { View, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './Text';
 import { CrossMatchBadge } from './CrossMatchBadge';
+import { PreviewBadge } from './PreviewBadge';
 import { palette } from '../../design/tokens/materials';
 import { spacing } from '../../theme/spacing';
 import type { TrackSource } from '../../types';
@@ -111,6 +112,7 @@ export function TrackListItem({
             {title}
           </Text>
           <CrossMatchBadge source={source} metadataSource={metadataSource} />
+          {source && <PreviewBadge source={source} />}
         </View>
         <Text variant="bodySmall" color={palette.silver} numberOfLines={1}>
           {artist}{duration ? ` · ${formatDuration(duration)}` : ''}

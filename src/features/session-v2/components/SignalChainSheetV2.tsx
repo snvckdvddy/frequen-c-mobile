@@ -27,7 +27,7 @@ import SignalChainTrackBlock from './SignalChainTrackBlock';
 import { tacticalTokens } from '../theme/tacticalTokens';
 import { theme } from '../../../theme/theme';
 import { getSourceColor, getSourceLabel } from '../../../design/tokens/sourceColors';
-import { BetaBadge } from '../../../components/ui';
+import { BetaBadge, PreviewBadge } from '../../../components/ui';
 import type { TrackSource } from '../../../types';
 
 interface SignalChainSheetV2Props {
@@ -152,6 +152,11 @@ function SearchResultRow({
                   </Text>
                 </View>
                 <BetaBadge
+                  source={availabilitySource}
+                  style={styles.betaBadgeChip}
+                  textStyle={styles.betaBadgeMono}
+                />
+                <PreviewBadge
                   source={availabilitySource}
                   style={styles.betaBadgeChip}
                   textStyle={styles.betaBadgeMono}

@@ -55,6 +55,28 @@ export type AccessClass =
                           // Used for iTunes Search API (cross-match metadata
                           // source) and YouTube (preview-only fallback).
 
+// Orthogonal to AccessClass: what the playback layer actually delivers
+// today. AccessClass answers "what does the user need to bring?";
+// PlaybackCapability answers "what will they actually hear?". They're
+// separate axes because a source can require a subscription AND still
+// only deliver 30s previews until SDK work lands (e.g. Apple Music
+// pending MusicKit JS, Spotify pending Web Playback SDK), or it can
+// require nothing AND deliver nothing (iTunes Search — metadata-only).
+export type PlaybackCapability =
+  | 'full'      // Full-length track playback works today via the
+                // adapter's getStreamUrl path (SoundCloud).
+  | 'preview'   // Playback is currently capped at ~30 seconds. Either
+                // the source's API only exposes preview clips (iTunes
+                // for Apple Music catalog), or full playback requires
+                // SDK work that hasn't shipped yet (Spotify Web Playback
+                // SDK, Apple Music MusicKit JS, Tidal DASH player).
+                // Surface this honestly in UI via PreviewBadge so users
+                // know what they'll hear before they queue.
+  | 'none';     // No playback at all. Used for cross-match-only sources
+                // (iTunes / YouTube as metadata) where the result is a
+                // catalog match for resolving an ISRC, not a playable
+                // track in its own right.
+
 export interface SourceMeta {
     /** User-facing access requirement — drives all visible labels + colors */
     access: AccessClass;
@@ -64,6 +86,15 @@ export interface SourceMeta {
      * which should outrank streaming) can slot in without renumbering.
      */
     crossMatchPriority: number;
+    /**
+     * What the playback layer actually delivers today. Drives the
+     * PreviewBadge "30s" pill on track surfaces — honest UX over
+     * silently capping playback at 30 seconds and confusing users.
+     * When SDK work lands for a given source (Phase 3 WebView SDK),
+     * flip its value here from 'preview' to 'full' and every consumer
+     * surface updates automatically.
+     */
+    playbackCapability: PlaybackCapability;
 }
 
 export const SOURCE_META: Record<TrackSource, SourceMeta> = {
@@ -73,17 +104,23 @@ export const SOURCE_META: Record<TrackSource, SourceMeta> = {
     // numeric gaps are wide enough to slot future sources between any two
     // existing entries without renumbering. Re-tune values when real usage
     // data shows which providers actually win cross-matches most often.
-    appleMusic: { access: 'subscription',      crossMatchPriority: 100 },
-    soundcloud: { access: 'subscription',      crossMatchPriority: 90  },
-    tidal:      { access: 'subscription',      crossMatchPriority: 80  },
+    //
+    // Playback capability today (2026-05-09): only SoundCloud delivers full
+    // tracks; Apple Music + Tidal + Spotify are 30s previews until Phase 3
+    // SDK work lands (MusicKit JS for Apple Music, Web Playback SDK for
+    // Spotify, native DASH player for Tidal). See known_debt.md V1-BLOCKER
+    // section for the full diagnosis + fix paths.
+    appleMusic: { access: 'subscription',      crossMatchPriority: 100, playbackCapability: 'preview' },
+    soundcloud: { access: 'subscription',      crossMatchPriority: 90,  playbackCapability: 'full'    },
+    tidal:      { access: 'subscription',      crossMatchPriority: 80,  playbackCapability: 'preview' },
     // Subscription PLUS allowlist. Sits below the universally-available
     // subscription sources because cross-match exists specifically to
     // resolve away FROM Spotify when the playback-allowlist gate fails.
-    spotify:    { access: 'subscription-beta', crossMatchPriority: 70  },
+    spotify:    { access: 'subscription-beta', crossMatchPriority: 70,  playbackCapability: 'preview' },
     // Metadata-only sources — no full playback. Used as last-ditch
     // cross-match candidates and as catalog fillers.
-    itunes:     { access: 'metadata-only',     crossMatchPriority: 60  },
-    youtube:    { access: 'metadata-only',     crossMatchPriority: 50  },
+    itunes:     { access: 'metadata-only',     crossMatchPriority: 60,  playbackCapability: 'none'    },
+    youtube:    { access: 'metadata-only',     crossMatchPriority: 50,  playbackCapability: 'none'    },
 };
 
 /** User-facing access class for a source — drives badges, colors, copy. */
@@ -94,6 +131,16 @@ export function getAccessForSource(source: TrackSource): AccessClass {
 /** Resolver priority for a source — backend/cross-match consumers only. */
 export function getCrossMatchPriority(source: TrackSource): number {
     return SOURCE_META[source].crossMatchPriority;
+}
+
+/** What the playback layer actually delivers today — drives PreviewBadge. */
+export function getPlaybackCapability(source: TrackSource): PlaybackCapability {
+    return SOURCE_META[source].playbackCapability;
+}
+
+/** Convenience predicate: true if playback is currently 30s previews only. */
+export function isPreviewOnly(source: TrackSource): boolean {
+    return SOURCE_META[source].playbackCapability === 'preview';
 }
 
 // ─── Connection-state predicates ─────────────────────────────
