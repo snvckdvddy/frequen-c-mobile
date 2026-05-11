@@ -66,7 +66,8 @@ export class WebViewSDKBackend implements PlaybackBackend {
    */
   registerWebView(postMessage: PostMessageFn): void {
     this.postMessage = postMessage;
-    logger.debug('WebViewSDK', 'WebView registered');
+    // Promoted to info for the skip-hang diagnostic session 2026-05-11.
+    logger.info('WebViewSDK', 'WebView registered');
   }
 
   /**
@@ -75,7 +76,7 @@ export class WebViewSDKBackend implements PlaybackBackend {
   unregisterWebView(): void {
     this.postMessage = null;
     this.ready = false;
-    logger.debug('WebViewSDK', 'WebView unregistered');
+    logger.info('WebViewSDK', 'WebView unregistered');
   }
 
   /**
@@ -87,7 +88,7 @@ export class WebViewSDKBackend implements PlaybackBackend {
       switch (event.type) {
         case 'ready':
           this.ready = true;
-          logger.debug('WebViewSDK', 'WebView bridge ready');
+          logger.info('WebViewSDK', 'WebView bridge ready');
           if (this.pendingLoad) {
             void this.load(this.pendingLoad);
             this.pendingLoad = null;
