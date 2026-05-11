@@ -18,8 +18,9 @@ import { ToastProvider } from './src/components/ui';
 import { useDesignFonts } from './src/design/loadFonts';
 
 import { GlobalSessionRoomProvider } from './src/contexts/GlobalSessionRoomContext';
-import { HardwareHandshakeProvider } from './src/components/effects/HardwareHandshakeProvider';
 import { HapticHandshakeProvider } from './src/components/effects/HapticHandshakeProvider';
+// HardwareHandshakeProvider intentionally NOT mounted — see comment near
+// usage block below for rationale (2026-05-11).
 
 export default function App() {
   const [fontsLoaded, fontError] = useDesignFonts();
@@ -44,16 +45,24 @@ export default function App() {
                   <AppNavigator />
                   <ToastProvider />
                   {/*
-                   * HardwareHandshakeProvider mounts a fullscreen Modal
-                   * overlay that fires on successful provider connect. The
-                   * overlay is render-as-needed (null when idle), so the
-                   * cost of mounting is negligible.
+                   * HardwareHandshakeProvider DELIBERATELY NOT MOUNTED
+                   * (2026-05-11). It rendered a fullscreen opaque overlay
+                   * for ~4 seconds after every successful provider connect.
+                   * Even with pointerEvents="none", the visual obscured the
+                   * screen so the user could not see what they were touching
+                   * — functionally a 4-second freeze right after PATCH.
+                   * Caleb's UX feedback: "i don't like the screen being
+                   * frozen at all personally." The component, the bus, and
+                   * the animation code all stay in the codebase — only this
+                   * mount line was removed. To re-enable for a specific
+                   * scenario (e.g. first-ever-connect celebration), import
+                   * and remount here.
                    *
-                   * HapticHandshakeProvider subscribes to the same bus and
-                   * fires per-source haptic textures (Section 5b). iOS-only;
-                   * no-ops on Android. No rendered output.
+                   * HapticHandshakeProvider stays mounted. It also
+                   * subscribes to handshakeBus.fire() but only fires
+                   * 80-120ms haptic pulses (iOS only, no-op on Android).
+                   * Zero perceived freeze cost.
                    */}
-                  <HardwareHandshakeProvider />
                   <HapticHandshakeProvider />
                 </ThemeProvider>
               </FavoritesProvider>
