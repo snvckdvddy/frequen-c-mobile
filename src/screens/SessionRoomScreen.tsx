@@ -87,7 +87,7 @@ import TacticalRoomHeader from '../features/session-v2/components/TacticalRoomHe
 import TacticalPresenceStrip from '../features/session-v2/components/TacticalPresenceStrip';
 import TacticalAlbumHero from '../features/session-v2/components/TacticalAlbumHero';
 import TacticalTrackMeta from '../features/session-v2/components/TacticalTrackMeta';
-import TacticalWaveform from '../features/session-v2/components/TacticalWaveform';
+import TacticalSpectrum from '../features/session-v2/components/TacticalSpectrum';
 import TacticalTransportDeck from '../features/session-v2/components/TacticalTransportDeck';
 import TacticalReactionMatrix from '../features/session-v2/components/TacticalReactionMatrix';
 import TacticalSystemPreferencesPanel from '../features/session-v2/components/TacticalSystemPreferencesPanel';
@@ -622,11 +622,12 @@ export function SessionRoomScreen() {
                 setPowerRoutingOpen(true);
               }}
             />
-            <TacticalWaveform
+            <TacticalSpectrum
               trackId={currentTrack?.id}
               elapsed={playback.elapsed}
               duration={playback.duration || currentTrack?.duration || 0}
               progress={playback.progress}
+              isPlaying={playback.isPlaying}
             />
             <TacticalTransportDeck
               hasCurrentTrack={!!currentTrack}
