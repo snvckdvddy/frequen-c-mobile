@@ -214,7 +214,8 @@ const styles = StyleSheet.create({
   },
   title: {
     marginTop: 1,
-    fontSize: 16,
+    // Reduced from 16 to 14 per UX feedback 2026-05-11.
+    fontSize: 14,
     color: tacticalTokens.colors.white,
   },
   meta: {

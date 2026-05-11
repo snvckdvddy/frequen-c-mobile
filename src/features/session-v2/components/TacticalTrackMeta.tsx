@@ -102,17 +102,21 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: tacticalTokens.fonts.display,
-    fontSize: tacticalTokens.fontSize.hero,
-    lineHeight: tacticalTokens.fontSize.hero + 1,
+    // Reduced from `hero` (32) to `body` (14) per UX feedback 2026-05-11
+    // — the previous size dominated the play screen and felt clunky.
+    // Hierarchy with the artist line (also 14, mono font, ice color) is
+    // preserved through font-family + color, not size.
+    fontSize: tacticalTokens.fontSize.body,
+    lineHeight: tacticalTokens.fontSize.body + 2,
     color: tacticalTokens.colors.white,
   },
   titleIdle: {
-    fontSize: tacticalTokens.fontSize.hero,
-    lineHeight: tacticalTokens.fontSize.hero + 1,
+    fontSize: tacticalTokens.fontSize.body,
+    lineHeight: tacticalTokens.fontSize.body + 2,
   },
   titleCompact: {
-    fontSize: tacticalTokens.fontSize.display,
-    lineHeight: tacticalTokens.fontSize.display + 1,
+    fontSize: tacticalTokens.fontSize.small + 1,
+    lineHeight: tacticalTokens.fontSize.small + 2,
   },
   artist: {
     marginTop: 3,
