@@ -242,8 +242,37 @@ export function SessionRoomScreen() {
   const handleAddTrack = useCallback((track: Track) => {
     if (!user || !session || !sessionId) return false;
     if (!getGlobalLimiter().canDo('addTrack')) return false;
+
+    // Cheap pre-check: if the unresolved track id is already queued, bail
+    // before doing the resolve round-trip. Resolved-id check happens
+    // inside the async block as a second line of defense (catches the
+    // case where two different source ids resolve to the same playable
+    // track, e.g. Spotify -> SoundCloud cross-match collision).
+    if (queue.some((q) => q.id === track.id)) {
+      const dupName = queue.find((q) => q.id === track.id);
+      const queuedBy = dupName?.addedBy?.username
+        ? ` by @${dupName.addedBy.username}`
+        : '';
+      showToast(`"${track.title}" is already queued${queuedBy}.`, 'info');
+      notifyWarning();
+      return false;
+    }
+
     void (async () => {
       const resolved = await resolvePlayableTrack(track);
+
+      // Second-line dedupe after cross-match resolve. The resolved id
+      // may differ from track.id (e.g. Spotify track resolved to its
+      // SoundCloud equivalent), and the resolved id is what actually
+      // lands in the queue. So re-check against the freshly-snapshotted
+      // queue ids here. We snapshot queue at this point because the
+      // outer queue state may have changed during the resolve.
+      if (queue.some((q) => q.id === resolved.id)) {
+        showToast(`"${resolved.title}" is already queued.`, 'info');
+        notifyWarning();
+        return;
+      }
+
       const queueTrack: QueueTrack = {
         ...resolved,
         addedBy: { userId: user.id, username: user.username },
@@ -258,7 +287,7 @@ export function SessionRoomScreen() {
       if (query.trim()) saveRecentSearch(query.trim());
     })();
     return true;
-  }, [user, session, sessionId, query, saveRecentSearch]);
+  }, [user, session, sessionId, query, saveRecentSearch, queue]);
 
   // AI: Add a suggested track by searching for it first
   const handleAddSuggestion = useCallback(async (title: string, artist: string) => {
