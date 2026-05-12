@@ -222,7 +222,7 @@ export function OracleModeCard({
 
         <View style={styles.trackInfo}>
           <Text style={styles.trackTitle} numberOfLines={1}>
-            {suggestion.title.toUpperCase()}
+            {suggestion.title}
           </Text>
           <Text style={styles.trackArtist} numberOfLines={1}>
             {suggestion.artist}

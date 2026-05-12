@@ -211,7 +211,7 @@ export function ActivityFeedScreen({ onBack, onOpenRoom, onOpenProfile }: Activi
           {item.track ? (
             <View style={styles.eventMetaRow}>
               <MonoText style={styles.eventMetaText}>
-                TRACK // {item.track.title.toUpperCase()} {item.track.artist ? `// ${item.track.artist.toUpperCase()}` : ''}
+                TRACK // {item.track.title}{item.track.artist ? ` // ${item.track.artist}` : ''}
               </MonoText>
             </View>
           ) : null}

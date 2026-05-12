@@ -182,7 +182,7 @@ function ActiveRoomCard({
           )}
           <View style={styles.roomNowPlayingMeta}>
             <TextMono style={styles.trackTitle} numberOfLines={1}>
-              {(room.currentTrack?.title || 'NO TRACK PATCHED').toUpperCase()}
+              {room.currentTrack?.title || 'NO TRACK PATCHED'}
             </TextMono>
             <TextMono style={styles.trackArtist} numberOfLines={1}>
               {room.currentTrack?.artist || 'QUEUE // STANDBY'}

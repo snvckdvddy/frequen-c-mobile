@@ -183,10 +183,10 @@ function RoomSignalCard({
             {room.currentTrack ? 'CURRENT PATCH' : 'QUEUE STATUS'}
           </MonoText>
           <MonoText style={[styles.display, styles.roomTrackTitle]} numberOfLines={1}>
-            {room.currentTrack ? room.currentTrack.title.toUpperCase() : 'STANDBY'}
+            {room.currentTrack ? room.currentTrack.title : 'STANDBY'}
           </MonoText>
           <MonoText style={[styles.mono, styles.roomTrackArtist]} numberOfLines={1}>
-            {room.currentTrack ? room.currentTrack.artist.toUpperCase() : 'NO TRACK PATCHED'}
+            {room.currentTrack ? room.currentTrack.artist : 'NO TRACK PATCHED'}
           </MonoText>
         </View>
         <Pressable
