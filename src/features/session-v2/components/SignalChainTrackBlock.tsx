@@ -242,6 +242,24 @@ export function SignalChainTrackBlock({
             onUpvote={() => onVote(item.track.id, 1)}
             onDownvote={() => onVote(item.track.id, -1)}
           />
+        ) : !item.showApprovalActions && !item.isPending && onLongPress ? (
+          // Context menu affordance: discoverable tap target for the
+          // remove / share / power-routing actions that previously
+          // were only reachable via long-press on the row. Long-press
+          // still works (kept on the outer Pressable above) — this is
+          // a discoverable + accessible alternative for users who
+          // don't know to try long-press. Hides itself when the row
+          // is already showing approval or vote-tower controls (those
+          // own the right edge in their respective modes).
+          <Pressable
+            onPress={onLongPress}
+            style={({ pressed }) => [styles.menuTab, pressed && styles.menuTabPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Open actions for ${item.track.title}`}
+            hitSlop={8}
+          >
+            <Text style={styles.menuGlyph}>⋮</Text>
+          </Pressable>
         ) : null}
       </Pressable>
 
@@ -417,6 +435,28 @@ const styles = StyleSheet.create({
   },
   voteCellPressed: {
     backgroundColor: withAlpha(tacticalTokens.colors.white, 0.08),
+  },
+  // Right-edge tap target for the context menu (remove / share / etc).
+  // Visually subtle so it doesn't dominate the row, but discoverable
+  // enough that users learn the interaction without needing to find
+  // long-press by accident.
+  menuTab: {
+    width: 32,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.void,
+  },
+  menuTabPressed: {
+    backgroundColor: withAlpha(tacticalTokens.colors.white, 0.08),
+  },
+  menuGlyph: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 18,
+    color: tacticalTokens.colors.textMuted,
+    lineHeight: 18,
   },
   voteGlyph: {
     fontFamily: tacticalTokens.fonts.monoBold,
