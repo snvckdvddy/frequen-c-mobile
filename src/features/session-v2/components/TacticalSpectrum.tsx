@@ -62,7 +62,12 @@ interface TacticalSpectrumProps {
   amplitudeBins?: number[];
 }
 
-const BAR_COUNT = 38;
+// Bumped 38 -> 80 (2026-05-11) per UX feedback. Thin dense bars read as
+// audio data; chunky bars at low density read as discrete blocks. This
+// also makes the per-bar phase offsets more visible — at 80 bars the
+// procedural sine sum produces a continuous-looking wavy fingerprint
+// instead of a "few bars dancing" effect.
+const BAR_COUNT = 80;
 
 function formatTime(seconds: number) {
   const safe = Math.max(0, Math.floor(seconds || 0));
@@ -319,7 +324,12 @@ const styles = StyleSheet.create({
   },
   bar: {
     flex: 1,
-    minWidth: 4,
+    // Reduced 4 -> 1 (2026-05-11) so 80 bars actually pack densely.
+    // The flex:1 + minWidth:1 combination lets each bar render at the
+    // available pixel width (~2-3px on a typical phone screen) which
+    // matches SoundCloud's waveform aesthetic — bars feel like data,
+    // not blocks.
+    minWidth: 1,
   },
   timeRow: {
     marginTop: 1,
