@@ -9,37 +9,43 @@
  *
  * Adding a new entry:
  *   1. Create `./mySurface.ts` exporting a `ManualContent` const.
- *   2. Add a `screenIds.ts` entry below if it represents a screen-level
+ *   2. Add a MANUAL_SCREEN_IDS entry below if it represents a screen-level
  *      surface that participates in first-time-visit auto-show.
- *   3. Re-export here.
+ *   3. Import + re-export below.
  */
 
+import type { RoomMode } from '@frequen-c/types';
+import type { ManualContent } from './types';
+import { loginScreenManual } from './loginScreen';
+import { joinSessionScreenManual } from './joinSessionScreen';
+import { createSessionScreenManual } from './createSessionScreen';
+import { homeScreenManual } from './homeScreen';
+import { sessionRoomScreenManual } from './sessionRoomScreen';
+import { campfireModeManual } from './modes/campfire';
+
 export type { ManualContent, ManualStep, ManualCallout } from './types';
-export { loginScreenManual } from './loginScreen';
-export { joinSessionScreenManual } from './joinSessionScreen';
-export { createSessionScreenManual } from './createSessionScreen';
-export { homeScreenManual } from './homeScreen';
-export { sessionRoomScreenManual } from './sessionRoomScreen';
-export { campfireModeManual } from './modes/campfire';
+export {
+  loginScreenManual,
+  joinSessionScreenManual,
+  createSessionScreenManual,
+  homeScreenManual,
+  sessionRoomScreenManual,
+  campfireModeManual,
+};
 
 /**
  * Returns the right manual content for the current room mode. When the
- * mode has no dedicated entry yet (SPOTLIGHT / OPEN FLR until C-Phase-2
- * / C-Phase-3), falls back to the generic session-room manual.
+ * mode has no dedicated entry yet (SPOTLIGHT / OPEN FLR until
+ * C-Phase-3/4), falls back to the generic session-room manual.
  */
-import type { RoomMode } from '@frequen-c/types';
-import { sessionRoomScreenManual as _sessionRoomScreenManual } from './sessionRoomScreen';
-import { campfireModeManual as _campfireModeManual } from './modes/campfire';
-import type { ManualContent } from './types';
-
 export function getRoomManualForMode(mode: RoomMode): ManualContent {
   switch (mode) {
     case 'campfire':
-      return _campfireModeManual;
+      return campfireModeManual;
     case 'spotlight':
     case 'openFloor':
     default:
-      return _sessionRoomScreenManual;
+      return sessionRoomScreenManual;
   }
 }
 
