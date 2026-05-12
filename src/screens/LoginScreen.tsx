@@ -34,7 +34,7 @@ function MonoText(props: { children: React.ReactNode; style?: TextStyle | TextSt
 
 export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
   const { login, loginWithApple, loginWithGoogle } = useAuth();
-  const { readManual } = useManualMode();
+  const { readManual, manualReady } = useManualMode();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -218,7 +218,7 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
                 </MonoText>
               </View>
 
-              {readManual ? (
+              {manualReady && readManual ? (
                 <ManualPanel
                   contextLabel="AUTH BUS"
                   variant="compact"

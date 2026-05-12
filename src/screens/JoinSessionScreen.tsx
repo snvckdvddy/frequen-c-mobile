@@ -25,7 +25,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function JoinSessionScreen() {
   const navigation = useNavigation<{ replace: (screen: string, params: Record<string, string>) => void; goBack: () => void }>();
   const route = useRoute<RouteProp<{ JoinSession: { joinCode?: string } }, 'JoinSession'>>();
-  const { readManual } = useManualMode();
+  const { readManual, manualReady } = useManualMode();
   const [code, setCode] = useState(route.params?.joinCode || '');
   const [loading, setLoading] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -96,7 +96,7 @@ export function JoinSessionScreen() {
                 </Pressable>
               </View>
 
-              {readManual ? (
+              {manualReady && readManual ? (
                 <ManualPanel
                   contextLabel="JOIN BUS"
                   variant="compact"

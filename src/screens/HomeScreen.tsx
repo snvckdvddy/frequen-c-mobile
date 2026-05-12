@@ -249,7 +249,7 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const { user } = useAuth();
   const cv = useCV();
-  const { readManual } = useManualMode();
+  const { readManual, manualReady } = useManualMode();
   const [myRooms, setMyRooms] = useState<Session[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -373,7 +373,7 @@ export function HomeScreen({
               </View>
             ) : null}
 
-            {readManual ? (
+            {manualReady && readManual ? (
               <ManualPanel
                 contextLabel="ENTRY BUS"
                 style={styles.manualRailHero}

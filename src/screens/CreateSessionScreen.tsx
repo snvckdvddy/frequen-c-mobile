@@ -93,7 +93,7 @@ function ManualHotspot({
 
 export function CreateSessionScreen() {
   const navigation = useNavigation<{ replace: (screen: string, params: Record<string, string>) => void; goBack: () => void }>();
-  const { readManual } = useManualMode();
+  const { readManual, manualReady } = useManualMode();
   const [name, setName] = useState('');
   const [genre, setGenre] = useState('MIXED');
   const [roomMode, setRoomMode] = useState<RoomMode>('campfire');
@@ -189,7 +189,7 @@ export function CreateSessionScreen() {
                 </Pressable>
               </View>
 
-              {readManual ? (
+              {manualReady && readManual ? (
                 <ManualPanel
                   contextLabel="INIT BUS"
                   variant="compact"
@@ -252,7 +252,7 @@ export function CreateSessionScreen() {
               <View style={styles.panel}>
                 <View style={styles.sectionHeaderRow}>
                   <SectionLabel>ROOM MODE</SectionLabel>
-                  {readManual ? (
+                  {manualReady && readManual ? (
                     <ManualHotspot
                       active={activeManualHotspot === 'mode'}
                       onPress={() => toggleManualHotspot('mode')}
@@ -261,7 +261,7 @@ export function CreateSessionScreen() {
                     />
                   ) : null}
                 </View>
-                {readManual && activeManualHotspot === 'mode' ? (
+                {manualReady && readManual && activeManualHotspot === 'mode' ? (
                   <View style={styles.manualHintRail}>
                     <Text style={styles.manualHintTitle}>
                       {roomMode === 'campfire'
@@ -316,7 +316,7 @@ export function CreateSessionScreen() {
                   <View style={styles.toggleTextWrap}>
                     <View style={styles.sectionHeaderRow}>
                       <SectionLabel>ROOM VISIBILITY</SectionLabel>
-                      {readManual ? (
+                      {manualReady && readManual ? (
                         <ManualHotspot
                           active={activeManualHotspot === 'visibility'}
                           onPress={() => toggleManualHotspot('visibility')}
@@ -325,7 +325,7 @@ export function CreateSessionScreen() {
                         />
                       ) : null}
                     </View>
-                    {readManual && activeManualHotspot === 'visibility' ? (
+                    {manualReady && readManual && activeManualHotspot === 'visibility' ? (
                       <View style={styles.manualHintRail}>
                         <Text style={styles.manualHintTitle}>
                           VISIBILITY ROUTE
