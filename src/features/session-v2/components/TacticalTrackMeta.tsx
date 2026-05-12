@@ -9,12 +9,20 @@ interface TacticalTrackMetaProps {
   track: QueueTrack | null;
   voltage?: number;
   onOpenPowerRouting?: () => void;
+  /**
+   * When true, the power-routing CV pill is fully hidden (not just
+   * disabled). Used by CAMPFIRE mode where the "no power moves"
+   * design intent calls for subtraction, not greyed-out controls.
+   * Defaults to false so existing callers see no change.
+   */
+  hidePowerRouting?: boolean;
 }
 
 export function TacticalTrackMeta({
   track,
   voltage = 0,
   onOpenPowerRouting,
+  hidePowerRouting = false,
 }: TacticalTrackMetaProps) {
   const { width } = useWindowDimensions();
   const compact = width < 390;
@@ -51,29 +59,31 @@ export function TacticalTrackMeta({
             </Text>
           </View>
 
-          <Pressable
-            onPress={onOpenPowerRouting}
-            disabled={!powerRoutingEnabled}
-            style={({ pressed }) => [
-              styles.powerPill,
-              compact && styles.powerPillCompact,
-              !powerRoutingEnabled && styles.powerPillDisabled,
-              pressed && powerRoutingEnabled && styles.pressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={`Open power routing with ${voltage} volts available`}
-            accessibilityState={{ disabled: !powerRoutingEnabled }}
-          >
-            <Ionicons
-              name="flash-outline"
-              size={13}
-              color={powerRoutingEnabled ? tacticalTokens.colors.ice : tacticalTokens.colors.textSoft}
-            />
-            <Text style={[styles.powerValue, !powerRoutingEnabled && styles.powerValueDisabled]}>
-              {String(voltage).padStart(3, '0')}V
-            </Text>
-            <Text style={[styles.powerUnit, !powerRoutingEnabled && styles.powerUnitDisabled]}>CV</Text>
-          </Pressable>
+          {hidePowerRouting ? null : (
+            <Pressable
+              onPress={onOpenPowerRouting}
+              disabled={!powerRoutingEnabled}
+              style={({ pressed }) => [
+                styles.powerPill,
+                compact && styles.powerPillCompact,
+                !powerRoutingEnabled && styles.powerPillDisabled,
+                pressed && powerRoutingEnabled && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Open power routing with ${voltage} volts available`}
+              accessibilityState={{ disabled: !powerRoutingEnabled }}
+            >
+              <Ionicons
+                name="flash-outline"
+                size={13}
+                color={powerRoutingEnabled ? tacticalTokens.colors.ice : tacticalTokens.colors.textSoft}
+              />
+              <Text style={[styles.powerValue, !powerRoutingEnabled && styles.powerValueDisabled]}>
+                {String(voltage).padStart(3, '0')}V
+              </Text>
+              <Text style={[styles.powerUnit, !powerRoutingEnabled && styles.powerUnitDisabled]}>CV</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </View>

@@ -28,9 +28,10 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import { Ionicons } from '@expo/vector-icons';
 import { Text, SafeScreen, RoomModeBadge, ErrorState, showToast } from '../components/ui';
 import { ManualPanel } from '../components/manual/ManualPanel';
-import { sessionRoomScreenManual, MANUAL_SCREEN_IDS } from '../content/manual';
+import { getRoomManualForMode, MANUAL_SCREEN_IDS } from '../content/manual';
 import { useManualMode } from '../hooks/useManualMode';
 import { useFirstTimeVisit } from '../hooks/useFirstTimeVisit';
+import NextUpRibbon from '../features/session-v2/components/NextUpRibbon';
 import { useAuth } from '../contexts/AuthContext';
 import api, { searchApi } from '../services/api';
 import {
@@ -690,7 +691,14 @@ export function SessionRoomScreen() {
                 closeTransientPanels();
                 setPowerRoutingOpen(true);
               }}
+              // CAMPFIRE intentionally has no power moves — the "gathering"
+              // metaphor is incompatible with Phase Cancel / Overdrive /
+              // Phantom Power. Subtract, don't grey out: hide entirely.
+              hidePowerRouting={session.roomMode === 'campfire'}
             />
+            {session.roomMode === 'campfire' ? (
+              <NextUpRibbon nextTrack={queue[1] ?? null} />
+            ) : null}
             <TacticalSpectrum
               trackId={currentTrack?.id}
               elapsed={playback.elapsed}
@@ -816,7 +824,7 @@ export function SessionRoomScreen() {
                   contentContainerStyle={styles.manualSheetContent}
                   showsVerticalScrollIndicator={false}
                 >
-                  <ManualPanel {...sessionRoomScreenManual} onDismiss={closeManual} />
+                  <ManualPanel {...getRoomManualForMode(session.roomMode)} onDismiss={closeManual} />
                 </ScrollView>
               </View>
             </View>

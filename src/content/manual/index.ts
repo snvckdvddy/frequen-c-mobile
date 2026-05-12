@@ -20,6 +20,28 @@ export { joinSessionScreenManual } from './joinSessionScreen';
 export { createSessionScreenManual } from './createSessionScreen';
 export { homeScreenManual } from './homeScreen';
 export { sessionRoomScreenManual } from './sessionRoomScreen';
+export { campfireModeManual } from './modes/campfire';
+
+/**
+ * Returns the right manual content for the current room mode. When the
+ * mode has no dedicated entry yet (SPOTLIGHT / OPEN FLR until C-Phase-2
+ * / C-Phase-3), falls back to the generic session-room manual.
+ */
+import type { RoomMode } from '@frequen-c/types';
+import { sessionRoomScreenManual as _sessionRoomScreenManual } from './sessionRoomScreen';
+import { campfireModeManual as _campfireModeManual } from './modes/campfire';
+import type { ManualContent } from './types';
+
+export function getRoomManualForMode(mode: RoomMode): ManualContent {
+  switch (mode) {
+    case 'campfire':
+      return _campfireModeManual;
+    case 'spotlight':
+    case 'openFloor':
+    default:
+      return _sessionRoomScreenManual;
+  }
+}
 
 /**
  * Canonical screen identifiers for first-time-visit tracking. Keep
