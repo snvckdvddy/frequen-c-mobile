@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleProp, StyleSheet, Text, View, ViewStyle, useWindowDimensions } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { tacticalTokens } from '../../features/session-v2/theme/tacticalTokens';
 
 interface ManualStep {
@@ -22,6 +22,15 @@ interface ManualPanelProps {
   contextLabel?: string;
   variant?: 'hero' | 'compact';
   style?: StyleProp<ViewStyle>;
+  /**
+   * Optional dismiss handler. When provided, renders a small X button
+   * in the top-right of the panel. Intended for the first-time-visit
+   * auto-show flow where the user should see manual content ONCE and
+   * then dismiss it. When the global Read Manual toggle is the reason
+   * the panel is showing, callers should NOT pass onDismiss — the
+   * panel is meant to be persistent guidance, not a one-time hint.
+   */
+  onDismiss?: () => void;
 }
 
 export function ManualPanel({
@@ -34,6 +43,7 @@ export function ManualPanel({
   contextLabel = 'MANUAL // ACTIVE',
   variant = 'hero',
   style,
+  onDismiss,
 }: ManualPanelProps) {
   const { width } = useWindowDimensions();
   const compact = variant === 'compact';
@@ -45,8 +55,25 @@ export function ManualPanel({
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={[styles.eyebrow, { color: accent }]}>{contextLabel}</Text>
-          <View style={[styles.statusChip, { borderColor: accent }]}>
-            <Text style={[styles.statusChipText, { color: accent }]}>GUIDED</Text>
+          <View style={styles.headerActions}>
+            <View style={[styles.statusChip, { borderColor: accent }]}>
+              <Text style={[styles.statusChipText, { color: accent }]}>GUIDED</Text>
+            </View>
+            {onDismiss ? (
+              <Pressable
+                onPress={onDismiss}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss manual"
+                hitSlop={10}
+                style={({ pressed }) => [
+                  styles.dismissButton,
+                  { borderColor: accent },
+                  pressed && styles.dismissButtonPressed,
+                ]}
+              >
+                <Text style={[styles.dismissGlyph, { color: accent }]}>×</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
         <Text style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
@@ -146,6 +173,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     backgroundColor: tacticalTokens.colors.matte,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tacticalTokens.spacing.xs,
+  },
+  dismissButton: {
+    width: 26,
+    height: 26,
+    borderWidth: 1,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dismissButtonPressed: {
+    opacity: 0.7,
+  },
+  dismissGlyph: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 16,
+    lineHeight: 18,
   },
   statusChipText: {
     fontFamily: tacticalTokens.fonts.monoBold,

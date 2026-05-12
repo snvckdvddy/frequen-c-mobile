@@ -16,6 +16,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { Button, Input, SafeScreen } from '../components/ui';
 import { ManualPanel } from '../components/manual/ManualPanel';
+import { loginScreenManual, MANUAL_SCREEN_IDS } from '../content/manual';
+import { useFirstTimeVisit } from '../hooks/useFirstTimeVisit';
 import { VoidSurface } from '../design/components';
 import { useAuth } from '../contexts/AuthContext';
 import { useManualMode } from '../hooks/useManualMode';
@@ -35,6 +37,9 @@ function MonoText(props: { children: React.ReactNode; style?: TextStyle | TextSt
 export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
   const { login, loginWithApple, loginWithGoogle } = useAuth();
   const { readManual, manualReady } = useManualMode();
+  const { autoShow: firstTimeAutoShow, dismiss: dismissFirstTime, ready: firstTimeReady } =
+    useFirstTimeVisit(MANUAL_SCREEN_IDS.login);
+  const showManual = manualReady && firstTimeReady && (readManual || firstTimeAutoShow);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -218,23 +223,15 @@ export function LoginScreen({ onSwitchToRegister }: LoginScreenProps) {
                 </MonoText>
               </View>
 
-              {manualReady && readManual ? (
+              {showManual ? (
                 <ManualPanel
-                  contextLabel="AUTH BUS"
+                  {...loginScreenManual}
                   variant="compact"
                   style={styles.manualRailInline}
-                  title="LOGIN FLOW"
-                  subtitle="Use this when you already have an account and just need to reconnect to the app."
-                  steps={[
-                    { tag: 'FAST', text: 'Use Apple or Google for one-tap sign in.' },
-                    { tag: 'EMAIL', text: 'Or enter the email tied to your existing profile.' },
-                    { tag: 'DONE', text: 'PATCH IN returns you to the main app once the route is valid.' },
-                  ]}
-                  callouts={[
-                    { label: 'RETURNING USER', value: 'Use Patch In if the account already exists.' },
-                    { label: 'NEXT SCREEN', value: 'Successful login hands off to the entry grid.' },
-                  ]}
-                  footer="If you have never made an account on this device, switch to Generate Signal."
+                  // Dismiss only when showing because of first-time
+                  // auto-show — when the global toggle is on, the
+                  // panel is meant to be persistent.
+                  onDismiss={!readManual ? dismissFirstTime : undefined}
                 />
               ) : null}
 

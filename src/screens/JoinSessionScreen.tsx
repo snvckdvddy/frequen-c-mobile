@@ -11,6 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ADSRTransition, SafeScreen, showToast } from '../components/ui';
 import { VoidSurface } from '../design/components';
 import { ManualPanel } from '../components/manual/ManualPanel';
+import { joinSessionScreenManual, MANUAL_SCREEN_IDS } from '../content/manual';
+import { useFirstTimeVisit } from '../hooks/useFirstTimeVisit';
 import { QRScanner } from '../components/QRScanner';
 import { useManualMode } from '../hooks/useManualMode';
 import { sessionApi } from '../services/api';
@@ -26,6 +28,9 @@ export function JoinSessionScreen() {
   const navigation = useNavigation<{ replace: (screen: string, params: Record<string, string>) => void; goBack: () => void }>();
   const route = useRoute<RouteProp<{ JoinSession: { joinCode?: string } }, 'JoinSession'>>();
   const { readManual, manualReady } = useManualMode();
+  const { autoShow: firstTimeAutoShow, dismiss: dismissFirstTime, ready: firstTimeReady } =
+    useFirstTimeVisit(MANUAL_SCREEN_IDS.joinSession);
+  const showManual = manualReady && firstTimeReady && (readManual || firstTimeAutoShow);
   const [code, setCode] = useState(route.params?.joinCode || '');
   const [loading, setLoading] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -96,24 +101,12 @@ export function JoinSessionScreen() {
                 </Pressable>
               </View>
 
-              {manualReady && readManual ? (
+              {showManual ? (
                 <ManualPanel
-                  contextLabel="JOIN BUS"
+                  {...joinSessionScreenManual}
                   variant="compact"
                   style={styles.manualRailInline}
-                  title="HOW PATCH-IN WORKS"
-                  subtitle="This is the fastest path for guests. Use it when a host already has the room running."
-                  steps={[
-                    { tag: 'HOST', text: 'Ask the host for the room code or have them show the QR handoff.' },
-                    { tag: 'SCAN', text: 'Scan QR if you are together in person. It fills the route automatically.' },
-                    { tag: 'PATCH', text: 'PATCH IN validates the code and hands off to the live room screen.' },
-                  ]}
-                  callouts={[
-                    { label: 'ROOM CODE', value: 'Best when a host can send text or speak the code.' },
-                    { label: 'QR HANDOFF', value: 'Best when you are standing in the same room.' },
-                    { label: 'PRIVATE', value: 'Private rooms still join here, but they need the exact host code.' },
-                  ]}
-                  footer="Use Join when you are entering someone else’s room, not creating a new one."
+                  onDismiss={!readManual ? dismissFirstTime : undefined}
                 />
               ) : null}
 

@@ -15,6 +15,8 @@ import { SafeScreen, ErrorState } from '../components/ui';
 import { NotificationDrawer } from '../components/NotificationDrawer';
 import { ArchiveSessionModal } from '../components/ArchiveSessionModal';
 import { ManualPanel } from '../components/manual/ManualPanel';
+import { homeScreenManual, MANUAL_SCREEN_IDS } from '../content/manual';
+import { useFirstTimeVisit } from '../hooks/useFirstTimeVisit';
 import { useAuth } from '../contexts/AuthContext';
 import { useCV } from '../hooks/useCV';
 import { useManualMode } from '../hooks/useManualMode';
@@ -250,6 +252,9 @@ export function HomeScreen({
   const { user } = useAuth();
   const cv = useCV();
   const { readManual, manualReady } = useManualMode();
+  const { autoShow: firstTimeAutoShow, dismiss: dismissFirstTime, ready: firstTimeReady } =
+    useFirstTimeVisit(MANUAL_SCREEN_IDS.home);
+  const showManual = manualReady && firstTimeReady && (readManual || firstTimeAutoShow);
   const [myRooms, setMyRooms] = useState<Session[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -373,23 +378,11 @@ export function HomeScreen({
               </View>
             ) : null}
 
-            {manualReady && readManual ? (
+            {showManual ? (
               <ManualPanel
-                contextLabel="ENTRY BUS"
+                {...homeScreenManual}
                 style={styles.manualRailHero}
-                title="START HERE"
-                subtitle="Use the entry grid to host, join, or reopen a room without guessing what each action does."
-                steps={[
-                  { tag: 'HOST', text: 'CREATE opens the room builder and then drops you straight into Session V2.' },
-                  { tag: 'JOIN', text: 'JOIN is the guest path. Use it when someone else already has a room running.' },
-                  { tag: 'LIVE', text: 'ACTIVE PATCH reopens the room already attached to your profile if one is running.' },
-                ]}
-                callouts={[
-                  { label: 'CREATE', value: 'Host path into a new room.' },
-                  { label: 'JOIN', value: 'Guest path with code or QR.' },
-                  { label: 'CV', value: 'Voltage is a special layer, not basic queueing.' },
-                ]}
-                footer="Profile > Read the Manual keeps these helper rails visible."
+                onDismiss={!readManual ? dismissFirstTime : undefined}
               />
             ) : null}
 

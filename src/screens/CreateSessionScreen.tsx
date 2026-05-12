@@ -12,6 +12,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ADSRTransition, SafeScreen, showToast } from '../components/ui';
 import { ManualPanel } from '../components/manual/ManualPanel';
+import { createSessionScreenManual, MANUAL_SCREEN_IDS } from '../content/manual';
+import { useFirstTimeVisit } from '../hooks/useFirstTimeVisit';
 import { sessionApi } from '../services/api';
 import { VoidSurface } from '../design/components';
 import { useManualMode } from '../hooks/useManualMode';
@@ -94,6 +96,9 @@ function ManualHotspot({
 export function CreateSessionScreen() {
   const navigation = useNavigation<{ replace: (screen: string, params: Record<string, string>) => void; goBack: () => void }>();
   const { readManual, manualReady } = useManualMode();
+  const { autoShow: firstTimeAutoShow, dismiss: dismissFirstTime, ready: firstTimeReady } =
+    useFirstTimeVisit(MANUAL_SCREEN_IDS.createSession);
+  const showManualHero = manualReady && firstTimeReady && (readManual || firstTimeAutoShow);
   const [name, setName] = useState('');
   const [genre, setGenre] = useState('MIXED');
   const [roomMode, setRoomMode] = useState<RoomMode>('campfire');
@@ -189,24 +194,12 @@ export function CreateSessionScreen() {
                 </Pressable>
               </View>
 
-              {manualReady && readManual ? (
+              {showManualHero ? (
                 <ManualPanel
-                  contextLabel="INIT BUS"
+                  {...createSessionScreenManual}
                   variant="compact"
                   style={styles.manualRailInline}
-                  title="ROOM BUILD ORDER"
-                  subtitle="Build the room in order, then execute the patch once the labels and mode feel right."
-                  steps={[
-                    { tag: 'NAME', text: 'Start with a room name people can recognize quickly.' },
-                    { tag: 'MODE', text: 'Choose how control should feel: shared turns, host-led, or vote-driven.' },
-                    { tag: 'EXEC', text: 'EXECUTE PATCH creates the room and moves you directly into the session.' },
-                  ]}
-                  callouts={[
-                    { label: 'SAFE DEFAULT', value: 'Campfire is still the easiest first room for demos.' },
-                    { label: 'ADVANCED', value: 'You can ignore advanced behaviors on a first pass.' },
-                    { label: 'PRIVATE ROOM', value: 'Turn off visibility if you want host-invite only access.' },
-                  ]}
-                  footer="Create is the host path. If you only need to enter an existing room, use Join instead."
+                  onDismiss={!readManual ? dismissFirstTime : undefined}
                 />
               ) : null}
 
