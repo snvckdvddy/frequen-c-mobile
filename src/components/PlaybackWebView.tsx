@@ -86,14 +86,28 @@ export function PlaybackWebView({ enabled }: PlaybackWebViewProps) {
 }
 
 const styles = StyleSheet.create({
+  // Position the WebView off-screen instead of clipping it to 0x0.
+  // Background: when the parent container is width:0 / height:0 with
+  // overflow:hidden, Android's WebView treats the page as
+  // non-visible and throttles JavaScript execution (timers run at
+  // ~1Hz instead of 60Hz, postMessage queues stall, etc.). Audio
+  // playback continues — the OS audio path doesn't depend on
+  // visibility — but our SoundCloud Widget polling timer + event
+  // dispatches drop messages, producing the "audio plays but UI
+  // shows loading spinner forever + auto-advance broken" symptom
+  // observed 2026-05-11.
+  // Off-screen positioning (top:-10000, left:-10000) keeps the page
+  // technically rendered + non-throttled while keeping it
+  // visually invisible to the user. Standard pattern for hidden
+  // iframes that need their JS to keep running.
   hidden: {
     position: 'absolute',
-    width: 0,
-    height: 0,
-    overflow: 'hidden',
+    top: -10000,
+    left: -10000,
+    width: 320,
+    height: 240,
   },
   webview: {
-    width: 1,
-    height: 1,
+    flex: 1,
   },
 });
