@@ -10,6 +10,13 @@ interface TacticalRoomHeaderProps {
   roomMode: RoomMode;
   onBack: () => void;
   onSettingsPress: () => void;
+  /**
+   * Optional. When provided, renders a small "?" icon to the left of
+   * the settings icon. Tapping it opens the room manual sheet.
+   * Defined as optional so the component remains backward-compatible
+   * with any callers not yet wired to the manual rollout.
+   */
+  onManualPress?: () => void;
 }
 
 export function TacticalRoomHeader({
@@ -18,6 +25,7 @@ export function TacticalRoomHeader({
   roomMode,
   onBack,
   onSettingsPress,
+  onManualPress,
 }: TacticalRoomHeaderProps) {
   const modeColors = getModeBlockColors(roomMode);
 
@@ -54,14 +62,26 @@ export function TacticalRoomHeader({
               {formatModeLabel(roomMode)}
             </Text>
           </View>
-          <Pressable
-            onPress={onSettingsPress}
-            style={({ pressed }) => [styles.iconBlock, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Room settings"
-          >
-            <Ionicons name="options-outline" size={20} color={tacticalTokens.colors.white} />
-          </Pressable>
+          <View style={styles.iconRow}>
+            {onManualPress ? (
+              <Pressable
+                onPress={onManualPress}
+                style={({ pressed }) => [styles.iconBlock, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Read the manual for this room"
+              >
+                <Ionicons name="help-circle-outline" size={20} color={tacticalTokens.colors.white} />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={onSettingsPress}
+              style={({ pressed }) => [styles.iconBlock, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Room settings"
+            >
+              <Ionicons name="options-outline" size={20} color={tacticalTokens.colors.white} />
+            </Pressable>
+          </View>
         </View>
       </View>
       <View style={styles.rule} />
@@ -113,6 +133,11 @@ const styles = StyleSheet.create({
   },
   rightCluster: {
     alignItems: 'flex-end',
+    gap: 6,
+  },
+  iconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
   modeBlock: {

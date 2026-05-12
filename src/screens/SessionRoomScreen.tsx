@@ -27,6 +27,10 @@ import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, SafeScreen, RoomModeBadge, ErrorState, showToast } from '../components/ui';
+import { ManualPanel } from '../components/manual/ManualPanel';
+import { sessionRoomScreenManual, MANUAL_SCREEN_IDS } from '../content/manual';
+import { useManualMode } from '../hooks/useManualMode';
+import { useFirstTimeVisit } from '../hooks/useFirstTimeVisit';
 import { useAuth } from '../contexts/AuthContext';
 import api, { searchApi } from '../services/api';
 import {
@@ -165,6 +169,38 @@ export function SessionRoomScreen() {
   const [searchHudOpen, setSearchHudOpen] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [manualOpen, setManualOpen] = useState(false);
+
+  // Read Manual surfacing for the session room — combines the global
+  // toggle (Profile > Read the Manual) with per-screen first-time
+  // auto-show. First-time visitors get the manual sheet auto-opened
+  // once on their first session room entry; everyone else can open
+  // via the ? icon in the room header.
+  const { readManual, manualReady } = useManualMode();
+  const {
+    autoShow: firstTimeAutoShow,
+    dismiss: dismissFirstTime,
+    ready: firstTimeReady,
+  } = useFirstTimeVisit(MANUAL_SCREEN_IDS.sessionRoom);
+
+  useEffect(() => {
+    // Auto-open on first room entry once hydration completes. Guards
+    // ensure we don't auto-open repeatedly (the autoShow signal flips
+    // false after dismiss).
+    if (manualReady && firstTimeReady && firstTimeAutoShow && !manualOpen) {
+      setManualOpen(true);
+    }
+  }, [manualReady, firstTimeReady, firstTimeAutoShow, manualOpen]);
+
+  const closeManual = useCallback(() => {
+    setManualOpen(false);
+    // If the open was triggered by first-time auto-show (not by a
+    // user tap on the ? icon while Read Manual is OFF), record it as
+    // seen so we don't auto-open again on the next room visit.
+    if (firstTimeAutoShow) {
+      dismissFirstTime();
+    }
+  }, [firstTimeAutoShow, dismissFirstTime]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
@@ -618,6 +654,10 @@ export function SessionRoomScreen() {
               closeTransientPanels();
               setSystemPreferencesOpen(true);
             }}
+            onManualPress={() => {
+              closeTransientPanels();
+              setManualOpen(true);
+            }}
           />
 
           <TacticalPresenceStrip
@@ -761,6 +801,26 @@ export function SessionRoomScreen() {
               connectedServices={user?.connectedServices}
             />
           )}
+
+          {/* ═══ ROOM MANUAL SHEET ═════════════════════════ */}
+          <Modal
+            visible={manualOpen}
+            animationType="slide"
+            transparent
+            statusBarTranslucent
+            onRequestClose={closeManual}
+          >
+            <View style={styles.manualSheetBackdrop}>
+              <View style={styles.manualSheetSurface}>
+                <ScrollView
+                  contentContainerStyle={styles.manualSheetContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <ManualPanel {...sessionRoomScreenManual} onDismiss={closeManual} />
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
 
           {/* ═══ SYSTEM PREFERENCES PANEL V2 ═══════════════ */}
           {systemPreferencesOpen && (
@@ -949,6 +1009,24 @@ export function SessionRoomScreen() {
 // ═════════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
+  // ─── Room Manual Sheet (Modal overlay) ────────────────
+  manualSheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.78)',
+    justifyContent: 'flex-end',
+  },
+  manualSheetSurface: {
+    maxHeight: '85%',
+    backgroundColor: palette.void,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.16)',
+  },
+  manualSheetContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+
   // Skeleton
   skeletonContainer: {
     flex: 1, padding: spacing.md,

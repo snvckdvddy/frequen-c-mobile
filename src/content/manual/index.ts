@@ -19,6 +19,7 @@ export { loginScreenManual } from './loginScreen';
 export { joinSessionScreenManual } from './joinSessionScreen';
 export { createSessionScreenManual } from './createSessionScreen';
 export { homeScreenManual } from './homeScreen';
+export { sessionRoomScreenManual } from './sessionRoomScreen';
 
 /**
  * Canonical screen identifiers for first-time-visit tracking. Keep
@@ -30,6 +31,7 @@ export const MANUAL_SCREEN_IDS = {
   joinSession: 'joinSession',
   createSession: 'createSession',
   home: 'home',
+  sessionRoom: 'sessionRoom',
 } as const;
 
 export type ManualScreenId = (typeof MANUAL_SCREEN_IDS)[keyof typeof MANUAL_SCREEN_IDS];
