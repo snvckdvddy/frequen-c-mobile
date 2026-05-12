@@ -96,10 +96,10 @@ export function MiniPlayer({
               {playback.isLoading ? <ActivityIndicator size="small" color={tacticalTokens.colors.ice} /> : null}
             </View>
             <MonoText style={[styles.display, styles.title]} numberOfLines={1}>
-              {track.title.toUpperCase()}
+              {track.title}
             </MonoText>
             <MonoText style={[styles.mono, styles.meta]} numberOfLines={1}>
-              {track.artist.toUpperCase()}
+              {track.artist}
               {!playback.isLoading && playback.elapsed > 0 ? ` // ${formatTime(playback.elapsed)}` : ''}
             </MonoText>
           </View>

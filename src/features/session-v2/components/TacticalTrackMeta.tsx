@@ -29,7 +29,7 @@ export function TacticalTrackMeta({
       <View style={[styles.rail, idle && styles.railIdle]} />
       <View style={styles.content}>
         <Text style={[styles.title, compact && styles.titleCompact, idle && styles.titleIdle]} numberOfLines={2}>
-          {title.toUpperCase()}
+          {title}
         </Text>
         <Text style={[styles.artist, compact && styles.artistCompact, idle && styles.artistIdle]} numberOfLines={1}>
           {artistLine}

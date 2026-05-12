@@ -118,7 +118,11 @@ export function SignalChainTrackBlock({
   const visuals = getBlockVisuals(item, mode);
   const voteCount = item.track.votes ?? 0;
   const patchedBy = item.track.addedBy?.username || item.track.artist || 'SYSTEM';
-  const titleLabel = item.track.title.toUpperCase();
+  // Track titles render in their native casing — uppercasing user content
+  // (e.g. "WILL_UJUSTBEMYFKNFRIENDRICKYB...") makes them shouty and harder
+  // to scan. Section labels (PATCH, NOW PATCHED, etc.) stay uppercase
+  // because they're our typography choice, not user data.
+  const titleLabel = item.track.title;
   const topLabel = item.isPending
     ? 'HOST REVIEW'
     : mode === 'openFloor'

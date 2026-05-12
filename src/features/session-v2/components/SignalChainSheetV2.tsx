@@ -112,7 +112,7 @@ function SearchResultRow({
           <Text style={styles.searchResultMetaValue}>{formatDuration(track.duration)}</Text>
         </View>
         <Text style={styles.searchResultTitle} numberOfLines={1}>
-          {track.title.toUpperCase()}
+          {track.title}
         </Text>
         <Text style={styles.searchResultMeta} numberOfLines={1}>
           {track.artist}
@@ -213,7 +213,7 @@ function RecentHistoryFooter({
                     <Text style={styles.historyDataValueIce}>PLAYED</Text>
                   </View>
                   <Text style={styles.historyRowTitle} numberOfLines={1}>
-                    {track.title.toUpperCase()}
+                    {track.title}
                   </Text>
                   <Text style={styles.historyRowMeta} numberOfLines={1}>
                     PATCHED BY @{formatPatchedBy(track).toUpperCase()}
@@ -248,12 +248,12 @@ function RecentHistoryFooter({
                     <View style={styles.historyStatusDot} />
                   </View>
                   <Text style={styles.historyCardTitle} numberOfLines={2}>
-                    {track.title.toUpperCase()}
+                    {track.title}
                   </Text>
                   <View style={styles.historyDataBlock}>
                     <View style={styles.historyDataRow}>
                       <Text style={styles.historyDataLabel}>ARTIST</Text>
-                      <Text style={styles.historyDataValueWhite} numberOfLines={1}>{track.artist.toUpperCase()}</Text>
+                      <Text style={styles.historyDataValueWhite} numberOfLines={1}>{track.artist}</Text>
                     </View>
                     <View style={styles.historyDataRow}>
                       <Text style={styles.historyDataLabel}>LENGTH</Text>

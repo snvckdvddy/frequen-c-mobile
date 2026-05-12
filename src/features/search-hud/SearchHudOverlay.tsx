@@ -250,7 +250,7 @@ export function SearchHudOverlay({
 
         <View style={styles.trackBody}>
           <Text style={styles.trackTitle} numberOfLines={1}>
-            {item.title.toUpperCase()}
+            {item.title}
           </Text>
           <Text style={styles.trackArtist} numberOfLines={1}>
             {item.artist}
