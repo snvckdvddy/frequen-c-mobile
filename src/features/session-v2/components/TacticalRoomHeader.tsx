@@ -17,6 +17,14 @@ interface TacticalRoomHeaderProps {
    * with any callers not yet wired to the manual rollout.
    */
   onManualPress?: () => void;
+  /**
+   * Optional. When provided, the mode badge becomes tappable —
+   * tapping it opens System Preferences (canonical home for room
+   * mode + behaviors). Hosts will see the mode picker; non-hosts
+   * land in the same panel and see read-only state. Defined as
+   * optional for backward compatibility.
+   */
+  onModePress?: () => void;
 }
 
 export function TacticalRoomHeader({
@@ -26,6 +34,7 @@ export function TacticalRoomHeader({
   onBack,
   onSettingsPress,
   onManualPress,
+  onModePress,
 }: TacticalRoomHeaderProps) {
   const modeColors = getModeBlockColors(roomMode);
 
@@ -49,19 +58,40 @@ export function TacticalRoomHeader({
         </View>
 
         <View style={styles.rightCluster}>
-          <View
-            style={[
-              styles.modeBlock,
-              {
-                backgroundColor: modeColors.backgroundColor,
-                borderColor: modeColors.borderColor,
-              },
-            ]}
-          >
-            <Text style={[styles.modeText, { color: modeColors.color }]}>
-              {formatModeLabel(roomMode)}
-            </Text>
-          </View>
+          {onModePress ? (
+            <Pressable
+              onPress={onModePress}
+              style={({ pressed }) => [
+                styles.modeBlock,
+                {
+                  backgroundColor: modeColors.backgroundColor,
+                  borderColor: modeColors.borderColor,
+                },
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Open room mode picker. Current mode: ${formatModeLabel(roomMode)}`}
+              hitSlop={6}
+            >
+              <Text style={[styles.modeText, { color: modeColors.color }]}>
+                {formatModeLabel(roomMode)}
+              </Text>
+            </Pressable>
+          ) : (
+            <View
+              style={[
+                styles.modeBlock,
+                {
+                  backgroundColor: modeColors.backgroundColor,
+                  borderColor: modeColors.borderColor,
+                },
+              ]}
+            >
+              <Text style={[styles.modeText, { color: modeColors.color }]}>
+                {formatModeLabel(roomMode)}
+              </Text>
+            </View>
+          )}
           <View style={styles.iconRow}>
             {onManualPress ? (
               <Pressable

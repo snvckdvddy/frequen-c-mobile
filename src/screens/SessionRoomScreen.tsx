@@ -659,6 +659,13 @@ export function SessionRoomScreen() {
               closeTransientPanels();
               setManualOpen(true);
             }}
+            // Tap the mode badge → open System Preferences (canonical
+            // home for room-mode picker as of 2026-05-13). Hosts see
+            // the picker; non-hosts see read-only system info.
+            onModePress={() => {
+              closeTransientPanels();
+              setSystemPreferencesOpen(true);
+            }}
           />
 
           <TacticalPresenceStrip
@@ -742,7 +749,6 @@ export function SessionRoomScreen() {
           {queueSheetOpen && (
             <SignalChainSheetV2
               visible
-              roomMode={session.roomMode}
               behaviors={sessionBehaviors}
               queue={queue}
               suggestedQueue={suggestedQueue}
@@ -776,7 +782,6 @@ export function SessionRoomScreen() {
               }}
               onCloseSearch={handleCancelSearch}
               onQueryChange={setQuery}
-              onSelectMode={handleSelectMode}
               onAddTrack={handleAddTrack}
               onAddSuggestion={handleAddSuggestion}
               onVote={handleVote}
@@ -837,6 +842,8 @@ export function SessionRoomScreen() {
               isHost={isHost}
               hasCurrentTrack={!!currentTrack}
               roomCode={session.joinCode}
+              roomMode={session.roomMode}
+              onSelectMode={handleSelectMode}
               behaviors={sessionBehaviors}
               onClose={() => setSystemPreferencesOpen(false)}
               onShare={handleShare}

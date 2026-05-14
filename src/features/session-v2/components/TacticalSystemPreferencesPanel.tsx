@@ -8,8 +8,9 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { RoomBehaviors } from '../../../types';
+import type { RoomBehaviors, RoomMode } from '../../../types';
 import { tacticalTokens } from '../theme/tacticalTokens';
+import SignalChainModeSwitch from './SignalChainModeSwitch';
 
 const QUEUE_ORDERING_OPTIONS: { key: RoomBehaviors['queueOrdering']; label: string }[] = [
   { key: 'fifo', label: 'FIFO' },
@@ -46,6 +47,20 @@ interface TacticalSystemPreferencesPanelProps {
   isHost: boolean;
   hasCurrentTrack: boolean;
   roomCode?: string;
+  /**
+   * Current room mode. Drives the ROOM MODE selector at the top of
+   * host controls. Relocated from SignalChainSheetV2 (queue sheet)
+   * 2026-05-13 — System Preferences is the canonical home for room
+   * configuration, not the queue.
+   */
+  roomMode: RoomMode;
+  /**
+   * Mode change handler. Host-only — non-hosts won't see the selector
+   * (SignalChainModeSwitch returns null for non-hosts). Caller is
+   * responsible for the no-op-if-same-mode check + behavior preset
+   * application + socket broadcast.
+   */
+  onSelectMode: (mode: RoomMode) => void;
   behaviors: RoomBehaviors;
   onClose: () => void;
   onShare: () => void | Promise<void>;
@@ -112,6 +127,8 @@ export function TacticalSystemPreferencesPanel({
   isHost,
   hasCurrentTrack,
   roomCode,
+  roomMode,
+  onSelectMode,
   behaviors,
   onClose,
   onShare,
@@ -273,6 +290,21 @@ export function TacticalSystemPreferencesPanel({
 
             {isHost && hostControlsOpen && (
               <View style={styles.hostControls}>
+                {/*
+                  ROOM MODE selector is the highest-level control because
+                  picking a mode applies a preset that overrides queue
+                  ordering, skip access, and approval requirements below.
+                  Relocated from SignalChainSheetV2 (queue sheet) on
+                  2026-05-13 — System Preferences is the canonical home
+                  for room configuration; the queue sheet should be
+                  about the queue, not host config.
+                */}
+                <SignalChainModeSwitch
+                  mode={roomMode}
+                  isHost={isHost}
+                  onSelectMode={onSelectMode}
+                />
+
                 <Text style={styles.sectionLabel}>QUEUE ORDERING</Text>
                 <View style={styles.pillRow}>
                   {QUEUE_ORDERING_OPTIONS.map((option) => {

@@ -15,13 +15,12 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { QueueTrack, RoomBehaviors, RoomMode, Track } from '../../../types';
+import type { QueueTrack, RoomBehaviors, Track } from '../../../types';
 import { buildSignalChainItems } from '../adapters/buildSignalChainItems';
 import { deriveVisualMode } from '../adapters/deriveVisualMode';
 import { OracleModeCard } from '../../../components/room/OracleModeCard';
 import SonicAestheticCard from '../../../components/room/SonicAestheticCard';
 import TacticalGridBackground from './TacticalGridBackground';
-import SignalChainModeSwitch from './SignalChainModeSwitch';
 import SignalChainAddBlock from './SignalChainAddBlock';
 import SignalChainTrackBlock from './SignalChainTrackBlock';
 import { tacticalTokens } from '../theme/tacticalTokens';
@@ -32,7 +31,6 @@ import type { TrackSource } from '../../../types';
 
 interface SignalChainSheetV2Props {
   visible: boolean;
-  roomMode: RoomMode;
   behaviors: RoomBehaviors;
   queue: QueueTrack[];
   suggestedQueue: QueueTrack[];
@@ -51,7 +49,6 @@ interface SignalChainSheetV2Props {
   onOpenSearch: () => void;
   onCloseSearch: () => void;
   onQueryChange: (query: string) => void;
-  onSelectMode: (mode: RoomMode) => void;
   onAddTrack: (track: Track) => void;
   onAddSuggestion?: (title: string, artist: string) => void;
   onVote: (trackId: string, direction: 1 | -1) => void;
@@ -315,7 +312,6 @@ function SignalChainViewSwitch({
 
 export function SignalChainSheetV2({
   visible,
-  roomMode,
   behaviors,
   queue,
   suggestedQueue,
@@ -334,7 +330,6 @@ export function SignalChainSheetV2({
   onOpenSearch,
   onCloseSearch,
   onQueryChange,
-  onSelectMode,
   onAddTrack,
   onAddSuggestion,
   onVote,
@@ -542,7 +537,17 @@ export function SignalChainSheetV2({
             </View>
           ) : activeView === 'queue' ? (
             <>
-              <SignalChainModeSwitch mode={roomMode} isHost={isHost} onSelectMode={onSelectMode} />
+              {/*
+                ROOM MODE selector (CAMPFIRE / SPOTLIGHT / OPEN FLR)
+                relocated to TacticalSystemPreferencesPanel on
+                2026-05-13. The queue sheet should be about the queue,
+                not host config. Mode change now accessible via:
+                  (a) tapping the mode badge in the room header
+                  (b) settings icon → System Preferences → ROOM MODE
+                The roomMode + onSelectMode props were removed from
+                this component's interface in the same commit — single
+                caller, no backward-compat need.
+              */}
               <FlatList
                 data={items}
                 keyExtractor={(item) => `${item.track.id}-${item.indexLabel}-${item.isPending ? 'pending' : 'live'}`}
