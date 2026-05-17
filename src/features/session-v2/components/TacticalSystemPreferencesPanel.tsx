@@ -257,6 +257,23 @@ export function TacticalSystemPreferencesPanel({
               />
             </View>
 
+            {/*
+              ROOM MODE — hoisted to top-level for hosts (2026-05-13)
+              after user feedback that burying it inside the Room
+              Settings disclosure made the "change mode" path too
+              indirect (badge tap → panel → expand HOST CONTROLS →
+              find mode). Now it sits as its own section right
+              after ROOM ACTIONS, so it's the first config thing
+              hosts see when they open System Preferences. Self-
+              gates to hosts via SignalChainModeSwitch's internal
+              null-return for non-hosts.
+            */}
+            <SignalChainModeSwitch
+              mode={roomMode}
+              isHost={isHost}
+              onSelectMode={onSelectMode}
+            />
+
             <Text style={styles.sectionLabel}>CONTROL PLANE</Text>
             {isHost && (
               <>
@@ -291,20 +308,14 @@ export function TacticalSystemPreferencesPanel({
             {isHost && hostControlsOpen && (
               <View style={styles.hostControls}>
                 {/*
-                  ROOM MODE selector is the highest-level control because
-                  picking a mode applies a preset that overrides queue
-                  ordering, skip access, and approval requirements below.
-                  Relocated from SignalChainSheetV2 (queue sheet) on
-                  2026-05-13 — System Preferences is the canonical home
-                  for room configuration; the queue sheet should be
-                  about the queue, not host config.
+                  ROOM MODE selector USED to live here but was hoisted
+                  to top-level (just below ROOM ACTIONS) on 2026-05-13.
+                  The granular toggles below (queue ordering, skip
+                  access, feature flags) are advanced/fine-tuning
+                  controls — they belong behind the disclosure. Mode
+                  is a headline preset and deserves to be visible
+                  without an extra tap.
                 */}
-                <SignalChainModeSwitch
-                  mode={roomMode}
-                  isHost={isHost}
-                  onSelectMode={onSelectMode}
-                />
-
                 <Text style={styles.sectionLabel}>QUEUE ORDERING</Text>
                 <View style={styles.pillRow}>
                   {QUEUE_ORDERING_OPTIONS.map((option) => {
