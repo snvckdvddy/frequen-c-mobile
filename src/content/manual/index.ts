@@ -22,6 +22,8 @@ import { createSessionScreenManual } from './createSessionScreen';
 import { homeScreenManual } from './homeScreen';
 import { sessionRoomScreenManual } from './sessionRoomScreen';
 import { campfireModeManual } from './modes/campfire';
+import { spotlightModeManual } from './modes/spotlight';
+import { openFloorModeManual } from './modes/openFloor';
 
 export type { ManualContent, ManualStep, ManualCallout } from './types';
 export {
@@ -31,19 +33,25 @@ export {
   homeScreenManual,
   sessionRoomScreenManual,
   campfireModeManual,
+  spotlightModeManual,
+  openFloorModeManual,
 };
 
 /**
- * Returns the right manual content for the current room mode. When the
- * mode has no dedicated entry yet (SPOTLIGHT / OPEN FLR until
- * C-Phase-3/4), falls back to the generic session-room manual.
+ * Returns the right manual content for the current room mode. All
+ * three modes now have dedicated entries describing their CURRENT
+ * behavior accurately. C-Phase-3 (SPOTLIGHT elevation) and
+ * C-Phase-4 (OPEN FLR elevation) will rewrite the spotlight + openFloor
+ * entries to reference new WOW factors as they ship.
  */
 export function getRoomManualForMode(mode: RoomMode): ManualContent {
   switch (mode) {
     case 'campfire':
       return campfireModeManual;
     case 'spotlight':
+      return spotlightModeManual;
     case 'openFloor':
+      return openFloorModeManual;
     default:
       return sessionRoomScreenManual;
   }
