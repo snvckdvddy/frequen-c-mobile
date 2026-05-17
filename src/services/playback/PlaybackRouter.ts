@@ -65,8 +65,7 @@ export class PlaybackRouter implements PlaybackBackend {
 
     let backend = this.selectBackend(request.source);
 
-    // Promoted to info for the skip-hang diagnostic session 2026-05-11.
-    logger.info('PlaybackRouter', `Selected ${backend.name} for ${request.source}`, {
+    logger.debug('PlaybackRouter', `Selected ${backend.name} for ${request.source}`, {
       trackId: request.trackId,
       webViewAvailable: this.webViewSDK.isAvailable(),
     });

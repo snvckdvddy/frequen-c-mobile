@@ -114,35 +114,31 @@ export async function loadTrack(
   // SDK sources (Spotify, Apple Music) don't need URL resolution —
   // the SDK plays by track ID using the queuer's credentials.
   const resolveId = sourceId || trackId;
-  // NOTE: Several log lines below are temporarily promoted from debug
-  // -> info to surface in production logcat for the skip-hang diagnostic
-  // session started 2026-05-11. Revert to .debug() once the issue is
-  // identified and fixed.
   if (source && !SDK_SOURCES.has(source) && !resolveId.startsWith('itunes_')) {
     try {
       const adapter = getAdapterForSource(source, currentServices);
       const adapterName = adapter.serviceName ?? 'unknown';
-      logger.info('playback', 'Resolving stream', {
+      logger.debug('playback', 'Resolving stream', {
         source, adapter: adapterName, connected: adapter.isConnected(), resolveId,
       });
       if (adapter.isConnected()) {
         const freshUrl = await adapter.getStreamUrl(resolveId);
         if (freshUrl) {
-          logger.info('playback', `Got fresh URL from ${adapterName}`, freshUrl.slice(0, 80));
+          logger.debug('playback', `Got fresh URL from ${adapterName}`, freshUrl.slice(0, 80));
           previewUrl = freshUrl;
         } else {
-          logger.info('playback', `${adapterName}.getStreamUrl returned empty — using original previewUrl`);
+          logger.debug('playback', `${adapterName}.getStreamUrl returned empty — using original previewUrl`);
         }
       } else {
-        logger.info('playback', `${adapterName} not connected — using original previewUrl`);
+        logger.debug('playback', `${adapterName} not connected — using original previewUrl`);
       }
     } catch (err) {
       logger.warn('playback', 'Adapter failed to fetch fresh stream', err);
     }
   } else if (source && SDK_SOURCES.has(source)) {
-    logger.info('playback', `SDK source (${source}) — skipping adapter resolution`);
+    logger.debug('playback', `SDK source (${source}) — skipping adapter resolution`);
   } else {
-    logger.info('playback', 'iTunes or unknown source — skipping adapter resolution');
+    logger.debug('playback', 'iTunes or unknown source — skipping adapter resolution');
   }
 
   // Stop any current playback
