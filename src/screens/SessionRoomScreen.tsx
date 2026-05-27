@@ -31,6 +31,8 @@ import { ManualPanel } from '../components/manual/ManualPanel';
 import { getRoomManualForMode, MANUAL_SCREEN_IDS } from '../content/manual';
 import { useManualMode } from '../hooks/useManualMode';
 import { useFirstTimeVisit } from '../hooks/useFirstTimeVisit';
+import { useDevMode } from '../hooks/useDevMode';
+import { useDevOverrides, resolveEffectiveIsHost } from '../contexts/DevOverridesContext';
 import NextUpRibbon from '../features/session-v2/components/NextUpRibbon';
 import { useAuth } from '../contexts/AuthContext';
 import api, { searchApi } from '../services/api';
@@ -229,7 +231,17 @@ export function SessionRoomScreen() {
 
   // ─── Layer 3-4: Social / Game / Economy / Environment state ──
   const cv = useCV();
-  const isHost = user?.id === session?.hostId;
+  const realIsHost = user?.id === session?.hostId;
+  // Dev-mode operator override — lets a single user preview both host
+  // AND non-host UI without a second device. Resolved via the dev
+  // overrides context (in-memory, resets per app launch). When dev
+  // mode is off OR no override is set, this falls through to the
+  // real isHost computation. Pure UI-level override — does NOT
+  // affect backend authorization (host-only socket events still
+  // get rejected if you're not actually the host).
+  const { devMode } = useDevMode();
+  const { isHostOverride } = useDevOverrides();
+  const isHost = resolveEffectiveIsHost(realIsHost, devMode, isHostOverride);
   const gameLayer = useGameLayer({
     sessionId,
     userId: user?.id,

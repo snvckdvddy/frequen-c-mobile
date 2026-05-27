@@ -19,6 +19,8 @@ import { useDesignFonts } from './src/design/loadFonts';
 
 import { GlobalSessionRoomProvider } from './src/contexts/GlobalSessionRoomContext';
 import { HapticHandshakeProvider } from './src/components/effects/HapticHandshakeProvider';
+import { DevOverridesProvider } from './src/contexts/DevOverridesContext';
+import { DevModeRoot } from './src/components/dev/DevModeRoot';
 // HardwareHandshakeProvider intentionally NOT mounted — see comment near
 // usage block below for rationale (2026-05-11).
 
@@ -42,8 +44,18 @@ export default function App() {
             <GlobalSessionRoomProvider>
               <FavoritesProvider>
                 <ThemeProvider>
+                  <DevOverridesProvider>
                   <AppNavigator />
                   <ToastProvider />
+                  {/*
+                   * DevModeRoot renders nothing unless the operator has
+                   * activated dev mode (tap BUILD row in Profile 5x).
+                   * When active: floating "DEV" tile bottom-right of
+                   * every screen + Modal panel with quick-test actions
+                   * (host override, reset flags, etc.). Zero cost when
+                   * inactive.
+                   */}
+                  <DevModeRoot />
                   {/*
                    * HardwareHandshakeProvider DELIBERATELY NOT MOUNTED
                    * (2026-05-11). It rendered a fullscreen opaque overlay
@@ -64,6 +76,7 @@ export default function App() {
                    * Zero perceived freeze cost.
                    */}
                   <HapticHandshakeProvider />
+                  </DevOverridesProvider>
                 </ThemeProvider>
               </FavoritesProvider>
             </GlobalSessionRoomProvider>

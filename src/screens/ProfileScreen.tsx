@@ -21,6 +21,7 @@ import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { SonicAuraCard } from '../components/profile/SonicAuraCard';
 import { useAuth } from '../contexts/AuthContext';
 import { useManualMode } from '../hooks/useManualMode';
+import { useDevMode } from '../hooks/useDevMode';
 import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
 import { TacticalActionPrompt } from '../features/session-v2/components/TacticalActionPrompt';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
@@ -129,6 +130,35 @@ export function ProfileScreen() {
     biometric,
   } = useAuth();
   const { readManual, setReadManual } = useManualMode();
+  const { devMode, setDevMode } = useDevMode();
+
+  // Hidden activation: tap the BUILD row 5 times to toggle dev mode.
+  // Counter resets if the user pauses for >2s between taps to prevent
+  // accidental activation from incidental scrolling/touching. Classic
+  // Android-style hidden gesture.
+  const [buildTapCount, setBuildTapCount] = useState(0);
+  const handleBuildRowTap = useCallback(() => {
+    setBuildTapCount((prev) => {
+      const next = prev + 1;
+      if (next >= 5) {
+        setDevMode(!devMode);
+        // Reset counter immediately on toggle so the next 5 taps can
+        // toggle again (e.g. accidentally activated -> tap 5 more
+        // times to deactivate without leaving the screen).
+        return 0;
+      }
+      return next;
+    });
+  }, [devMode, setDevMode]);
+
+  // Reset the tap counter if the user pauses. Effect re-arms whenever
+  // count changes — chained taps within 2s keep advancing; a pause
+  // resets to zero.
+  useEffect(() => {
+    if (buildTapCount === 0) return;
+    const timeoutId = setTimeout(() => setBuildTapCount(0), 2000);
+    return () => clearTimeout(timeoutId);
+  }, [buildTapCount]);
 
   const [profileUser, setProfileUser] = useState<User | null>(user);
   const [providerStatus, setProviderStatus] = useState<Partial<ProviderStatusMap>>({});
@@ -733,12 +763,22 @@ export function ProfileScreen() {
                   <Ionicons name={icon} size={16} color={tacticalTokens.colors.textMuted} />
                 </Pressable>
               ))}
-              <View style={styles.infoRow}>
+              <Pressable
+                onPress={handleBuildRowTap}
+                accessibilityRole="button"
+                accessibilityLabel="App version. Tap repeatedly to toggle dev mode."
+                style={styles.infoRow}
+              >
                 <View>
                   <MonoText style={[textStyles.display, styles.infoTitle]}>BUILD</MonoText>
                   <MonoText style={[textStyles.mono, styles.infoDetail]}>FREQUEN-C // {String(appVersion).toUpperCase()}</MonoText>
+                  {devMode ? (
+                    <MonoText style={[textStyles.mono, styles.devModeIndicator]}>
+                      DEV MODE ACTIVE — see floating tile
+                    </MonoText>
+                  ) : null}
                 </View>
-              </View>
+              </Pressable>
             </View>
 
             <View style={styles.actionStack}>
@@ -884,6 +924,7 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', gap: 12, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
   infoTitle: { fontSize: 16, color: tacticalTokens.colors.white },
   infoDetail: { marginTop: 2, fontSize: 10, color: tacticalTokens.colors.textMuted, letterSpacing: 1.2 },
+  devModeIndicator: { marginTop: 4, fontSize: 10, color: tacticalTokens.colors.acid, letterSpacing: 1.2 },
   actionStack: { gap: 8, marginTop: 20 },
   primaryAction: { borderWidth: 1, borderColor: tacticalTokens.colors.white, backgroundColor: tacticalTokens.colors.white, alignItems: 'center', paddingVertical: 12 },
   primaryActionText: { fontSize: 12, color: tacticalTokens.colors.void, letterSpacing: 1.8 },
