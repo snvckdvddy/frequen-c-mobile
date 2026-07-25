@@ -95,7 +95,14 @@ export class WebViewSDKBackend implements PlaybackBackend {
           break;
 
         case 'progress': {
-          const dur = event.duration ?? 0;
+          // Some bridge emissions (SoundCloud PLAY_PROGRESS) carry
+          // elapsed without a real duration. Retain the last known
+          // duration so the progress ratio doesn't collapse to 0
+          // between events — load() seeds it with the track's expected
+          // duration, so the playhead is meaningful from the start.
+          const dur = event.duration && event.duration > 0
+            ? event.duration
+            : this.progress.duration;
           const el = event.elapsed ?? 0;
           this.progress = {
             isPlaying: event.isPlaying ?? false,
