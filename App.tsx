@@ -21,8 +21,12 @@ import { GlobalSessionRoomProvider } from './src/contexts/GlobalSessionRoomConte
 import { HapticHandshakeProvider } from './src/components/effects/HapticHandshakeProvider';
 import { DevOverridesProvider } from './src/contexts/DevOverridesContext';
 import { DevModeRoot } from './src/components/dev/DevModeRoot';
+import { initCrashReporting } from './src/services/crashReporting';
 // HardwareHandshakeProvider intentionally NOT mounted — see comment near
 // usage block below for rationale (2026-05-11).
+
+// No-op until EXPO_PUBLIC_SENTRY_DSN is set — see crashReporting.ts.
+initCrashReporting();
 
 export default function App() {
   const [fontsLoaded, fontError] = useDesignFonts();
