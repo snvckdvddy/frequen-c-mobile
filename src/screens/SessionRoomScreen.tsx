@@ -48,7 +48,7 @@ import {
 import {
   loadTrack, stop as stopPlayback, togglePlayPause,
 } from '../services/playbackEngine';
-import { USE_MOCKS } from '../services/config';
+import { USE_MOCKS, isRoomModeLocked } from '../services/config';
 import { JoinLeaveToast, ListenerDrawer, type ToastMessage } from '../components/ListenerPresence';
 import { ChatPanel } from '../components/ChatPanel';
 import { useSearch } from '../hooks/useSearch';
@@ -506,6 +506,9 @@ export function SessionRoomScreen() {
   const handleSelectMode = useCallback((mode: RoomMode) => {
     if (!session || !user || user.id !== session.hostId) return;
     if (mode === session.roomMode) return;
+    // Defense in depth for the beta lock — the switch renders locked
+    // segments disabled, but no stale UI path may emit 'change-mode'.
+    if (isRoomModeLocked(mode)) return;
     tapMedium();
     const newBehaviors = { ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[mode] };
     setSession((prev) => prev ? { ...prev, roomMode: mode, behaviors: newBehaviors } : prev);

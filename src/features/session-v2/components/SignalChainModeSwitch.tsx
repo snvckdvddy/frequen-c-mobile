@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RoomMode } from '../../../types';
 import { formatModeLabel } from '../theme/tacticalTokens';
 import { theme } from '../../../theme/theme';
+import { isRoomModeLocked } from '../../../services/config';
 
 interface SignalChainModeSwitchProps {
   mode: RoomMode;
@@ -32,23 +33,33 @@ export function SignalChainModeSwitch({
       <View style={styles.container}>
         {MODES.map((segment) => {
           const isSelected = segment === mode;
+          // Locked modes stay visible so hosts can see what's coming,
+          // but cannot fire onSelectMode until the beta lock lifts.
+          const isLocked = isRoomModeLocked(segment);
 
           return (
             <Pressable
               key={segment}
+              disabled={isLocked}
               onPress={() => onSelectMode(segment)}
               style={({ pressed }) => [
                 styles.segment,
                 isSelected && styles.segmentSelected,
-                pressed && styles.pressed,
+                isLocked && styles.segmentLocked,
+                pressed && !isLocked && styles.pressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel={`Set room mode to ${formatModeLabel(segment)}`}
-              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={
+                isLocked
+                  ? `${formatModeLabel(segment)} coming in V2`
+                  : `Set room mode to ${formatModeLabel(segment)}`
+              }
+              accessibilityState={{ selected: isSelected, disabled: isLocked }}
             >
               <Text style={[styles.label, isSelected && styles.labelSelected]}>
                 {formatModeLabel(segment)}
               </Text>
+              {isLocked ? <Text style={styles.lockTag}>V2</Text> : null}
             </Pressable>
           );
         })}
@@ -99,6 +110,16 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.84,
+  },
+  segmentLocked: {
+    opacity: 0.42,
+  },
+  lockTag: {
+    fontFamily: theme.fonts.monoBold,
+    fontSize: 8,
+    letterSpacing: 1,
+    color: theme.colors.textMuted,
+    marginTop: 1,
   },
 });
 

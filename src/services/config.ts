@@ -35,6 +35,17 @@ export const USE_MOCKS =
 // Allows AI features to call backend endpoints even while the rest of the app is mocked.
 export const AI_USE_REAL_BACKEND = USE_REAL_AI;
 
+// Closed-beta scope lock (memory: v1_beta_scope.md, decided 2026-07-25).
+// CAMPFIRE is the only selectable room mode for the friends beta;
+// SPOTLIGHT / OPEN FLR render disabled with a V2 tag. Set
+// EXPO_PUBLIC_BETA_MODES=open to unlock all modes for dev work.
+export const BETA_LOCK_ROOM_MODES =
+  (process.env.EXPO_PUBLIC_BETA_MODES || 'locked') !== 'open';
+
+export function isRoomModeLocked(mode: string): boolean {
+  return BETA_LOCK_ROOM_MODES && mode !== 'campfire';
+}
+
 // Backend base URLs: env override > local dev (if configured) > production
 export const API_BASE_URL = API_BASE_OVERRIDE || LOCAL_API_URL || PROD_API_URL;
 export const SOCKET_URL = SOCKET_BASE_OVERRIDE || LOCAL_SOCKET_URL || PROD_SOCKET_URL;

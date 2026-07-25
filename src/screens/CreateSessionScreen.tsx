@@ -22,6 +22,7 @@ import { BEHAVIOR_PRESETS, DEFAULT_BEHAVIORS } from '../types';
 import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
 import { formatModeLabel, getModeBlockColors, tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { notifyError, notifyWarning, tapLight, tapMedium } from '../utils/haptics';
+import { isRoomModeLocked } from '../services/config';
 
 const ROOM_PRESETS: { key: RoomMode; label: string; desc: string }[] = [
   { key: 'campfire', label: 'CAMPFIRE', desc: 'Equal turns. Round-robin queue.' },
@@ -126,6 +127,7 @@ export function CreateSessionScreen() {
   }
 
   function selectPreset(preset: RoomMode) {
+    if (isRoomModeLocked(preset)) return;
     tapLight();
     setRoomMode(preset);
     setBehaviors({ ...DEFAULT_BEHAVIORS, ...BEHAVIOR_PRESETS[preset] });
@@ -276,21 +278,32 @@ export function CreateSessionScreen() {
                   {ROOM_PRESETS.map((preset) => {
                     const isActive = roomMode === preset.key;
                     const colors = getModeBlockColors(preset.key);
+                    // Locked presets stay listed for orientation but can't
+                    // be selected until the beta lock lifts.
+                    const isLocked = isRoomModeLocked(preset.key);
                     return (
                       <Pressable
                         key={preset.key}
+                        disabled={isLocked}
                         onPress={() => selectPreset(preset.key)}
                         accessibilityRole="button"
                         accessibilityLabel={`Room mode ${preset.label}`}
-                        accessibilityHint={preset.desc}
+                        accessibilityHint={isLocked ? 'Coming in V2' : preset.desc}
+                        accessibilityState={{ disabled: isLocked }}
                         style={({ pressed }) => [
                           styles.modeCard,
                           isActive && [styles.modeCardActive, { borderColor: colors.borderColor }],
-                          pressed && styles.pressed,
+                          isLocked && styles.modeCardLocked,
+                          pressed && !isLocked && styles.pressed,
                         ]}
                       >
                         <View style={styles.modeCardHeader}>
                           <Text style={styles.modeCardTitle}>{preset.label}</Text>
+                          {isLocked ? (
+                            <View style={styles.modeCardLockTag}>
+                              <Text style={styles.modeCardLockTagText}>V2</Text>
+                            </View>
+                          ) : null}
                           <View style={[styles.modeCardBadge, { backgroundColor: colors.backgroundColor, borderColor: colors.borderColor }]}>
                             <Text style={[styles.modeCardBadgeText, { color: colors.color }]}>
                               {formatModeLabel(preset.key)}
@@ -629,6 +642,21 @@ const styles = StyleSheet.create({
     color: tacticalTokens.colors.textSoft,
     letterSpacing: 1,
     lineHeight: 18,
+  },
+  modeCardLocked: {
+    opacity: 0.42,
+  },
+  modeCardLockTag: {
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  modeCardLockTagText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    letterSpacing: 1.4,
+    color: tacticalTokens.colors.textSoft,
   },
   manualHintRail: {
     borderWidth: 1,
