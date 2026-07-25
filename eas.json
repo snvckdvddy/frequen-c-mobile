@@ -36,8 +36,7 @@
         "EXPO_PUBLIC_TIDAL_CLIENT_ID": "zvU13xkVZYA7JNR2",
         "EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID": "A6P1OlzNLYo7LrMcTA2TaGWVzM6RHgbw",
         "EXPO_PUBLIC_LASTFM_API_KEY": "4cdc4d6459ac72ee723a9d9792d2884c",
-        "EXPO_PUBLIC_APPLE_SERVICE_ID": "com.frequenc.auth",
-        "EXPO_PUBLIC_SENTRY_DSN": ""
+        "EXPO_PUBLIC_APPLE_SERVICE_ID": "com.frequenc.auth"
       }
     },
     "preview:apk": {
@@ -59,8 +58,7 @@
         "EXPO_PUBLIC_TIDAL_CLIENT_ID": "zvU13xkVZYA7JNR2",
         "EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID": "A6P1OlzNLYo7LrMcTA2TaGWVzM6RHgbw",
         "EXPO_PUBLIC_LASTFM_API_KEY": "4cdc4d6459ac72ee723a9d9792d2884c",
-        "EXPO_PUBLIC_APPLE_SERVICE_ID": "com.frequenc.auth",
-        "EXPO_PUBLIC_SENTRY_DSN": ""
+        "EXPO_PUBLIC_APPLE_SERVICE_ID": "com.frequenc.auth"
       }
     },
     "production": {
@@ -81,8 +79,7 @@
         "EXPO_PUBLIC_TIDAL_CLIENT_ID": "zvU13xkVZYA7JNR2",
         "EXPO_PUBLIC_SOUNDCLOUD_CLIENT_ID": "A6P1OlzNLYo7LrMcTA2TaGWVzM6RHgbw",
         "EXPO_PUBLIC_LASTFM_API_KEY": "4cdc4d6459ac72ee723a9d9792d2884c",
-        "EXPO_PUBLIC_APPLE_SERVICE_ID": "com.frequenc.auth",
-        "EXPO_PUBLIC_SENTRY_DSN": ""
+        "EXPO_PUBLIC_APPLE_SERVICE_ID": "com.frequenc.auth"
       }
     }
   }
