@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -10,7 +11,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Input, SafeScreen } from '../components/ui';
+import { Button, Input, SafeScreen, showToast } from '../components/ui';
+import { LEGAL_URLS } from '../config';
 import { ManualPanel } from '../components/manual/ManualPanel';
 import { VoidSurface } from '../design/components';
 import { useAuth } from '../contexts/AuthContext';
@@ -211,6 +213,27 @@ export function RegisterScreen({ onSwitchToLogin }: RegisterScreenProps) {
                 </Pressable>
               </View>
 
+              <View style={styles.legalRow}>
+                <MonoText style={[styles.mono, styles.legalCopy]}>BY CREATING AN ACCOUNT YOU ACCEPT THE</MonoText>
+                <Pressable
+                  onPress={() => void Linking.openURL(LEGAL_URLS.terms).catch(() => showToast('Unable to open external link.', 'error', '!'))}
+                  accessibilityRole="link"
+                  accessibilityLabel="Open terms of service"
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <MonoText style={[styles.monoBold, styles.legalLink]}>TERMS</MonoText>
+                </Pressable>
+                <MonoText style={[styles.mono, styles.legalCopy]}>+</MonoText>
+                <Pressable
+                  onPress={() => void Linking.openURL(LEGAL_URLS.privacy).catch(() => showToast('Unable to open external link.', 'error', '!'))}
+                  accessibilityRole="link"
+                  accessibilityLabel="Open privacy policy"
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <MonoText style={[styles.monoBold, styles.legalLink]}>PRIVACY POLICY</MonoText>
+                </Pressable>
+              </View>
+
               {/* Build/version tag — left blank intentionally. See LoginScreen
                   for context on why "DESN 374-040" was removed. */}
             </ScrollView>
@@ -321,6 +344,25 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: tacticalTokens.colors.orange,
     letterSpacing: 1.5,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 14,
+    paddingHorizontal: 12,
+  },
+  legalCopy: {
+    fontSize: 9,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.1,
+  },
+  legalLink: {
+    fontSize: 9,
+    color: tacticalTokens.colors.orange,
+    letterSpacing: 1.2,
   },
   buildTag: {
     marginTop: 24,

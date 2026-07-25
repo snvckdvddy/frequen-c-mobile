@@ -30,6 +30,15 @@ export const config = {
   GOOGLE_IOS_CLIENT_ID: readEnv(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) || '',
 } as const;
 
+// ─── Legal documents ──────────────────────────────────────
+// Single source of truth for the externally hosted policy pages,
+// linked from Profile › CONFIG BUS and the Register consent line.
+// The pages live in the frequen-c-landing GitHub Pages repo.
+export const LEGAL_URLS = {
+  privacy: 'https://snvckdvddy.github.io/frequen-c-landing/privacy.html',
+  terms: 'https://snvckdvddy.github.io/frequen-c-landing/terms.html',
+} as const;
+
 // ─── Backend routing note ────────────────────────────────
 // For the backend base URL (API_BASE_URL / SOCKET_URL), import from
 // 'src/services/config.ts' which correctly reads EXPO_PUBLIC_API_BASE_URL

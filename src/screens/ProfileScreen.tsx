@@ -16,6 +16,7 @@ import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeScreen, showToast, BetaBadge } from '../components/ui';
+import { LEGAL_URLS } from '../config';
 import { VoidSurface } from '../design/components';
 import { ServiceIcon } from '../components/icons/ServiceIcon';
 import { SonicAuraCard } from '../components/profile/SonicAuraCard';
@@ -752,8 +753,8 @@ export function ProfileScreen() {
             <View style={styles.panel}>
               {([
                 ['COPY DIAGNOSTICS', diagnostics.isExpoGo ? 'EXPO GO RUNTIME' : diagnostics.appOwnership.toUpperCase(), () => void handleCopyDiagnostics(), 'copy-outline'] as const,
-                ['PRIVACY POLICY', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/privacy.html').catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
-                ['TERMS OF SERVICE', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL('https://snvckdvddy.github.io/frequen-c-landing/terms.html').catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
+                ['PRIVACY POLICY', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL(LEGAL_URLS.privacy).catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
+                ['TERMS OF SERVICE', 'OPEN EXTERNAL DOCUMENT', () => void Linking.openURL(LEGAL_URLS.terms).catch(() => { notifyError(); showToast('Unable to open external link.', 'error', '!'); }), 'open-outline'] as const,
               ]).map(([title, detail, onPress, icon], index) => (
                 <Pressable key={title} onPress={onPress} accessibilityRole="button" accessibilityLabel={title as string} style={({ pressed }) => [styles.infoRow, index !== 2 && styles.divider, pressed && styles.pressed]}>
                   <View style={{ flex: 1 }}>
@@ -821,7 +822,17 @@ export function ProfileScreen() {
               : prompt?.kind === 'deleteConfirm'
                 ? [
                     { label: 'ABORT DELETE', description: 'Cancel this destructive action.', icon: 'return-up-back-outline', onPress: () => setPrompt(null) },
-                    { label: 'DELETE ACCOUNT', description: 'Permanently erase the current account.', icon: 'trash-outline', tone: 'danger', onPress: () => { void deleteAccount(); } },
+                    { label: 'DELETE ACCOUNT', description: 'Permanently erase the current account.', icon: 'trash-outline', tone: 'danger', onPress: () => {
+                      // On success AuthContext dispatches LOGOUT and this
+                      // screen unmounts; only the failure path needs UI.
+                      // Close the prompt first — the toast renders behind
+                      // the modal otherwise.
+                      void deleteAccount().catch(() => {
+                        setPrompt(null);
+                        notifyError();
+                        showToast('Account deletion failed. Check your connection and try again.', 'error', '!');
+                      });
+                    } },
                   ]
                 : [
                     { label: 'STAY PATCHED', description: 'Keep the current user session active.', icon: 'return-up-back-outline', onPress: () => setPrompt(null) },
