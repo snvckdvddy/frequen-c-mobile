@@ -25,6 +25,7 @@ import { Text } from '../components/ui';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
 import { skipCurrentTrack } from '../services/queueEngine';
+import { skipTrack } from '../services/socket';
 import { togglePlayPause } from '../services/playbackEngine';
 import { DEFAULT_BEHAVIORS } from '../types';
 // ─── Design System: Rack × Chrome visual language ──────────
@@ -147,6 +148,9 @@ function TabNavigator() {
     const { skipped } = skipCurrentTrack(globalRoom.queue, user.id, globalRoom.session.hostId, behaviors);
     if (skipped) {
       globalRoom.advanceQueue();
+      // Tell the room — without this emit the MiniPlayer skip only
+      // mutated local state and silently desynced from the session.
+      skipTrack(globalRoom.session.id, user.id);
     }
   };
 

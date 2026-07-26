@@ -5,7 +5,7 @@
  * via Socket.io, and exposes power move triggers.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface CVTransaction {
@@ -116,15 +116,22 @@ export function useCV(initialBalance: number = 50) {
     setBalance(serverBalance);
   }, []);
 
-  return {
-    balance,
-    history,
-    earn,
-    spend,
-    canUse,
-    getCooldownRemaining,
-    syncBalance,
-  };
+  // Memoized: consumers put this object in effect deps (useSessionRoom
+  // rebinds 16 socket listeners on identity change), so a fresh literal
+  // every render caused constant teardown/resubscribe churn and
+  // intermittently dropped toasts and CV updates.
+  return useMemo(
+    () => ({
+      balance,
+      history,
+      earn,
+      spend,
+      canUse,
+      getCooldownRemaining,
+      syncBalance,
+    }),
+    [balance, history, earn, spend, canUse, getCooldownRemaining, syncBalance],
+  );
 }
 
 export default useCV;

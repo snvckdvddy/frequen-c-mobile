@@ -55,9 +55,13 @@ export function JoinSessionScreen() {
       navigation.replace('SessionRoom', { sessionId: session.id });
     } catch (err: unknown) {
       notifyError();
-      const message = (err instanceof Error ? err.message : 'Check the code and try again.').toUpperCase();
+      // Surface the server's message when it has one — "That party has
+      // ended." blames nobody, while the generic copy blamed the user
+      // for typing a code that was valid an hour ago.
+      const raw = err instanceof Error ? err.message : '';
+      const message = (raw || 'Check the code and try again.').toUpperCase();
       setInlineError(message);
-      showToast('Signal not found. Check the join code.', 'error', '!');
+      showToast(raw || 'Signal not found. Check the join code.', 'error', '!');
     } finally {
       setLoading(false);
     }

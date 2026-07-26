@@ -24,6 +24,8 @@ interface TacticalTransportDeckProps {
   onChatOpen: () => void;
   onPlayPause: () => void;
   onSkip: () => void;
+  /** Messages received while the chat panel was closed */
+  chatUnreadCount?: number;
 }
 
 export function TacticalTransportDeck({
@@ -39,6 +41,7 @@ export function TacticalTransportDeck({
   onChatOpen,
   onPlayPause,
   onSkip,
+  chatUnreadCount = 0,
 }: TacticalTransportDeckProps) {
   const { width } = useWindowDimensions();
   const compact = width < 390;
@@ -152,9 +155,20 @@ export function TacticalTransportDeck({
           onPress={onChatOpen}
           style={({ pressed }) => [styles.systemButton, compact && styles.systemButtonCompact, pressed && styles.pressed]}
           accessibilityRole="button"
-          accessibilityLabel="Open chat"
+          accessibilityLabel={
+            chatUnreadCount > 0
+              ? `Open chat, ${chatUnreadCount} unread`
+              : 'Open chat'
+          }
         >
           <Text style={styles.systemText}>CHAT</Text>
+          {chatUnreadCount > 0 ? (
+            <View style={styles.unreadPill}>
+              <Text style={styles.unreadPillText}>
+                {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+              </Text>
+            </View>
+          ) : null}
         </Pressable>
       </View>
 
@@ -274,6 +288,23 @@ const styles = StyleSheet.create({
   },
   hostOutputTextPaused: {
     color: '#6A6A6A',
+  },
+  unreadPill: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: tacticalTokens.colors.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadPillText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 9,
+    color: tacticalTokens.colors.void,
   },
   pressed: {
     opacity: 0.84,

@@ -9,7 +9,7 @@
  * Pure side-effect hook — returns nothing.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { listenHeartbeat, onSessionEvent } from '../services/socket';
 import { notifyParticipantJoined } from '../services/notifications';
 import { USE_MOCKS } from '../services/config';
@@ -42,15 +42,28 @@ export function usePresenceListeners({
   }, [sessionId]);
 
   // ─── Participant join/leave socket events ────────────────
-  // Empty deps is intentional — captures userId and session via closure
-  // at mount time, matching the original SessionRoomScreen pattern.
+  // Toasts + push notifications ONLY — the roster itself is owned by
+  // useSessionRoom's subscriptions (single writer; the duplicate
+  // setListeners here caused silent divergence risk, 2026-07-25 audit).
+  // Refs keep the handlers current without rebinding: the old
+  // empty-deps closure captured session === null at mount, which is
+  // why the join push notification never fired in practice.
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+  const sessionNameRef = useRef(session?.name);
+  sessionNameRef.current = session?.name;
+  // Reconnects and app-foregrounds re-emit join-session; without a
+  // dedupe window every phone unlock at a party broadcast a fresh
+  // "X joined" toast + push to the whole room.
+  const recentJoinToastRef = useRef<Map<string, number>>(new Map());
+
   useEffect(() => {
     const unsubs = [
       onSessionEvent('participant-joined', (participant: Listener) => {
-        setListeners((prev) => {
-          if (prev.some((l) => l.userId === participant.userId)) return prev;
-          return [...prev, participant];
-        });
+        const last = recentJoinToastRef.current.get(participant.userId) || 0;
+        if (Date.now() - last < 60_000) return;
+        recentJoinToastRef.current.set(participant.userId, Date.now());
+
         const toast: ToastMessage = {
           id: `join_${participant.userId}_${Date.now()}`,
           text: `${participant.username} joined`,
@@ -60,8 +73,8 @@ export function usePresenceListeners({
         setTimeout(() => {
           setToasts((prev) => prev.filter((t) => t.id !== toast.id));
         }, 3000);
-        if (participant.userId !== userId && session?.name) {
-          notifyParticipantJoined(participant.username, session.name, sessionId).catch(() => { });
+        if (participant.userId !== userIdRef.current && sessionNameRef.current) {
+          notifyParticipantJoined(participant.username, sessionNameRef.current, sessionId).catch(() => { });
         }
       }),
       onSessionEvent('participant-left', (data: { userId: string }) => {
@@ -78,12 +91,13 @@ export function usePresenceListeners({
               setToasts((p) => p.filter((t) => t.id !== toast.id));
             }, 3000);
           }
-          return prev.filter((l) => l.userId !== data.userId);
+          // Roster write stays in useSessionRoom; return prev untouched.
+          return prev;
         });
       }),
     ];
     return () => unsubs.forEach((fn) => fn());
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sessionId, setListeners, setToasts]);
 
   // ─── Mock: simulate someone joining after 5s (mock mode only) ──
   useEffect(() => {

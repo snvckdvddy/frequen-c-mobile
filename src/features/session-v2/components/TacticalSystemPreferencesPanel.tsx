@@ -274,9 +274,13 @@ export function TacticalSystemPreferencesPanel({
               onSelectMode={onSelectMode}
             />
 
-            <Text style={styles.sectionLabel}>CONTROL PLANE</Text>
+            {/* CONTROL PLANE is host-only. Guests used to see the
+                section header plus one permanently disabled button —
+                a section that existed only to say "not for you."
+                Subtract, don't grey out. */}
             {isHost && (
               <>
+                <Text style={styles.sectionLabel}>CONTROL PLANE</Text>
                 <ActionButton
                   label="Start Duel"
                   description={duelActionDescription}
@@ -291,19 +295,16 @@ export function TacticalSystemPreferencesPanel({
                   onPress={closeAfterSuccess(onStartForecast)}
                   disabled={!canStartForecast}
                 />
+                <ActionButton
+                  label="Room Settings"
+                  description="Open host behavior controls."
+                  icon="options-outline"
+                  onPress={() => {
+                    setHostControlsOpen((prev) => !prev);
+                  }}
+                />
               </>
             )}
-            <ActionButton
-              label="Room Settings"
-              description={isHost ? 'Open host behavior controls.' : 'Host-only behavior controls.'}
-              icon="options-outline"
-              onPress={() => {
-                if (isHost) {
-                  setHostControlsOpen((prev) => !prev);
-                }
-              }}
-              disabled={!isHost}
-            />
 
             {isHost && hostControlsOpen && (
               <View style={styles.hostControls}>

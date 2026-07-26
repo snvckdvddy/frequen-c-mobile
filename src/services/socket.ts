@@ -473,7 +473,7 @@ export interface SessionSocketEvents {
   // Mock-only events (for local state management)
   'track-added': (track: QueueTrack) => void;
   'vote-cast': (data: { trackId: string; userId: string; direction: number; totalVotes: number }) => void;
-  'track-skipped': (data: Record<string, never>) => void;
+  'track-skipped': (data: { userId?: string; forced?: boolean; voteSkip?: boolean; votes?: number }) => void;
   'track-removed': (data: { trackId: string }) => void;
   // Spotlight mode events
   'track-pending': (data: { track: QueueTrack }) => void;

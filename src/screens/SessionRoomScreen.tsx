@@ -139,6 +139,11 @@ export function SessionRoomScreen() {
   const { isVoltageSag, accent, accentGlow } = useVoltageSag();
 
   const [chatOpen, setChatOpen] = useState(false);
+  // Unread chat = messages captured by the hook beyond what the user
+  // had seen when they last opened the panel.
+  const { chatLog } = useGlobalSessionRoom();
+  const [chatReadCount, setChatReadCount] = useState(0);
+  const chatUnreadCount = Math.max(0, chatLog.length - chatReadCount);
   const [showQR, setShowQR] = useState(false);
   const [listenerDrawerOpen, setListenerDrawerOpen] = useState(false);
   const [sharePromptOpen, setSharePromptOpen] = useState(false);
@@ -827,10 +832,12 @@ export function SessionRoomScreen() {
               }}
               onChatOpen={() => {
                 closeTransientPanels();
+                setChatReadCount(chatLog.length);
                 setChatOpen(true);
               }}
               onPlayPause={handlePlayPause}
               onSkip={handleSkip}
+              chatUnreadCount={chatUnreadCount}
             />
             <TacticalReactionMatrix
               counts={reactionCounts}
@@ -1002,7 +1009,11 @@ export function SessionRoomScreen() {
               userId={user?.id || ''}
               username={user?.username || ''}
               visible
-              onClose={() => setChatOpen(false)}
+              history={chatLog}
+              onClose={() => {
+                setChatReadCount(chatLog.length);
+                setChatOpen(false);
+              }}
             />
           )}
 

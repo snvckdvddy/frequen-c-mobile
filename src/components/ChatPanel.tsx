@@ -26,6 +26,9 @@ interface ChatPanelProps {
   userId: string;
   username: string;
   visible: boolean;
+  /** Full transcript captured by useSessionRoom while the panel was
+   *  closed — seeds the list on open so history survives. */
+  history?: ChatMessage[];
   onClose: () => void;
 }
 
@@ -143,7 +146,7 @@ const bubbleStyles = StyleSheet.create({
 
 // ─── Main Component ─────────────────────────────────────────
 
-export function ChatPanel({ sessionId, userId, username, visible, onClose }: ChatPanelProps) {
+export function ChatPanel({ sessionId, userId, username, visible, history, onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
@@ -177,7 +180,10 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
     return unsub;
   }, []);
 
-  // ─── Seed system message on mount ─────────────────────
+  // ─── Seed on mount: welcome line + captured history ───
+  // The panel remounts on every open ({chatOpen && ...}), so seeding
+  // from the always-on transcript restores messages sent while it was
+  // closed. The live subscription above covers everything after.
   useEffect(() => {
     setMessages([
       {
@@ -189,7 +195,9 @@ export function ChatPanel({ sessionId, userId, username, visible, onClose }: Cha
         type: 'system',
         timestamp: new Date().toISOString(),
       },
+      ...(history || []),
     ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   // ─── Auto-scroll to bottom ────────────────────────────

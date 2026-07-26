@@ -12,6 +12,7 @@ import type {
   RoomMode,
   Listener,
   RoomBehaviors,
+  ChatMessage,
 } from "../types";
 import { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } from "../types";
 import api, { sessionApi } from "../services/api";
@@ -100,6 +101,32 @@ export function useSessionRoom(sessionId: string) {
   const [listeners, setListeners] = useState<Listener[]>([]);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [playback, setPlayback] = useState<PlaybackState>(DEFAULT_PLAYBACK_STATE);
+  // Full chat transcript for the session, captured whether or not the
+  // chat panel is open. Seeded from room-state (the server sends the
+  // last 50 messages, previously discarded) and appended on every
+  // chat-message. ChatPanel seeds itself from this on open, and the
+  // transport deck derives its unread badge from its length.
+  const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
+  // Mirror for socket handlers whose effect deps would otherwise
+  // capture a stale roster (used by skip attribution).
+  const listenersRef = useRef<Listener[]>([]);
+  useEffect(() => {
+    listenersRef.current = listeners;
+  }, [listeners]);
+
+  // Guests only get ~1Hz playback syncs from the host; tick elapsed
+  // locally between them so the playhead sweeps instead of stalling
+  // whenever wifi hiccups. Host devices get engine-driven progress.
+  const isHostDevice = !!user?.id && session?.hostId === user.id;
+  useEffect(() => {
+    if (USE_MOCKS || !sessionId || isHostDevice) return;
+    const tick = setInterval(() => {
+      setPlayback((prev) =>
+        prev.isPlaying ? { ...prev, elapsed: prev.elapsed + 1 } : prev,
+      );
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [sessionId, isHostDevice]);
   const [reloadNonce, setReloadNonce] = useState(0);
 
   // Master Bounce (session receipt)
@@ -220,6 +247,7 @@ export function useSessionRoom(sessionId: string) {
       setSuggestedQueue([]);
       setPlayedHistory([]);
       setListeners([]);
+      setChatLog([]);
       setToasts([]);
       setError(null);
       setBounceVisible(false);
@@ -356,6 +384,9 @@ export function useSessionRoom(sessionId: string) {
             setQueue(buildLiveQueue(serverCurrentTrack, lastQueue));
             if (state.suggestedQueue) setSuggestedQueue(state.suggestedQueue);
             if (state.participants) setListeners(state.participants);
+            // The server sends the last 50 chat messages on join;
+            // they were fetched and discarded until 2026-07-25.
+            if (state.chat) setChatLog(state.chat);
             if (state.playback && state.playback.state !== "stopped") {
               const serverPos = state.playback.position || 0;
               const serverTimestamp = state.playback.timestamp || Date.now();
@@ -448,6 +479,15 @@ export function useSessionRoom(sessionId: string) {
             if (!mounted || !data?.message) return;
             showToast(data.message, "error", "!");
           }),
+          // Always-on chat capture: ChatPanel only subscribes while
+          // open, so messages sent while it was closed were lost and
+          // there was no unread signal.
+          onSessionEvent("chat-message", (msg) => {
+            if (!mounted || !msg?.id) return;
+            setChatLog((prev) =>
+              prev.some((m) => m.id === msg.id) ? prev : [...prev, msg],
+            );
+          }),
         ];
 
         if (user) {
@@ -518,8 +558,17 @@ export function useSessionRoom(sessionId: string) {
       }),
       onSessionEvent("track-skipped", (data) => {
         setSkipVoteState(null);
-        if (USE_MOCKS && data?.userId !== user?.id) {
-          advanceQueue();
+        if (USE_MOCKS) {
+          if (data?.userId !== user?.id) advanceQueue();
+          return;
+        }
+        // Attribution: the server has always sent who skipped; nothing
+        // surfaced it, so tracks just vanished without explanation.
+        if (data?.voteSkip) {
+          showToast(`Track skipped by vote${data.votes ? ` (${data.votes} votes)` : ''}.`, "info", "!");
+        } else if (data?.userId && data.userId !== user?.id) {
+          const skipper = listenersRef.current.find((l) => l.userId === data.userId)?.username;
+          showToast(skipper ? `Track skipped by @${skipper}.` : "Track skipped.", "info", "!");
         }
       }),
       onSessionEvent("track-removed", (data) => {
@@ -700,6 +749,7 @@ export function useSessionRoom(sessionId: string) {
     setToasts,
     playback: derivedPlayback,
     setPlayback,
+    chatLog,
     bounceVisible,
     setBounceVisible,
     skipVoteState,
