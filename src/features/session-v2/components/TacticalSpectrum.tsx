@@ -190,20 +190,23 @@ function SpectrumBar({
     }
 
     // Active vs inactive coloring. Bars to the left of the playhead
-    // are "active" (white or orange-peak); bars to the right are dim.
+    // are "active"; bars to the right are dim.
     const isActive = index <= Math.round(progress.value * (BAR_COUNT - 1));
-    const isPeak = isActive && amp > 0.72;
 
-    // interpolateColor handles the discrete switch cleanly without
-    // flashing between RN style updates.
+    // Blend smoothly toward orange as a bar runs hot. The previous
+    // [0.72, 0.73] band was effectively a binary switch evaluated per
+    // frame — bars oscillating across the threshold strobed
+    // white/orange (Caleb, 2026-07-25). A wide band makes color read
+    // as continuous heat, so per-frame amplitude motion produces
+    // gradual warmth instead of flashes.
     const color = isActive
-      ? interpolateColor(amp, [0.72, 0.73], [HEX.white, HEX.orange])
+      ? interpolateColor(amp, [0.45, 0.95], [HEX.white, HEX.orange])
       : HEX.inactive;
 
     return {
       height: `${amp * 100}%`,
       backgroundColor: color,
-      opacity: isPeak ? 1 : isActive ? 0.92 : 0.55,
+      opacity: isActive ? 0.95 : 0.55,
     };
   });
 
