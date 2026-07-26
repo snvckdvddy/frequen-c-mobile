@@ -18,6 +18,7 @@ import { ManualPanel } from '../components/manual/ManualPanel';
 import { homeScreenManual, MANUAL_SCREEN_IDS } from '../content/manual';
 import { useFirstTimeVisit } from '../hooks/useFirstTimeVisit';
 import { useAuth } from '../contexts/AuthContext';
+import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
 import { useCV } from '../hooks/useCV';
 import { useManualMode } from '../hooks/useManualMode';
 import { notificationApi, sessionApi } from '../services/api';
@@ -148,9 +149,12 @@ function EmptyActivePatch({
 
 function ActiveRoomCard({
   room,
+  isConnected,
   onOpenRoom,
 }: {
   room: Session;
+  /** Currently patched into this room (vs. a live room the user left) */
+  isConnected: boolean;
   onOpenRoom: (sessionId: string) => void;
 }) {
   const modeColors = getModeBlockColors(room.roomMode);
@@ -166,7 +170,9 @@ function ActiveRoomCard({
       <View style={styles.roomCardContent}>
         <View style={styles.roomCardTop}>
           <View style={styles.roomTitleWrap}>
-            <TextMono style={styles.roomEyebrow}>SYS.FREQ // ACTIVE PATCH</TextMono>
+            <TextMono style={styles.roomEyebrow}>
+              {isConnected ? 'SYS.FREQ // ACTIVE PATCH' : 'SYS.FREQ // LIVE ROOM'}
+            </TextMono>
             <TextMono style={styles.roomTitle} numberOfLines={1}>{room.name.toUpperCase()}</TextMono>
           </View>
           <View style={[styles.modeBadge, { backgroundColor: modeColors.backgroundColor, borderColor: modeColors.borderColor }]}>
@@ -198,7 +204,9 @@ function ActiveRoomCard({
         </View>
 
         <View style={styles.roomEnterRail}>
-          <TextMono style={styles.roomEnterText}>ENTER ROOM</TextMono>
+          <TextMono style={styles.roomEnterText}>
+            {isConnected ? 'ENTER ROOM' : 'REJOIN ROOM'}
+          </TextMono>
           <Ionicons name="arrow-forward" size={16} color={tacticalTokens.colors.white} />
         </View>
       </View>
@@ -302,7 +310,17 @@ export function HomeScreen({
     setRefreshing(false);
   }, [fetchMyRooms]);
 
-  const liveRoom = useMemo(() => myRooms.find((room) => room.isLive), [myRooms]);
+  const globalRoom = useGlobalSessionRoom();
+
+  // Prefer the room this device is actually patched into; otherwise
+  // surface the most recent live room the user was in (rejoinable —
+  // the list includes left-but-live rooms since 2026-07-25).
+  const liveRoom = useMemo(
+    () =>
+      myRooms.find((room) => room.isLive && room.id === globalRoom.connectionId) ||
+      myRooms.find((room) => room.isLive),
+    [myRooms, globalRoom.connectionId],
+  );
   const archiveRooms = useMemo(() => myRooms.filter((room) => !room.isLive), [myRooms]);
 
   const utilityActions = [
@@ -401,7 +419,11 @@ export function HomeScreen({
 
             <SectionHeader label="ACTIVE PATCH" accent={tacticalTokens.colors.acid} />
             {liveRoom ? (
-              <ActiveRoomCard room={liveRoom} onOpenRoom={onOpenRoom} />
+              <ActiveRoomCard
+                room={liveRoom}
+                isConnected={liveRoom.id === globalRoom.connectionId}
+                onOpenRoom={onOpenRoom}
+              />
             ) : (
               <EmptyActivePatch onCreateSession={onCreateSession} onJoinSession={onJoinSession} />
             )}
