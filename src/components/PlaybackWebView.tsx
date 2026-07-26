@@ -15,6 +15,7 @@ import React, { useRef, useCallback, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import WebView from 'react-native-webview';
 import type { WebViewMessageEvent } from 'react-native-webview';
+import { Audio } from 'expo-av';
 import { webViewSDKBackend } from '../services/playback/WebViewBridge';
 import { SOCKET_URL } from '../services/config';
 import { logger } from '../utils/logger';
@@ -49,6 +50,21 @@ export function PlaybackWebView({ enabled }: PlaybackWebViewProps) {
       webViewSDKBackend.unregisterWebView();
     };
   }, [enabled, postMessage]);
+
+  // Raise the OS audio session for SDK playback. ExpoAvBackend does
+  // this for direct-URL tracks, but the WebView path (Spotify / Apple
+  // Music / SoundCloud — the primary sources) never did: iOS ran on
+  // the default ambient category (silenced by the ring switch, torn
+  // down on lock) and Android never requested ducking. Best-effort —
+  // a failure here must not block the bridge.
+  useEffect(() => {
+    if (!enabled) return;
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+    }).catch(() => {});
+  }, [enabled]);
 
   // Handle messages FROM the WebView (progress, trackEnd, error, ready)
   const handleMessage = useCallback((event: WebViewMessageEvent) => {

@@ -84,7 +84,6 @@ import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { useCV } from '../hooks/useCV';
 import { useGameLayer } from '../hooks/useGameLayer';
 import { usePresenceListeners } from '../hooks/usePresenceListeners';
-import { useHostPlaybackEngine } from '../hooks/useHostPlaybackEngine';
 import { useVoltageSag } from '../hooks/useVoltageSag';
 import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
 import PowerRoutingSheet, { type PowerMove, type PowerMoveId } from '../features/power-routing/PowerRoutingSheet';
@@ -264,18 +263,6 @@ export function SessionRoomScreen() {
 
   // ─── Presence: heartbeat, join/leave events, mock joiner ──
   usePresenceListeners({ sessionId, userId: user?.id, session, setListeners, setToasts });
-
-  // ─── Playback engine ────────────────────────────────────
-  // Host-output model: only the host device plays audio and signals track-end.
-
-  useHostPlaybackEngine({
-    isHost: !!isHost,
-    queue,
-    sessionId,
-    setPlayback,
-    advanceQueue,
-    lastfmConnected: !!user?.connectedServices?.lastfm?.connected,
-  });
 
   // ─── Handlers ─────────────────────────────────────────
   // Queueing is intentionally passive/free in Session V2.

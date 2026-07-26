@@ -1,15 +1,23 @@
 /**
  * useHostPlaybackEngine — host-only audio playback wiring
  * ─────────────────────────────────────────────────────────────
- * Extracted from SessionRoomScreen. Encapsulates the three effects
- * that connect the queue to the expo-av playback engine:
+ * Mounted by GlobalSessionRoomProvider (NOT SessionRoomScreen): audio
+ * follows the session, not the screen. The host can minimize the room
+ * or browse other tabs without interrupting the party. It lived in the
+ * screen until 2026-07-25, when its unmount cleanup was found to be
+ * the "music stops when the host goes Home" bug.
  *
- *   1. Subscribe to onProgress → update playback state
+ * Encapsulates the effects that connect the queue to the playback
+ * engine:
+ *
+ *   1. Subscribe to onProgress → update playback state + broadcast
  *   2. Load tracks when queue[0] changes (host only)
  *   3. Advance queue when track ends (host only)
+ *   4. Stop the engine when this device stops being host
+ *      (session ended/left — isHost flips false)
  *
  * Only the host device plays audio. Non-host users receive playback
- * state via socket events. All three effects guard on `isHost`.
+ * state via socket events. All effects guard on `isHost`.
  */
 
 import { useEffect, useRef } from 'react';
@@ -62,7 +70,9 @@ export function useHostPlaybackEngine({
     return unsub;
   }, [setPlayback, isHost]);
 
-  // Stop audio only when the host leaves the screen entirely
+  // Stop audio when this device stops being the host — isHost flips
+  // false when the session ends or is left. Provider-mounted, so this
+  // cleanup no longer fires on screen navigation.
   useEffect(() => {
     if (!isHost) return;
     return () => { stopPlayback(); };

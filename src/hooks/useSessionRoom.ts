@@ -439,6 +439,14 @@ export function useSessionRoom(sessionId: string) {
               prev.filter((l) => l.userId !== data.userId),
             );
           }),
+          // The server emits 'error' from 33 rejection paths (not the
+          // host, insufficient CV, session ended, toggle disabled...)
+          // and until 2026-07-25 nothing listened — every rejected
+          // action was a silently dead button.
+          onSessionEvent("error", (data) => {
+            if (!mounted || !data?.message) return;
+            showToast(data.message, "error", "!");
+          }),
         ];
 
         if (user) {
@@ -649,6 +657,21 @@ export function useSessionRoom(sessionId: string) {
     // to prevent full listener teardown/rebuild on every approval-queue change.
   ]); // Needs cv for earn/sync updates
 
+  // Guests receive isPlaying + elapsed over the socket at ~1Hz, but no
+  // duration — only the host's engine knows it. Derive duration from
+  // the now-playing track (buildLiveQueue pins it at queue[0]) and
+  // recompute progress so guest playheads sweep instead of sticking at
+  // 0 (2026-07-25 two-device finding). Host values pass through
+  // untouched whenever the engine already supplied a duration.
+  const playbackDuration = playback.duration || queue[0]?.duration || 0;
+  const derivedPlayback: PlaybackState = {
+    ...playback,
+    duration: playbackDuration,
+    progress: playbackDuration > 0
+      ? Math.min(1, playback.elapsed / playbackDuration)
+      : playback.progress,
+  };
+
   // Return the public interface of the hook
   return {
     session,
@@ -667,7 +690,7 @@ export function useSessionRoom(sessionId: string) {
     setListeners,
     toasts,
     setToasts,
-    playback,
+    playback: derivedPlayback,
     setPlayback,
     bounceVisible,
     setBounceVisible,
