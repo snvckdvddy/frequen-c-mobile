@@ -27,6 +27,8 @@ interface SessionRoomPromptsProps {
   sessionName: string;
   onCloseLeave: () => void;
   onConfirmLeave: () => void;
+  /** Host only: exit the screen while the session keeps playing */
+  onMinimize: () => void;
 
   /** Power move confirm prompt */
   pendingPowerPrompt: PendingPowerPrompt | null;
@@ -44,6 +46,7 @@ export default function SessionRoomPrompts({
   sessionName,
   onCloseLeave,
   onConfirmLeave,
+  onMinimize,
   pendingPowerPrompt,
   onClosePower,
   onConfirmPower,
@@ -81,10 +84,10 @@ export default function SessionRoomPrompts({
         <TacticalActionPrompt
           visible
           eyebrow={isHost ? 'SYS.FREQ // HOST EXIT' : 'SYS.FREQ // EXIT BUS'}
-          title={isHost ? 'END SESSION' : 'LEAVE ROOM'}
+          title={isHost ? 'EXIT ROOM' : 'LEAVE ROOM'}
           description={
             isHost
-              ? 'This will close the room for everyone and terminate the active session.'
+              ? 'Minimize to keep the music playing, or end the session for everyone.'
               : `Exit "${sessionName}" and return to the room list.`
           }
           onClose={onCloseLeave}
@@ -95,6 +98,20 @@ export default function SessionRoomPrompts({
               icon: 'arrow-undo-outline',
               onPress: onCloseLeave,
             },
+            // Hosts get a middle path: their device is the room's audio
+            // output, so leaving the SCREEN must not mean ending the
+            // PARTY. Playback survives because the WebView lives at the
+            // provider level, not this screen.
+            ...(isHost
+              ? [
+                  {
+                    label: 'Minimize Room',
+                    description: 'Keep the music playing. Rejoin anytime from ACTIVE PATCH on Home.',
+                    icon: 'chevron-down-outline' as const,
+                    onPress: onMinimize,
+                  },
+                ]
+              : []),
             {
               label: isHost ? 'End Session' : 'Leave Room',
               description: isHost

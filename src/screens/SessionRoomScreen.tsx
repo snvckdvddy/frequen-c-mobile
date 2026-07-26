@@ -557,6 +557,16 @@ export function SessionRoomScreen() {
     navigation.goBack();
   }, [user, session, sessionId, navigation, clearActiveSession, setConnectionId]);
 
+  // Host-only "step out without ending the party": leave the SCREEN but
+  // keep connectionId + session state intact. The provider-level
+  // useSessionRoom and PlaybackWebView survive this screen's unmount,
+  // so audio keeps playing and Home shows the room under ACTIVE PATCH.
+  const handleMinimizeRoom = useCallback(() => {
+    setLeavePromptOpen(false);
+    tapLight();
+    navigation.goBack();
+  }, [navigation]);
+
   // ─── Search within queue sheet ─────────────────────────
   const handleCancelSearch = useCallback(() => {
     clearSearch();
@@ -940,6 +950,7 @@ export function SessionRoomScreen() {
             sessionName={session.name}
             onCloseLeave={() => setLeavePromptOpen(false)}
             onConfirmLeave={handleConfirmLeaveRoom}
+            onMinimize={handleMinimizeRoom}
             pendingPowerPrompt={gameLayer.powerMoves.pendingPrompt}
             onClosePower={() => gameLayer.powerMoves.setPendingPrompt(null)}
             onConfirmPower={gameLayer.powerMoves.handleConfirm}

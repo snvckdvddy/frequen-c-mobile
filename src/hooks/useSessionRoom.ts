@@ -420,6 +420,25 @@ export function useSessionRoom(sessionId: string) {
               }),
             );
           }),
+          // The backend has emitted participant-joined/-left since day
+          // one, but nothing here subscribed — hosts never saw guests
+          // arrive in real time (2026-07-25 two-device finding). The
+          // joining device still gets the full roster via room-state;
+          // these keep everyone ELSE's roster live.
+          onSessionEvent("participant-joined", (participant) => {
+            if (!mounted || !participant?.userId) return;
+            setListeners((prev) =>
+              prev.some((l) => l.userId === participant.userId)
+                ? prev
+                : [...prev, participant],
+            );
+          }),
+          onSessionEvent("participant-left", (data) => {
+            if (!mounted || !data?.userId) return;
+            setListeners((prev) =>
+              prev.filter((l) => l.userId !== data.userId),
+            );
+          }),
         ];
 
         if (user) {
