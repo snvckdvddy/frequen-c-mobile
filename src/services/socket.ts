@@ -77,6 +77,33 @@ export function getSocketHealth(): SocketHealthState {
 
 let socket: Socket | null = null;
 
+// ─── Session Event Registry ─────────────────────────────────
+// Handlers live in this module-level registry, not just on the socket
+// instance. connectSocket()/reconnectSocket() tear the instance down
+// (removeAllListeners) and create a fresh one; without the registry,
+// every subscriber went permanently deaf after a manual reconnect —
+// the RETRY button and foreground recovery delivered a socket nobody
+// was listening to (2026-07-25 resilience audit, R2). Every new socket
+// instance re-binds the full registry.
+type AnySocketHandler = (...args: unknown[]) => void;
+const sessionEventRegistry = new Map<string, Set<AnySocketHandler>>();
+
+function bindRegistryToSocket(sock: Socket): void {
+  for (const [event, handlers] of sessionEventRegistry) {
+    for (const handler of handlers) {
+      sock.on(event, handler);
+    }
+  }
+}
+
+// The server drops room membership the moment a socket disconnects (no
+// grace period) and socket.io's auto-reconnect restores the TRANSPORT
+// but not the room. Remember the active join and re-emit it on every
+// (re)connect — otherwise a two-second wifi blip leaves the app looking
+// connected while the room is frozen forever and everyone else sees the
+// user as having left (2026-07-25 resilience audit, R1).
+let activeJoin: { sessionId: string; userId: string; username: string } | null = null;
+
 export async function connectSocket(): Promise<Socket | null> {
   if (USE_MOCKS) {
     logger.info('socket', 'Mock mode — no server connection.');
@@ -109,9 +136,24 @@ export async function connectSocket(): Promise<Socket | null> {
     timeout: 15000,
   });
 
+  bindRegistryToSocket(socket);
+
   socket.on('connect', () => {
     logger.info('socket', 'Connected', socket?.id);
     setHealth({ status: 'connected', lastError: null, reconnectAttempt: 0 });
+    // Rejoin the active room. Covers auto-reconnect (same instance) and
+    // manual reconnect (fresh instance) alike; a no-op on first connect
+    // because joinSession hasn't run yet. The server re-activates the
+    // membership and replies with a fresh room-state, which also
+    // drift-corrects playback for guests.
+    if (activeJoin) {
+      logger.info('socket', `Rejoining session ${activeJoin.sessionId} after reconnect`);
+      guardedEmit('join-session', {
+        sessionId: activeJoin.sessionId,
+        userId: activeJoin.userId,
+        username: activeJoin.username,
+      });
+    }
   });
 
   socket.on('disconnect', (reason) => {
@@ -215,17 +257,20 @@ export function joinSession(sessionId: string, userId: string, username: string)
     logger.debug('socket', `Mock: ${username} joined session ${sessionId}`);
     return;
   }
+  activeJoin = { sessionId, userId, username };
   guardedEmit('join-session', { sessionId, userId, username });
 }
 
 export function leaveSession(sessionId: string, userId: string): void {
   if (USE_MOCKS) return;
+  if (activeJoin?.sessionId === sessionId) activeJoin = null;
   guardedEmit('leave-session', { sessionId });
 }
 
 /** Permanently leave a session (removes membership). Use for "Leave Room" button. */
 export function quitSession(sessionId: string, userId: string): void {
   if (USE_MOCKS) return;
+  if (activeJoin?.sessionId === sessionId) activeJoin = null;
   guardedEmit('quit-session', { sessionId, userId });
 }
 
@@ -481,9 +526,17 @@ export function onSessionEvent<K extends keyof SessionSocketEvents>(
     mockOn(event, handler as MockHandler);
     return () => mockOff(event, handler as MockHandler);
   }
-  socket?.on(event as string, handler as (...args: unknown[]) => void);
+  const anyHandler = handler as AnySocketHandler;
+  let handlers = sessionEventRegistry.get(event as string);
+  if (!handlers) {
+    handlers = new Set();
+    sessionEventRegistry.set(event as string, handlers);
+  }
+  handlers.add(anyHandler);
+  socket?.on(event as string, anyHandler);
   return () => {
-    socket?.off(event as string, handler as (...args: unknown[]) => void);
+    sessionEventRegistry.get(event as string)?.delete(anyHandler);
+    socket?.off(event as string, anyHandler);
   };
 }
 
