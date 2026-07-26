@@ -10,7 +10,7 @@ import { MusicServiceAdapter } from './types';
 import { Track, TrackSource } from '../../types';
 import { logger } from '../../utils/logger';
 
-type StubSource = 'youtube' | 'itunes';
+type StubSource = 'youtube' | 'itunes' | 'local';
 
 function createStubAdapter(name: StubSource): MusicServiceAdapter {
     let connected = false;
@@ -48,3 +48,10 @@ export const youtubeAdapter = createStubAdapter('youtube');
 
 /** iTunes stub — iTunes preview URLs are handled directly in playbackEngine. */
 export const itunesAdapter = createStubAdapter('itunes');
+
+/**
+ * Local-files stub — local tracks are queued from the Library screen
+ * (localLibrary.ts), never via search, so the adapter surface stays a
+ * stub. Kept disconnected so 'local' never renders as a search pill.
+ */
+export const localAdapter = createStubAdapter('local');

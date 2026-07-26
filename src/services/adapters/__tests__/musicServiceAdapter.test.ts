@@ -43,6 +43,7 @@ jest.mock('../appleMusicAdapter', () => ({ appleMusicAdapter: makeAdapterStub('a
 jest.mock('../stubAdapter', () => ({
     youtubeAdapter: makeAdapterStub('youtube'),
     itunesAdapter: makeAdapterStub('itunes'),
+    localAdapter: makeAdapterStub('local'),
 }));
 
 import {

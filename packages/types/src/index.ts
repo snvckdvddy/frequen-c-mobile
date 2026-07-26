@@ -155,7 +155,7 @@ export interface Session {
 
 // ─── Tracks ──────────────────────────────────────────────────
 
-export type TrackSource = 'spotify' | 'appleMusic' | 'soundcloud' | 'youtube' | 'tidal' | 'itunes';
+export type TrackSource = 'spotify' | 'appleMusic' | 'soundcloud' | 'youtube' | 'tidal' | 'itunes' | 'local';
 
 export interface Track {
   id: string;

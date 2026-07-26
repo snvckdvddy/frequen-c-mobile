@@ -3,7 +3,7 @@ import { spotifyAdapter } from './spotifyAdapter';
 import { soundcloudAdapter } from './soundcloudAdapter';
 import { tidalAdapter } from './tidalAdapter';
 import { appleMusicAdapter } from './appleMusicAdapter';
-import { youtubeAdapter, itunesAdapter } from './stubAdapter';
+import { youtubeAdapter, itunesAdapter, localAdapter } from './stubAdapter';
 import { ConnectedServices, ServiceConnection, TrackSource } from '../../types';
 
 // ─── Source metadata ─────────────────────────────────────────
@@ -51,9 +51,15 @@ export type AccessClass =
                           // allowlist. Today: Spotify (Dev Mode 5-user cap).
                           // Will collapse to 'subscription' if/when Spotify
                           // approves Frequen-C for Extended Quota Mode.
-  | 'metadata-only';      // Catalog/search/discovery only. No playback.
+  | 'metadata-only'       // Catalog/search/discovery only. No playback.
                           // Used for iTunes Search API (cross-match metadata
                           // source) and YouTube (preview-only fallback).
+  | 'local';              // Files on the host's device. No account, no
+                          // subscription, no platform terms — the one
+                          // source with native full playback (expo-av on
+                          // a file:// URI, no WebView). Host-only for now:
+                          // guests queueing their local files needs the
+                          // auto-host-handoff design pass first.
 
 // Orthogonal to AccessClass: what the playback layer actually delivers
 // today. AccessClass answers "what does the user need to bring?";
@@ -128,6 +134,11 @@ export const SOURCE_META: Record<TrackSource, SourceMeta> = {
     // cross-match candidates and as catalog fillers.
     itunes:     { access: 'metadata-only',     crossMatchPriority: 60,  playbackCapability: 'none'    },
     youtube:    { access: 'metadata-only',     crossMatchPriority: 50,  playbackCapability: 'none'    },
+    // Files on the host's device — outranks every streaming source in
+    // cross-match because a local file can never expire, throttle, or
+    // hit a platform wall. Plays natively via ExpoAvBackend (file://),
+    // the one path with no WebView and no third-party terms.
+    local:      { access: 'local',             crossMatchPriority: 110, playbackCapability: 'full'    },
 };
 
 /** User-facing access class for a source — drives badges, colors, copy. */
@@ -215,9 +226,11 @@ function syncConnectedState(connectedServices: ConnectedServices | undefined): v
     // setConnected reflects whether the user has authenticated (for library features).
     // appleMusic has no expiresAt, so isEffectivelyConnected is a no-op upgrade here.
     appleMusicAdapter.setConnected(isEffectivelyConnected(cs?.appleMusic));
-    // youtube & itunes have no auth flow — always disconnected
+    // youtube, itunes & local have no auth flow — always disconnected
+    // (local tracks queue from the Library screen, not search)
     youtubeAdapter.setConnected(false);
     itunesAdapter.setConnected(false);
+    localAdapter.setConnected(false);
 }
 
 // ─── Complete adapter map (covers every TrackSource) ─────────
@@ -229,6 +242,7 @@ const adapterMap: Record<TrackSource, MusicServiceAdapter> = {
     appleMusic: appleMusicAdapter,
     youtube: youtubeAdapter,
     itunes: itunesAdapter,
+    local: localAdapter,
 };
 
 /**

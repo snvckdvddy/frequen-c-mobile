@@ -25,6 +25,7 @@ const BRAND_ICONS: Record<string, any> = {
 const FALLBACK_ICONS: Record<string, string> = {
   soundcloud: 'cloud-outline',
   tidal: 'water-outline',
+  local: 'folder-open-outline',
 };
 
 // ─── Component ──────────────────────────────────────────────
@@ -52,10 +53,11 @@ export function ServiceIcon({ service, size = 20, connected = false }: ServiceIc
   }
 
   // Fallback to Ionicons
-  const fallbackName = FALLBACK_ICONS[service.toLowerCase()] || 'musical-notes-outline';
+  const fallbackName = (FALLBACK_ICONS[service.toLowerCase()] ||
+    'musical-notes-outline') as keyof typeof Ionicons.glyphMap;
   return (
     <Ionicons
-      name={fallbackName as any}
+      name={fallbackName}
       size={size * 0.7}
       color={connected ? palette.orange : palette.slate}
     />

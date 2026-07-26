@@ -24,15 +24,20 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
 import { useLibraryBrowse } from '../hooks/useLibraryBrowse';
 import { sessionApi } from '../services/api';
+import { addToQueue } from '../services/socket';
+import {
+  importLocalTracks, listLocalTracks, removeLocalTrack, localRecordToTrack,
+  type LocalTrackRecord,
+} from '../services/localLibrary';
 import { VoidSurface } from '../design/components';
 import { palette } from '../design/tokens/materials';
 import { colors } from '../design/tokens/colors';
 import { spacing } from '../theme/spacing';
-import type { Track, Session, RoomMode } from '../types';
+import type { Track, Session, RoomMode, QueueTrack } from '../types';
 
 // ─── Segment Tabs ────────────────────────────────────────────
 
-type Segment = 'liked' | 'playlists' | 'history';
+type Segment = 'liked' | 'playlists' | 'history' | 'local';
 
 interface SegmentTabsProps {
   active: Segment;
@@ -45,6 +50,7 @@ function SegmentTabs({ active, onChange }: SegmentTabsProps) {
   const tabs: { key: Segment; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }[] = [
     { key: 'liked', label: 'Liked', icon: 'heart-outline', iconActive: 'heart' },
     { key: 'playlists', label: 'Playlists', icon: 'albums-outline', iconActive: 'albums' },
+    { key: 'local', label: 'Local', icon: 'folder-open-outline', iconActive: 'folder-open' },
     { key: 'history', label: 'History', icon: 'time-outline', iconActive: 'time' },
   ];
 
@@ -271,6 +277,61 @@ export function LibraryScreen({ onOpenRoom, initialSegment, route }: LibraryScre
     }
   }, [hasActiveSession]);
 
+  // ─── Local files (device audio, host-output native path) ──
+  const [localTracks, setLocalTracks] = useState<LocalTrackRecord[]>([]);
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    void listLocalTracks().then(setLocalTracks);
+  }, []);
+
+  // Local files exist on THIS device, so queueing is host-only: the
+  // host's phone is the room's output. Guests queueing their local
+  // files needs the auto-host-handoff design pass (known_debt #1).
+  const canQueueLocal =
+    hasActiveSession && globalRoom.session?.hostId === user?.id;
+
+  const handleImportLocal = useCallback(async () => {
+    setImporting(true);
+    try {
+      const next = await importLocalTracks();
+      setLocalTracks(next);
+    } catch {
+      showToast('Import failed. Try a different file.', 'error', '!');
+    } finally {
+      setImporting(false);
+    }
+  }, []);
+
+  const handleRemoveLocal = useCallback(async (id: string) => {
+    setLocalTracks(await removeLocalTrack(id));
+  }, []);
+
+  const handleQueueLocal = useCallback((rec: LocalTrackRecord) => {
+    if (!canQueueLocal || !user || !globalRoom.session) return;
+    const track = localRecordToTrack(rec);
+    const queueTrack: QueueTrack = {
+      ...track,
+      addedBy: { userId: user.id, username: user.username },
+      addedById: user.id,
+      addedAt: new Date().toISOString(),
+      votes: 0,
+      voltageBoost: 0,
+      reactions: [],
+    };
+    addToQueue(globalRoom.session.id, queueTrack);
+    // No inline queue surface exists on this screen, so the toast is
+    // the only confirmation channel (allowed per toast policy).
+    showToast(`"${rec.title}" queued to ${globalRoom.session.name}.`, 'success', '!');
+  }, [canQueueLocal, user, globalRoom.session]);
+
+  const formatDuration = (sec: number): string => {
+    if (!sec) return '--:--';
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
+
   return (
     <SafeScreen>
       <VoidSurface style={{ flex: 1 }}>
@@ -339,6 +400,85 @@ export function LibraryScreen({ onOpenRoom, initialSegment, route }: LibraryScre
               />
             }
           >
+            {/* ─── Local Files ──────────────────────────── */}
+            {segment === 'local' && (
+              <ADSRFadeIn index={0}>
+                <View style={styles.localHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="body" color={palette.frost}>Device audio</Text>
+                    <Text variant="bodySmall" color={palette.slate}>
+                      {canQueueLocal
+                        ? 'Plays natively from this phone — no service required.'
+                        : 'Host a room to queue local files (they play from the host device).'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => void handleImportLocal()}
+                    disabled={importing}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Import audio files"
+                    style={[styles.localImportButton, importing && { opacity: 0.5 }]}
+                  >
+                    <Ionicons name="add" size={16} color={palette.void} />
+                    <Text variant="labelSmall" color={palette.void}>
+                      {importing ? 'IMPORTING' : 'IMPORT'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {localTracks.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="folder-open-outline" size={48} color={palette.slate} />
+                    <Text variant="body" color={palette.silver} align="center" style={{ marginTop: spacing.sm }}>
+                      No local files yet
+                    </Text>
+                    <Text variant="bodySmall" color={palette.slate} align="center" style={{ marginTop: spacing.xs }}>
+                      Import audio from this device — the one source no platform can take away
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.trackList}>
+                    {localTracks.map((rec, i) => (
+                      <ADSRFadeIn key={rec.id} index={i} staggerMs={40}>
+                        <View style={styles.localRow}>
+                          <Ionicons name="musical-note-outline" size={18} color={palette.green} />
+                          <View style={styles.localRowMeta}>
+                            <Text variant="body" color={palette.frost} numberOfLines={1}>
+                              {rec.title}
+                            </Text>
+                            <Text variant="bodySmall" color={palette.slate}>
+                              {formatDuration(rec.durationSec)} · LOCAL
+                            </Text>
+                          </View>
+                          {canQueueLocal && (
+                            <TouchableOpacity
+                              onPress={() => handleQueueLocal(rec)}
+                              activeOpacity={0.7}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Queue ${rec.title}`}
+                              style={styles.localQueueButton}
+                            >
+                              <Text variant="labelSmall" color={palette.green}>QUEUE</Text>
+                            </TouchableOpacity>
+                          )}
+                          <TouchableOpacity
+                            onPress={() => void handleRemoveLocal(rec.id)}
+                            activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove ${rec.title}`}
+                            style={styles.localRemoveButton}
+                          >
+                            <Ionicons name="trash-outline" size={16} color={palette.slate} />
+                          </TouchableOpacity>
+                        </View>
+                      </ADSRFadeIn>
+                    ))}
+                  </View>
+                )}
+              </ADSRFadeIn>
+            )}
+
             {/* ─── Liked Tracks ─────────────────────────── */}
             {segment === 'liked' && (
               <ADSRFadeIn index={0}>
@@ -473,6 +613,46 @@ const styles = StyleSheet.create({
   },
   trackList: {
     gap: 0,
+  },
+  localHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    marginBottom: spacing.sm,
+  },
+  localImportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: palette.green,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 2,
+  },
+  localRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  localRowMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  localQueueButton: {
+    borderWidth: 1,
+    borderColor: palette.green,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 2,
+  },
+  localRemoveButton: {
+    padding: 6,
   },
   historyList: {
     gap: 0,

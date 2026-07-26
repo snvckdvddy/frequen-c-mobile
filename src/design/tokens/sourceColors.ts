@@ -20,6 +20,7 @@ export const sourceColors: Record<TrackSource, string> = {
   tidal:      '#00FFFF',   // Tidal Cyan
   youtube:    '#FF0000',   // YouTube Red
   itunes:     palette.slate, // iTunes fallback — muted, no brand identity
+  local:      palette.green, // Local files — CV green, no brand to defer to
 };
 
 // ─── Short Labels (for tight UI, e.g. queue track badges) ───
@@ -31,6 +32,7 @@ export const sourceLabels: Record<TrackSource, string> = {
   tidal:      'TIDAL',
   youtube:    'YT',
   itunes:     'ITUNES',
+  local:      'LOCAL',
 };
 
 // ─── ServiceIcon key mapping ────────────────────────────────
@@ -43,6 +45,7 @@ export const sourceIconKey: Record<TrackSource, string> = {
   tidal:      'tidal',
   youtube:    'youtube-music',
   itunes:     'itunes',
+  local:      'local',
 };
 
 // ─── Helpers ────────────────────────────────────────────────
