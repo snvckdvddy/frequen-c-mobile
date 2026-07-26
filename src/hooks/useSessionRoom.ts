@@ -16,6 +16,7 @@ import type {
 import { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } from "../types";
 import api, { sessionApi } from "../services/api";
 import {
+  clearActiveJoin,
   connectSocket,
   joinSession,
   leaveSession,
@@ -597,7 +598,14 @@ export function useSessionRoom(sessionId: string) {
       onSessionEvent("session-ended", () => {
         stopPlayback();
         clearActiveSession();
+        clearActiveJoin();
+        // Flag the session dead so every surface reacts: the room
+        // screen shows its receipt (or terminal state), the global
+        // MiniPlayer hides, and reconnects stop rejoining. The toast
+        // is the only signal a guest browsing another screen gets.
+        setSession((prev) => (prev ? { ...prev, isLive: false } : prev));
         setBounceVisible(true);
+        showToast("The room has ended.", "info", "!");
       }),
       onSessionEvent("cv:balance", (data) => {
         if (data.userId === user?.id) cv.syncBalance(data.balance);

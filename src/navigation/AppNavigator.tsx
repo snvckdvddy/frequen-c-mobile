@@ -276,7 +276,9 @@ function TabNavigator() {
         />
       </Tab.Navigator>
 
-      {currentTrack && globalRoom.playback && (
+      {/* isLive !== false hides the phantom MiniPlayer after the host
+          ends the room while this user is on another tab. */}
+      {currentTrack && globalRoom.playback && globalRoom.session?.isLive !== false && (
         <View style={{ position: 'absolute', bottom: 82, left: 12, right: 12 }}>
           <MiniPlayer
             track={currentTrack}

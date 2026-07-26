@@ -12,6 +12,10 @@ interface TacticalTransportDeckProps {
   hasCurrentTrack: boolean;
   isPlaying: boolean;
   isLoading?: boolean;
+  /** Host-output model: only the host's device has transport over the
+   *  audio. Guests get a live state indicator instead of a play/pause
+   *  button that would silently do nothing. */
+  isHost: boolean;
   canSkip: boolean;
   isVoteSkipMode: boolean;
   hasVotedToSkip: boolean;
@@ -26,6 +30,7 @@ export function TacticalTransportDeck({
   hasCurrentTrack,
   isPlaying,
   isLoading = false,
+  isHost,
   canSkip,
   isVoteSkipMode,
   hasVotedToSkip,
@@ -63,30 +68,56 @@ export function TacticalTransportDeck({
             />
           </View>
 
-          <Pressable
-            onPress={onPlayPause}
-            disabled={!hasCurrentTrack}
-            style={({ pressed }) => [
-              styles.playButton,
-              compact && styles.playButtonCompact,
-              (!hasCurrentTrack || isLoading) && styles.disabledTransport,
-              pressed && hasCurrentTrack && styles.playPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Pause playback' : 'Play playback'}
-            accessibilityState={{ disabled: !hasCurrentTrack }}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color={tacticalTokens.colors.void} />
-            ) : (
+          {isHost ? (
+            <Pressable
+              onPress={onPlayPause}
+              disabled={!hasCurrentTrack}
+              style={({ pressed }) => [
+                styles.playButton,
+                compact && styles.playButtonCompact,
+                (!hasCurrentTrack || isLoading) && styles.disabledTransport,
+                pressed && hasCurrentTrack && styles.playPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={isPlaying ? 'Pause playback' : 'Play playback'}
+              accessibilityState={{ disabled: !hasCurrentTrack }}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={tacticalTokens.colors.void} />
+              ) : (
+                <Ionicons
+                  name={isPlaying ? 'pause' : 'play'}
+                  size={30}
+                  color={tacticalTokens.colors.void}
+                  style={!isPlaying ? { marginLeft: 3 } : undefined}
+                />
+              )}
+            </Pressable>
+          ) : (
+            <View
+              style={[
+                styles.playButton,
+                styles.hostOutputIndicator,
+                compact && styles.playButtonCompact,
+                idle && styles.disabledTransport,
+              ]}
+              accessibilityRole="text"
+              accessibilityLabel={
+                isPlaying
+                  ? 'Audio is playing from the host device'
+                  : 'Host playback is paused'
+              }
+            >
               <Ionicons
-                name={isPlaying ? 'pause' : 'play'}
-                size={30}
-                color={tacticalTokens.colors.void}
-                style={!isPlaying ? { marginLeft: 3 } : undefined}
+                name="radio-outline"
+                size={18}
+                color={isPlaying ? tacticalTokens.colors.white : '#6A6A6A'}
               />
-            )}
-          </Pressable>
+              <Text style={[styles.hostOutputText, !isPlaying && styles.hostOutputTextPaused]}>
+                {isPlaying ? 'HOST OUTPUT' : 'HOST PAUSED'}
+              </Text>
+            </View>
+          )}
 
           <Pressable
             onPress={onSkip}
@@ -228,6 +259,21 @@ const styles = StyleSheet.create({
   playPressed: {
     opacity: 0.92,
     transform: [{ scale: 0.98 }],
+  },
+  hostOutputIndicator: {
+    backgroundColor: '#161616',
+    borderColor: tacticalTokens.colors.border,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  hostOutputText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys + 1,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.2,
+  },
+  hostOutputTextPaused: {
+    color: '#6A6A6A',
   },
   pressed: {
     opacity: 0.84,

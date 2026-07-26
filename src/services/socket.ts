@@ -274,6 +274,15 @@ export function quitSession(sessionId: string, userId: string): void {
   guardedEmit('quit-session', { sessionId, userId });
 }
 
+/**
+ * Forget the active room without emitting anything — used when the
+ * SERVER ends the session, so reconnects stop trying to rejoin a dead
+ * room (the rejoin would only bounce off "Session has ended").
+ */
+export function clearActiveJoin(): void {
+  activeJoin = null;
+}
+
 // ─── Queue Events ───────────────────────────────────────────
 
 export function addToQueue(sessionId: string, track: QueueTrack): void {

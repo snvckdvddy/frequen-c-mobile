@@ -39,7 +39,7 @@ import api, { searchApi } from '../services/api';
 import {
   addToQueue, voteTrack, sendReaction, skipTrack, voteSkip,
   approveTrackEvent, rejectTrackEvent, changeModeEvent, endSessionEvent,
-  updateBehaviors, joinSession, leaveSession,
+  updateBehaviors, joinSession, leaveSession, removeTrack,
 } from '../services/socket';
 import {
   addTrackToQueue, applyVote, skipCurrentTrack, moveTrack as moveTrackEngine,
@@ -279,14 +279,25 @@ export function SessionRoomScreen() {
     if (!user || !session || !sessionId) return false;
     if (!getGlobalLimiter().canDo('addTrack')) return false;
 
-    // Cheap pre-check: if the unresolved track id is already queued, bail
-    // before doing the resolve round-trip. Resolved-id check happens
+    // Server queue rows carry minted qt_* ids while search results
+    // carry source ids — the two never collide, so plain id comparison
+    // let duplicates sail through. Match on source + sourceId, with
+    // plain id kept as the same-object fallback.
+    const findQueuedMatch = (candidate: { id: string; sourceId?: string; source?: string }) =>
+      queue.find(
+        (q) =>
+          q.id === candidate.id ||
+          (!!candidate.sourceId && q.sourceId === candidate.sourceId && q.source === candidate.source),
+      );
+
+    // Cheap pre-check: if the unresolved track is already queued, bail
+    // before doing the resolve round-trip. Resolved-track check happens
     // inside the async block as a second line of defense (catches the
     // case where two different source ids resolve to the same playable
     // track, e.g. Spotify -> SoundCloud cross-match collision).
-    if (queue.some((q) => q.id === track.id)) {
-      const dupName = queue.find((q) => q.id === track.id);
-      const queuedBy = dupName?.addedBy?.username
+    const dupName = findQueuedMatch(track);
+    if (dupName) {
+      const queuedBy = dupName.addedBy?.username
         ? ` by @${dupName.addedBy.username}`
         : '';
       showToast(`"${track.title}" is already queued${queuedBy}.`, 'info');
@@ -297,13 +308,11 @@ export function SessionRoomScreen() {
     void (async () => {
       const resolved = await resolvePlayableTrack(track);
 
-      // Second-line dedupe after cross-match resolve. The resolved id
-      // may differ from track.id (e.g. Spotify track resolved to its
-      // SoundCloud equivalent), and the resolved id is what actually
-      // lands in the queue. So re-check against the freshly-snapshotted
-      // queue ids here. We snapshot queue at this point because the
-      // outer queue state may have changed during the resolve.
-      if (queue.some((q) => q.id === resolved.id)) {
+      // Second-line dedupe after cross-match resolve. The resolved
+      // source identity may differ from the original (e.g. a Spotify
+      // track resolved to its SoundCloud equivalent), and the resolved
+      // track is what actually lands in the queue.
+      if (findQueuedMatch(resolved)) {
         showToast(`"${resolved.title}" is already queued.`, 'info');
         notifyWarning();
         return;
@@ -458,6 +467,19 @@ export function SessionRoomScreen() {
     closeTransientPanels();
   }, [sessionId, closeTransientPanels]);
 
+  // When the session ends, every open sheet must yield to the receipt:
+  // MasterBounce is a plain View and native Modal sheets paint above
+  // it, so a guest deep in the queue sheet would never see the end.
+  useEffect(() => {
+    if (!bounceVisible) return;
+    closeTransientPanels();
+    setQueueSheetOpen(false);
+    setSystemPreferencesOpen(false);
+    setManualOpen(false);
+    setListenerDrawerOpen(false);
+    setChatOpen(false);
+  }, [bounceVisible, closeTransientPanels]);
+
   const handleLongPress = useCallback((track: QueueTrack) => {
     tapMedium();
     setContextTrack(track);
@@ -467,6 +489,10 @@ export function SessionRoomScreen() {
   const handleContextAction = useCallback((actionId: string, track: Track) => {
     switch (actionId) {
       case 'removeFromQueue':
+        // Optimistic local removal; the server validates ownership and
+        // rebroadcasts queue-updated (a rejection surfaces via the
+        // session error toast).
+        removeTrack(sessionId, track.id);
         setQueue((prev) => prev.filter((t) => t.id !== track.id));
         break;
       case 'addToLibrary':
@@ -487,7 +513,35 @@ export function SessionRoomScreen() {
       default:
         break;
     }
-  }, [handleToggleFavorite, gameLayer.powerMoves]);
+  }, [handleToggleFavorite, gameLayer.powerMoves, sessionId]);
+
+  // Context-menu actions are permission- and mode-aware:
+  // - CAMPFIRE deliberately has no power moves (the queue-sheet
+  //   subtraction at hidePowerRouting) — the long-press menu must not
+  //   be a back door into them.
+  // - Remove is offered only for the user's own non-playing tracks;
+  //   the server enforces the same rule.
+  // - viewArtist / viewAlbum have no implementation yet — dead rows
+  //   teach users the menu lies.
+  const contextActions = useMemo(() => {
+    const hidePower = session?.roomMode === 'campfire';
+    const nowPlayingId = queue[0]?.id;
+    return QUEUE_ACTIONS.filter((action) => {
+      if (action.id === 'viewArtist' || action.id === 'viewAlbum') return false;
+      if (hidePower && (action.id === 'overdrive' || action.id === 'phaseCancel' || action.id === 'phantomPower')) {
+        return false;
+      }
+      if (action.id === 'removeFromQueue') {
+        return (
+          !!user &&
+          !!contextTrack &&
+          contextTrack.addedById === user.id &&
+          contextTrack.id !== nowPlayingId
+        );
+      }
+      return true;
+    });
+  }, [session?.roomMode, user, contextTrack, queue]);
 
   // ─── Room Preset Switching (host only) ───────────────────
   const handleSelectMode = useCallback((mode: RoomMode) => {
@@ -635,6 +689,39 @@ export function SessionRoomScreen() {
     );
   }
 
+  // Dead-room guard: a stale Home tile (15s poll) or old deep link can
+  // land a user in a room that already ended. Without this, the screen
+  // renders a fully interactive ghost ship — transport, queue, chat,
+  // all inert. bounceVisible keeps the live end-of-session receipt flow
+  // for people who were present when the host ended it.
+  if (session.isLive === false && !bounceVisible) {
+    return (
+      <SafeScreen>
+        <VoidSurface style={{ flex: 1 }}>
+          <View style={styles.endedContainer}>
+            <RNText style={styles.endedEyebrow}>SYS.FREQ // ARCHIVED</RNText>
+            <RNText style={styles.endedTitle}>SESSION ENDED</RNText>
+            <RNText style={styles.endedBody}>
+              "{session.name}" is no longer live. Its archive lives in your recent flight cases.
+            </RNText>
+            <TouchableOpacity
+              onPress={() => {
+                setConnectionId(null);
+                navigation.goBack();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Back to home"
+              style={styles.endedButton}
+              activeOpacity={0.84}
+            >
+              <RNText style={styles.endedButtonText}>BACK TO HOME</RNText>
+            </TouchableOpacity>
+          </View>
+        </VoidSurface>
+      </SafeScreen>
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════
   // ─── RENDER: Player-First Layout ──────────────────────────
   // ═══════════════════════════════════════════════════════════
@@ -729,6 +816,7 @@ export function SessionRoomScreen() {
               hasCurrentTrack={!!currentTrack}
               isPlaying={playback.isPlaying}
               isLoading={playback.isLoading}
+              isHost={!!isHost}
               canSkip={canSkip}
               isVoteSkipMode={isVoteSkipMode}
               hasVotedToSkip={hasVotedToSkip}
@@ -817,7 +905,7 @@ export function SessionRoomScreen() {
               providerStates={providerStates}
               diagnostics={diagnostics}
               isSearching={isSearching}
-              queuedTrackIds={queue.map((t) => t.id)}
+              queuedTrackIds={queue.flatMap((t) => (t.sourceId ? [t.id, t.sourceId] : [t.id]))}
               onClose={() => setSearchHudOpen(false)}
               onPatchTrack={(track) => {
                 handleAddTrack(track);
@@ -901,7 +989,7 @@ export function SessionRoomScreen() {
             <TrackContextMenu
               visible
               track={contextTrack}
-              actions={QUEUE_ACTIONS}
+              actions={contextActions}
               onAction={handleContextAction}
               onClose={() => setContextMenuVisible(false)}
             />
@@ -1014,7 +1102,13 @@ export function SessionRoomScreen() {
             participantCount={listeners.length}
             cvEarned={cv.balance}
             endedAt={new Date().toISOString()}
-            onBounceDismiss={() => { setBounceVisible(false); navigation.goBack(); }}
+            onBounceDismiss={() => {
+              setBounceVisible(false);
+              // Fully detach from the dead room — otherwise session
+              // state (and a phantom MiniPlayer) follows the user out.
+              setConnectionId(null);
+              navigation.goBack();
+            }}
           />
 
         </View>
@@ -1037,6 +1131,47 @@ export function SessionRoomScreen() {
 // ═════════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
+  // ─── Session Ended terminal state ─────────────────────
+  endedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    gap: tacticalTokens.spacing.md,
+  },
+  endedEyebrow: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1.6,
+  },
+  endedTitle: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 22,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 2,
+  },
+  endedBody: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.sys + 1,
+    color: tacticalTokens.colors.textSoft,
+    textAlign: 'center',
+    lineHeight: 20,
+    letterSpacing: 0.8,
+  },
+  endedButton: {
+    marginTop: tacticalTokens.spacing.md,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.white,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+  },
+  endedButtonText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys + 1,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.5,
+  },
   // ─── Room Manual Sheet (Modal overlay) ────────────────
   manualSheetBackdrop: {
     flex: 1,
