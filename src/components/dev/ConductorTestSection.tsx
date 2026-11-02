@@ -7,8 +7,14 @@
  *      and does it need to come to the foreground to do it?
  *   2. Can Frequen-C tell when a song ends (or the next one starts)?
  *
- * Every action and every now-playing event lands in one log the operator
- * can copy and paste back for review.
+ * Two logs, because the first device run showed Spotify firing dozens of
+ * near-identical session updates per second, which flushed the button
+ * results out of a single shared log:
+ *   - RESULTS: button outcomes, app-switch detection, what actually played,
+ *     track changes and likely song ends. Never flooded.
+ *   - EVENTS: the raw session stream, with identical repeats collapsed into
+ *     one line and a count.
+ * COPY LOG copies both.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,12 +24,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { tacticalTokens } from '../../features/session-v2/theme/tacticalTokens';
 import { Conductor, MUSIC_APPS, type NowPlaying } from '../../../modules/frequenc-conductor';
 
-const LOG_LIMIT = 60;
+const RESULTS_LIMIT = 80;
+const EVENTS_LIMIT = 120;
 // A song "probably ended" when playback stops within this window of its
 // duration. Spotify and YouTube Music report position in coarse steps.
 const END_WINDOW_MS = 4000;
+// How long after a play command the next new title counts as its result.
+const PLAY_RESULT_WINDOW_MS = 15000;
 // Known Spotify track URI used to test link-based playback precisely.
 const SPOTIFY_TEST_URI = 'spotify:track:4cOdK2wGLETKBW3PvgPWqT';
+
+interface EventLine {
+  signature: string;
+  text: string;
+  count: number;
+}
 
 function stamp(): string {
   const d = new Date();
@@ -35,14 +50,34 @@ function shortPackage(packageName: string): string {
   return match ? match[0] : packageName;
 }
 
+// Position is bucketed to 2s so steady progress still collapses while a
+// real seek or restart shows up as a new line.
+function signatureOf(event: NowPlaying): string {
+  const bucket = event.positionMs !== null ? Math.floor(event.positionMs / 2000) : -1;
+  return [event.packageName, event.state, event.title, event.artist, event.durationMs, bucket].join('|');
+}
+
 export function ConductorTestSection() {
   const [hasAccess, setHasAccess] = useState(false);
   const [query, setQuery] = useState('Mr. Brightside The Killers');
-  const [log, setLog] = useState<string[]>([]);
+  const [results, setResults] = useState<string[]>([]);
+  const [events, setEvents] = useState<EventLine[]>([]);
   const lastByPackage = useRef<Record<string, NowPlaying>>({});
+  // The most recent play command, so the next new title can be reported
+  // as its result (and compared with what was asked for).
+  const pendingPlay = useRef<{ label: string; asked: string; at: number } | null>(null);
 
-  const addLog = useCallback((line: string) => {
-    setLog((prev) => [`${stamp()} ${line}`, ...prev].slice(0, LOG_LIMIT));
+  const addResult = useCallback((line: string) => {
+    setResults((prev) => [`${stamp()} ${line}`, ...prev].slice(0, RESULTS_LIMIT));
+  }, []);
+
+  const addEvent = useCallback((signature: string, text: string) => {
+    setEvents((prev) => {
+      if (prev[0]?.signature === signature) {
+        return [{ ...prev[0], count: prev[0].count + 1 }, ...prev.slice(1)];
+      }
+      return [{ signature, text: `${stamp()} ${text}`, count: 1 }, ...prev].slice(0, EVENTS_LIMIT);
+    });
   }, []);
 
   const refreshAccess = useCallback(() => {
@@ -52,14 +87,20 @@ export function ConductorTestSection() {
     if (granted) Conductor.startWatching();
   }, []);
 
-  // Re-check after the operator returns from the Android settings screen.
+  // Foreground tracking answers "did the music app have to come to the
+  // front?": if Frequen-C goes to the background right after a play
+  // button, the command launched the other app.
   useEffect(() => {
     refreshAccess();
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') refreshAccess();
+      if (next === 'background') addResult('APP SWITCH: Frequen-C went to the background');
+      if (next === 'active') {
+        addResult('Frequen-C is back in front');
+        refreshAccess();
+      }
     });
     return () => sub.remove();
-  }, [refreshAccess]);
+  }, [refreshAccess, addResult]);
 
   useEffect(() => {
     if (!Conductor) return;
@@ -68,8 +109,14 @@ export function ConductorTestSection() {
       const app = shortPackage(event.packageName);
       const track = `${event.title ?? '?'} / ${event.artist ?? '?'}`;
 
-      if (prev && event.title && prev.title !== event.title) {
-        addLog(`NEW TRACK [${app}] ${track}`);
+      if (event.title && prev?.title !== event.title) {
+        const pending = pendingPlay.current;
+        if (pending && Date.now() - pending.at < PLAY_RESULT_WINDOW_MS) {
+          addResult(`PLAYED [${app}] "${event.title}" after ${pending.label} (asked for: ${pending.asked})`);
+          pendingPlay.current = null;
+        } else if (prev) {
+          addResult(`NEW TRACK [${app}] ${track}`);
+        }
       }
       if (
         prev?.state === 'playing' &&
@@ -78,24 +125,30 @@ export function ConductorTestSection() {
         prev.positionMs !== null &&
         prev.durationMs - prev.positionMs < END_WINDOW_MS
       ) {
-        addLog(`ENDED? [${app}] stopped near the end of ${prev.title ?? 'track'}`);
+        addResult(`ENDED? [${app}] stopped near the end of ${prev.title ?? 'track'}`);
       }
+      if (prev?.state === 'playing' && event.state === 'paused' && prev.title === event.title) {
+        const at = event.positionMs !== null ? Math.round(event.positionMs / 1000) : '?';
+        addResult(`PAUSED [${app}] at ${at}s`);
+      }
+
       const pos = event.positionMs !== null ? Math.round(event.positionMs / 1000) : '?';
       const dur = event.durationMs ? Math.round(event.durationMs / 1000) : '?';
-      addLog(`event [${app}] ${event.state} ${pos}s/${dur}s ${track}`);
+      addEvent(signatureOf(event), `[${app}] ${event.state} ${pos}s/${dur}s ${track}`);
       lastByPackage.current[event.packageName] = event;
     });
     return () => sub.remove();
-  }, [addLog]);
+  }, [addResult, addEvent]);
 
-  const run = useCallback(async (label: string, action: () => Promise<unknown> | unknown) => {
+  const run = useCallback(async (label: string, action: () => Promise<unknown> | unknown, asked?: string) => {
+    if (asked) pendingPlay.current = { label, asked, at: Date.now() };
     try {
       await action();
-      addLog(`OK ${label}`);
+      addResult(`OK ${label}`);
     } catch (err) {
-      addLog(`FAIL ${label}: ${err instanceof Error ? err.message : String(err)}`);
+      addResult(`FAIL ${label}: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [addLog]);
+  }, [addResult]);
 
   if (!Conductor) {
     return (
@@ -122,35 +175,35 @@ export function ConductorTestSection() {
       label: 'PLAY IN SPOTIFY (LAUNCH)',
       detail: 'Search intent. Expect Spotify to open and start the song.',
       icon: 'play-outline',
-      onPress: () => run(`spotify search "${query}"`, () => Conductor?.playFromSearch(query, null, null, MUSIC_APPS.spotify)),
+      onPress: () => run('spotify launch-search', () => Conductor?.playFromSearch(query, null, null, MUSIC_APPS.spotify), query),
     },
     {
       label: 'PLAY IN SPOTIFY (BACKGROUND)',
       detail: 'Same request to Spotify\'s session without opening it. Needs access and Spotify to have played once.',
       icon: 'play-forward-outline',
-      onPress: () => run(`spotify background "${query}"`, () => Conductor?.controllerPlayFromSearch(query, MUSIC_APPS.spotify)),
+      onPress: () => run('spotify background-search', () => Conductor?.controllerPlayFromSearch(query, MUSIC_APPS.spotify), query),
     },
     {
       label: 'PLAY SPOTIFY LINK (BACKGROUND)',
       detail: 'Exact track by Spotify link through the session. Tests precise playback.',
       icon: 'link-outline',
-      onPress: () => run('spotify uri background', () => Conductor?.controllerPlayFromUri(SPOTIFY_TEST_URI, MUSIC_APPS.spotify)),
+      onPress: () => run('spotify background-link', () => Conductor?.controllerPlayFromUri(SPOTIFY_TEST_URI, MUSIC_APPS.spotify), 'Never Gonna Give You Up (link)'),
     },
     {
       label: 'OPEN SPOTIFY LINK (LAUNCH)',
       detail: 'Opens the exact track in Spotify. Note whether it auto-plays.',
       icon: 'open-outline',
-      onPress: () => run('spotify uri launch', () => Conductor?.openUri(SPOTIFY_TEST_URI, MUSIC_APPS.spotify)),
+      onPress: () => run('spotify launch-link', () => Conductor?.openUri(SPOTIFY_TEST_URI, MUSIC_APPS.spotify), 'Never Gonna Give You Up (link)'),
     },
     {
       label: 'PLAY IN YOUTUBE MUSIC (LAUNCH)',
       detail: 'Same search intent, sent to YouTube Music.',
       icon: 'logo-youtube',
-      onPress: () => run(`ytm search "${query}"`, () => Conductor?.playFromSearch(query, null, null, MUSIC_APPS.youtubeMusic)),
+      onPress: () => run('ytm launch-search', () => Conductor?.playFromSearch(query, null, null, MUSIC_APPS.youtubeMusic), query),
     },
     {
       label: 'NEXT TRACK',
-      detail: 'Skip in whatever app is playing. Watch for NEW TRACK in the log.',
+      detail: 'Skip in whatever app is playing. Watch for NEW TRACK in results.',
       icon: 'play-skip-forward-outline',
       onPress: () => run('transport next', () => Conductor?.transport('next', null)),
     },
@@ -160,11 +213,18 @@ export function ConductorTestSection() {
       icon: 'radio-outline',
       onPress: () => run('snapshot', () => {
         const sessions = Conductor?.getNowPlaying() ?? [];
-        if (sessions.length === 0) addLog('snapshot: no active sessions (access missing or nothing playing)');
-        sessions.forEach((s) => addLog(`snapshot [${shortPackage(s.packageName)}] ${s.state} ${s.title ?? '?'} / ${s.artist ?? '?'}`));
+        if (sessions.length === 0) addResult('snapshot: no active sessions (access missing or nothing playing)');
+        sessions.forEach((s) => addResult(`snapshot [${shortPackage(s.packageName)}] ${s.state} ${s.title ?? '?'} / ${s.artist ?? '?'}`));
       }),
     },
   ];
+
+  const copyAll = () => {
+    const eventLines = events.map((e) => (e.count > 1 ? `${e.text} (x${e.count})` : e.text));
+    const text = ['RESULTS (newest first)', ...results, '', 'EVENTS (newest first)', ...eventLines].join('\n');
+    void Clipboard.setStringAsync(text);
+    addResult('log copied to clipboard');
+  };
 
   return (
     <View>
@@ -205,12 +265,9 @@ export function ConductorTestSection() {
       ))}
 
       <View style={styles.logHeader}>
-        <Text style={styles.key}>LOG (NEWEST FIRST)</Text>
+        <Text style={styles.key}>RESULTS (NEWEST FIRST)</Text>
         <Pressable
-          onPress={() => {
-            void Clipboard.setStringAsync(log.join('\n'));
-            addLog('log copied to clipboard');
-          }}
+          onPress={copyAll}
           accessibilityRole="button"
           accessibilityLabel="Copy conductor test log"
           style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}
@@ -219,11 +276,24 @@ export function ConductorTestSection() {
         </Pressable>
       </View>
       <View style={styles.logBox}>
-        {log.length === 0 ? (
+        {results.length === 0 ? (
           <Text style={styles.logLine}>Nothing yet. Grant access, then try a play button.</Text>
         ) : (
-          log.map((line, i) => (
+          results.map((line, i) => (
             <Text key={`${i}-${line}`} style={styles.logLine}>{line}</Text>
+          ))
+        )}
+      </View>
+
+      <Text style={[styles.key, styles.eventsLabel]}>EVENTS (REPEATS COLLAPSED)</Text>
+      <View style={styles.logBox}>
+        {events.length === 0 ? (
+          <Text style={styles.logLine}>No session events yet.</Text>
+        ) : (
+          events.slice(0, 30).map((e, i) => (
+            <Text key={`${i}-${e.text}`} style={styles.logLineQuiet}>
+              {e.count > 1 ? `${e.text} (x${e.count})` : e.text}
+            </Text>
           ))
         )}
       </View>
@@ -314,6 +384,10 @@ const styles = StyleSheet.create({
     marginTop: tacticalTokens.spacing.md,
     marginBottom: tacticalTokens.spacing.sm,
   },
+  eventsLabel: {
+    marginTop: tacticalTokens.spacing.md,
+    marginBottom: tacticalTokens.spacing.sm,
+  },
   copyButton: {
     borderWidth: 1,
     borderColor: tacticalTokens.colors.acid,
@@ -331,13 +405,19 @@ const styles = StyleSheet.create({
     borderColor: tacticalTokens.colors.border,
     backgroundColor: tacticalTokens.colors.matteGhost,
     padding: tacticalTokens.spacing.sm,
-    minHeight: 120,
+    minHeight: 80,
   },
   logLine: {
     fontFamily: tacticalTokens.fonts.mono,
     fontSize: tacticalTokens.fontSize.micro,
     lineHeight: 16,
     color: tacticalTokens.colors.white,
+  },
+  logLineQuiet: {
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: tacticalTokens.fontSize.micro,
+    lineHeight: 16,
+    color: tacticalTokens.colors.textSoft,
   },
 });
 
