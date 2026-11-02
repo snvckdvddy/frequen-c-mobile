@@ -39,6 +39,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDevMode } from '../../hooks/useDevMode';
 import { useDevOverrides } from '../../contexts/DevOverridesContext';
 import { useManualMode } from '../../hooks/useManualMode';
+import { ConductorTestSection } from './ConductorTestSection';
 
 interface DevPanelProps {
   visible: boolean;
@@ -189,6 +190,11 @@ export function DevPanel({ visible, onClose }: DevPanelProps) {
                 Turns the global "Read Manual" toggle (Profile setting) back off. Useful for testing the gated-by-toggle vs first-time-visit paths separately.
               </Text>
             </Pressable>
+
+            {/* Conductor-mode spike: can Frequen-C drive the host's own
+                music app, and detect when a song ends? Android only. */}
+            <Text style={styles.sectionLabel}>CONDUCTOR TEST</Text>
+            <ConductorTestSection />
 
             <Pressable
               onPress={handleDisableDevMode}

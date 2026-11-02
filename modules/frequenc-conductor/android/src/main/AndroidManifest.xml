@@ -1,0 +1,31 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Android 11+ package visibility: lets Frequen-C see which music apps
+       are installed and which handle "play this song" searches. -->
+  <queries>
+    <intent>
+      <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+    </intent>
+    <package android:name="com.spotify.music" />
+    <package android:name="com.google.android.apps.youtube.music" />
+    <package android:name="com.apple.android.music" />
+    <package android:name="com.amazon.mp3" />
+    <package android:name="com.aspiro.tidal" />
+    <package android:name="deezer.android.app" />
+  </queries>
+
+  <application>
+    <!-- Exists only so the host can grant "notification access", the
+         permission that unlocks reading what their music app is playing.
+         Notification contents are never read. -->
+    <service
+      android:name="expo.modules.frequencconductor.ConductorNotificationListener"
+      android:label="Frequen-C now playing"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>
