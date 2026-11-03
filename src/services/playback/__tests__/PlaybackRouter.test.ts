@@ -12,6 +12,8 @@ import type {
   TrackLoadRequest,
   ProgressListener,
   TrackEndListener,
+  UnplayableEvent,
+  UnplayableListener,
 } from '../PlaybackBackend';
 import { SDK_SOURCES } from '../PlaybackBackend';
 import type { TrackSource } from '../../../types';
@@ -19,17 +21,25 @@ import type { TrackSource } from '../../../types';
 // ─── Mock Backends ─────────────────────────────────────────
 // Lightweight PlaybackBackend implementations for testing routing logic.
 
-function createMockBackend(name: string, sources: TrackSource[], available = true): PlaybackBackend & {
+function createMockBackend(
+  name: string,
+  sources: TrackSource[],
+  available = true,
+  // The real ExpoAvBackend has no onUnplayable (it's optional on the interface).
+  supportsUnplayable = true,
+): PlaybackBackend & {
   lastLoadRequest: TrackLoadRequest | null;
   loadCount: number;
   progressListeners: ProgressListener[];
   trackEndListeners: TrackEndListener[];
   fireProgress: (p: PlaybackProgress) => void;
   fireTrackEnd: () => void;
+  fireUnplayable: (e: UnplayableEvent) => void;
   voltageSagCalls: boolean[];
 } {
   const progressListeners: ProgressListener[] = [];
   const trackEndListeners: TrackEndListener[] = [];
+  const unplayableListeners: UnplayableListener[] = [];
   let lastLoadRequest: TrackLoadRequest | null = null;
   let loadCount = 0;
   const voltageSagCalls: boolean[] = [];
@@ -42,6 +52,7 @@ function createMockBackend(name: string, sources: TrackSource[], available = tru
     voltageSagCalls: boolean[];
     fireProgress: (p: PlaybackProgress) => void;
     fireTrackEnd: () => void;
+    fireUnplayable: (e: UnplayableEvent) => void;
   } = {
     name,
     supportedSources: sources,
@@ -86,6 +97,20 @@ function createMockBackend(name: string, sources: TrackSource[], available = tru
     fireTrackEnd: () => {
       trackEndListeners.forEach((fn) => fn());
     },
+    fireUnplayable: (e: UnplayableEvent) => {
+      unplayableListeners.forEach((fn) => fn(e));
+    },
+    ...(supportsUnplayable
+      ? {
+          onUnplayable: jest.fn((listener: UnplayableListener) => {
+            unplayableListeners.push(listener);
+            return () => {
+              const idx = unplayableListeners.indexOf(listener);
+              if (idx >= 0) unplayableListeners.splice(idx, 1);
+            };
+          }),
+        }
+      : {}),
   };
   return backend;
 }
@@ -99,7 +124,7 @@ const mockApiFetch = jest.fn();
 
 const mockExpoAv = createMockBackend('MockExpoAv', [
   'soundcloud', 'tidal', 'itunes', 'youtube', 'spotify', 'appleMusic',
-]);
+], true, false);
 const mockWebViewSDK = createMockBackend('MockWebViewSDK', ['spotify', 'appleMusic'], true);
 
 jest.mock('../ExpoAvBackend', () => ({
@@ -125,6 +150,7 @@ jest.mock('../../../utils/logger', () => ({
 
 // Import AFTER mocks are set up
 import { PlaybackRouter } from '../PlaybackRouter';
+import { logger } from '../../../utils/logger';
 
 // ─── Test Helpers ──────────────────────────────────────────
 
@@ -386,6 +412,110 @@ describe('PlaybackRouter', () => {
       });
 
       expect(received).toHaveLength(1);
+    });
+  });
+
+  // ─── Lifecycle Logging ────────────────────────────────
+
+  describe('lifecycle logging (release builds only show info and above)', () => {
+    test('logs which backend a track was routed to at info level', async () => {
+      mockApiFetch.mockResolvedValue({ source: 'soundcloud', sourceId: 'sc_track_123', queuerId: 'usr_queuer' });
+
+      await router.load(makeRequest('soundcloud'));
+
+      expect(logger.info).toHaveBeenCalledWith(
+        'PlaybackRouter',
+        'Selected MockWebViewSDK for soundcloud',
+        expect.objectContaining({ trackId: 'qt_test_soundcloud', sourceId: 'soundcloud_track_123' }),
+      );
+    });
+
+    test('warns when an SDK source falls back to ExpoAv because the WebView is unavailable', async () => {
+      const unavailable = jest.spyOn(mockWebViewSDK, 'isAvailable').mockReturnValue(false);
+      try {
+        await router.load(makeRequest('soundcloud'));
+      } finally {
+        unavailable.mockRestore();
+      }
+
+      expect(mockExpoAv.load).toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        'PlaybackRouter',
+        expect.stringContaining('falling back to ExpoAv for soundcloud'),
+        expect.objectContaining({ trackId: 'qt_test_soundcloud' }),
+      );
+    });
+
+    test('does not warn about a fallback for sources that never use the WebView', async () => {
+      await router.load(makeRequest('tidal'));
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── Unplayable Forwarding ────────────────────────────
+
+  describe('unplayable forwarding', () => {
+    const SC_CREDS = { source: 'soundcloud', sourceId: 'sc_track_123', queuerId: 'usr_queuer' };
+    const DEAD_TRACK: UnplayableEvent = {
+      trackId: 'qt_test_soundcloud',
+      source: 'soundcloud',
+      sourceId: 'sc_track_123',
+      reason: 'start-timeout',
+    };
+
+    test('forwards unplayable verdicts from the active WebView backend', async () => {
+      mockApiFetch.mockResolvedValue(SC_CREDS);
+      const received: UnplayableEvent[] = [];
+      router.onUnplayable((e) => received.push(e));
+
+      await router.load(makeRequest('soundcloud'));
+      mockWebViewSDK.fireUnplayable(DEAD_TRACK);
+
+      expect(received).toEqual([DEAD_TRACK]);
+    });
+
+    test('ignores a verdict from a backend that is no longer active', async () => {
+      mockApiFetch.mockResolvedValue(SC_CREDS);
+      const received: UnplayableEvent[] = [];
+      router.onUnplayable((e) => received.push(e));
+
+      await router.load(makeRequest('soundcloud'));
+      await router.load(makeRequest('tidal')); // switches to ExpoAv, detaching WebView
+      mockWebViewSDK.fireUnplayable(DEAD_TRACK);
+
+      expect(received).toHaveLength(0);
+    });
+
+    test('does not double-forward after the same backend is loaded twice', async () => {
+      mockApiFetch.mockResolvedValue(SC_CREDS);
+      const received: UnplayableEvent[] = [];
+      router.onUnplayable((e) => received.push(e));
+
+      await router.load(makeRequest('soundcloud'));
+      await router.load(makeRequest('soundcloud'));
+      mockWebViewSDK.fireUnplayable(DEAD_TRACK);
+
+      expect(received).toHaveLength(1);
+    });
+
+    test('unsubscribe stops forwarding', async () => {
+      mockApiFetch.mockResolvedValue(SC_CREDS);
+      const received: UnplayableEvent[] = [];
+      const unsub = router.onUnplayable((e) => received.push(e));
+
+      await router.load(makeRequest('soundcloud'));
+      unsub();
+      mockWebViewSDK.fireUnplayable(DEAD_TRACK);
+
+      expect(received).toHaveLength(0);
+    });
+
+    test('loads normally on a backend that has no onUnplayable (ExpoAv)', async () => {
+      await router.load(makeRequest('tidal'));
+
+      expect(mockExpoAv.onUnplayable).toBeUndefined();
+      expect(mockExpoAv.load).toHaveBeenCalled();
     });
   });
 

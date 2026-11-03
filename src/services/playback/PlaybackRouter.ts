@@ -16,6 +16,10 @@
  *   3. Backend verifies requester is session host, looks up queuer's token
  *   4. Router injects credentials into the request and delegates to WebViewSDK
  *   5. WebViewSDK sends postMessage to hidden WebView → SDK plays the track
+ *
+ * A backend that can tell a dead track from a slow one (WebViewSDK, for
+ * SoundCloud) raises onUnplayable; the router forwards it from whichever
+ * backend is active.
  */
 
 import type {
@@ -24,6 +28,7 @@ import type {
   ProgressListener,
   TrackEndListener,
   TrackLoadRequest,
+  UnplayableListener,
 } from './PlaybackBackend';
 import { SDK_SOURCES } from './PlaybackBackend';
 import type { TrackSource } from '../../types';
@@ -53,6 +58,7 @@ export class PlaybackRouter implements PlaybackBackend {
   private activeBackend: PlaybackBackend | null = null;
   private progressListeners: ProgressListener[] = [];
   private trackEndListeners: TrackEndListener[] = [];
+  private unplayableListeners: UnplayableListener[] = [];
   private backendUnsubs: (() => void)[] = [];
 
   isAvailable(): boolean {
@@ -65,10 +71,20 @@ export class PlaybackRouter implements PlaybackBackend {
 
     let backend = this.selectBackend(request.source);
 
-    logger.debug('PlaybackRouter', `Selected ${backend.name} for ${request.source}`, {
+    // info, not debug: this is the "track reached the router" line that
+    // release logcat needs when a track never plays.
+    logger.info('PlaybackRouter', `Selected ${backend.name} for ${request.source}`, {
       trackId: request.trackId,
+      sourceId: request.sourceId,
       webViewAvailable: this.webViewSDK.isAvailable(),
     });
+    if (SDK_SOURCES.has(request.source) && backend !== this.webViewSDK) {
+      logger.warn(
+        'PlaybackRouter',
+        `WebView unavailable, falling back to ExpoAv for ${request.source} (degraded: preview URL only)`,
+        { trackId: request.trackId },
+      );
+    }
 
     // For SDK sources, fetch the queuer's credentials before loading
     if (SDK_SOURCES.has(request.source) && backend === this.webViewSDK) {
@@ -147,6 +163,13 @@ export class PlaybackRouter implements PlaybackBackend {
     };
   }
 
+  onUnplayable(listener: UnplayableListener): () => void {
+    this.unplayableListeners.push(listener);
+    return () => {
+      this.unplayableListeners = this.unplayableListeners.filter((l) => l !== listener);
+    };
+  }
+
   async setVoltageSag(active: boolean): Promise<void> {
     // Apply to both backends so whichever becomes active next is pre-configured
     await Promise.all([
@@ -175,7 +198,14 @@ export class PlaybackRouter implements PlaybackBackend {
     const unsubEnd = backend.onTrackEnd(() => {
       this.trackEndListeners.forEach((fn) => fn());
     });
-    this.backendUnsubs = [unsubProgress, unsubEnd];
+    // Optional capability: backends that can't tell a dead track from a
+    // slow one (ExpoAv) simply never raise it.
+    const unsubUnplayable = backend.onUnplayable?.((event) => {
+      this.unplayableListeners.forEach((fn) => fn(event));
+    });
+    this.backendUnsubs = unsubUnplayable
+      ? [unsubProgress, unsubEnd, unsubUnplayable]
+      : [unsubProgress, unsubEnd];
   }
 
   private detachListeners(): void {

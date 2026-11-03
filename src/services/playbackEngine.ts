@@ -17,6 +17,7 @@ import { getAdapterForSource } from './adapters/musicServiceAdapter';
 import { currentServices } from './api';
 import { playbackRouter } from './playback/PlaybackRouter';
 import { SDK_SOURCES } from './playback/PlaybackBackend';
+import type { UnplayableEvent } from './playback/PlaybackBackend';
 import { TrackSource } from '../types';
 import { logger } from '../utils/logger';
 
@@ -32,6 +33,7 @@ export interface PlaybackState {
 
 type ProgressListener = (state: PlaybackState) => void;
 type TrackEndListener = () => void;
+type TrackUnplayableListener = (event: UnplayableEvent) => void;
 
 // ─── Internal state ─────────────────────────────────────────
 
@@ -47,6 +49,7 @@ let state: PlaybackState = {
 
 let progressListeners: ProgressListener[] = [];
 let trackEndListeners: TrackEndListener[] = [];
+let trackUnplayableListeners: TrackUnplayableListener[] = [];
 
 // ─── Voltage Sag audio degradation ──────────────────────────
 let voltageSagActive = false;
@@ -59,6 +62,7 @@ let voltageSagActive = false;
 
 let routerUnsubProgress: (() => void) | null = null;
 let routerUnsubTrackEnd: (() => void) | null = null;
+let routerUnsubUnplayable: (() => void) | null = null;
 
 function subscribeToRouter(): void {
   if (routerUnsubProgress) return; // already subscribed
@@ -80,6 +84,12 @@ function subscribeToRouter(): void {
     state = { ...state, isPlaying: false };
     emitProgress();
     trackEndListeners.forEach((fn) => fn());
+  });
+
+  // A loaded track the backend has decided will never play. The host hook
+  // decides what to do about it (skip, or stop and tell the host).
+  routerUnsubUnplayable = playbackRouter.onUnplayable((event) => {
+    trackUnplayableListeners.forEach((fn) => fn(event));
   });
 }
 
@@ -109,6 +119,11 @@ export async function loadTrack(
 
   // Ensure we're subscribed to the router
   subscribeToRouter();
+
+  // info, not debug: the first line of the track lifecycle in release logcat.
+  logger.info('playback', 'Load track', {
+    trackId, source: source ?? null, sourceId: sourceId ?? null, durationSec,
+  });
 
   // For CDN-backed sources, resolve fresh stream URLs via adapters.
   // SDK sources (Spotify, Apple Music) don't need URL resolution —
@@ -278,6 +293,18 @@ export function onTrackEnd(listener: TrackEndListener): () => void {
   };
 }
 
+/**
+ * The loaded track will never play (the SoundCloud Widget errored, or the
+ * track never started). Fires once per load, with the queue-track ID so
+ * a listener can ignore a verdict for a track that is no longer current.
+ */
+export function onTrackUnplayable(listener: TrackUnplayableListener): () => void {
+  trackUnplayableListeners.push(listener);
+  return () => {
+    trackUnplayableListeners = trackUnplayableListeners.filter((l) => l !== listener);
+  };
+}
+
 /** Format seconds -> "M:SS" */
 export function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -357,6 +384,6 @@ export function isVoltageSagActive(): boolean {
 
 export default {
   loadTrack, togglePlayPause, pause, play, seekTo,
-  getState, stop, onProgress, onTrackEnd, formatTime,
+  getState, stop, onProgress, onTrackEnd, onTrackUnplayable, formatTime,
   setVoltageSag, isVoltageSagActive,
 };

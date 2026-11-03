@@ -15,17 +15,22 @@
  *   3. Advance queue when track ends (host only)
  *   4. Stop the engine when this device stops being host
  *      (session ended/left — isHost flips false)
+ *   5. Skip a track that can't be played (SoundCloud tracks the Widget
+ *      won't start), with a short message and a loop guard
  *
  * Only the host device plays audio. Non-host users receive playback
  * state via socket events. All effects guard on `isHost`.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  loadTrack, onProgress, onTrackEnd, stop as stopPlayback,
+  loadTrack, onProgress, onTrackEnd, onTrackUnplayable, stop as stopPlayback,
   type PlaybackState,
 } from '../services/playbackEngine';
 import { trackEnded, emitPlaybackState } from '../services/socket';
+import { UnplayableSkipGuard, handleUnplayableTrack } from '../services/playback/unplayableGuard';
+import { showToast } from '../components/ui';
+import { logger } from '../utils/logger';
 import api from '../services/api';
 import type { QueueTrack } from '../types';
 
@@ -47,6 +52,12 @@ export function useHostPlaybackEngine({
   lastfmConnected,
 }: HostPlaybackParams): void {
 
+  // Lives as long as the provider; reset when the session or hosting changes.
+  const [unplayableGuard] = useState(() => new UnplayableSkipGuard());
+  useEffect(() => {
+    unplayableGuard.reset();
+  }, [unplayableGuard, sessionId, isHost]);
+
   // ─── Progress subscription ─────────────────────────────
   // Host updates local state AND broadcasts to non-host users (~1s throttle)
   const lastEmitRef = useRef(0);
@@ -56,6 +67,8 @@ export function useHostPlaybackEngine({
   useEffect(() => {
     if (!isHost) return;
     const unsub = onProgress((s) => {
+      // Audio really moving means earlier dead tracks were the tracks, not the setup.
+      if (s.isPlaying && s.elapsed > 0) unplayableGuard.recordPlayback();
       setPlayback(s);
       const now = Date.now();
       if (now - lastEmitRef.current >= 1000) {
@@ -68,7 +81,7 @@ export function useHostPlaybackEngine({
       }
     });
     return unsub;
-  }, [setPlayback, isHost]);
+  }, [setPlayback, isHost, unplayableGuard]);
 
   // Stop audio when this device stops being the host — isHost flips
   // false when the session ends or is left. Provider-mounted, so this
@@ -109,4 +122,34 @@ export function useHostPlaybackEngine({
     });
     return unsub;
   }, [advanceQueue, sessionId, isHost]);
+
+  // ─── Unplayable track → say so, then move on ───────────
+  // The SoundCloud Widget can't stream some tracks (label releases,
+  // embed-restricted uploads): they load, sit at 0:00, and guests see
+  // HOST PAUSED. Tell the host and advance, with a guard against loops.
+  useEffect(() => {
+    if (!isHost) return;
+    const unsub = onTrackUnplayable((event) => {
+      const outcome = handleUnplayableTrack(event, {
+        guard: unplayableGuard,
+        getCurrentTrackId: () => currentTrackRef.current,
+        notify: (message) => showToast(message, 'warning', '!', 3500),
+        // Same pair as a natural track end: advance locally, tell the
+        // server, and it moves every guest to the next track. Deliberately
+        // not skip-track: a Phase Cancel shield would swallow that and
+        // leave the room parked on the dead track.
+        advance: () => {
+          advanceQueue();
+          trackEnded(sessionId);
+        },
+      });
+      logger.info('playback', 'Unplayable track', {
+        trackId: event.trackId,
+        sourceId: event.sourceId,
+        reason: event.reason,
+        outcome,
+      });
+    });
+    return unsub;
+  }, [advanceQueue, sessionId, isHost, unplayableGuard]);
 }

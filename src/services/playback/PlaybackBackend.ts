@@ -56,6 +56,28 @@ export interface TrackLoadRequest {
 export type ProgressListener = (progress: PlaybackProgress) => void;
 export type TrackEndListener = () => void;
 
+/**
+ * Why a loaded track is being called unplayable.
+ * - `widget-error`: the SoundCloud Widget (or the bridge) reported an error
+ *   before playback ever started.
+ * - `start-timeout`: the track never produced real playback (no progress
+ *   past 0:00) within the start window after load / play.
+ */
+export type UnplayableReason = 'widget-error' | 'start-timeout';
+
+/** A track that was loaded but can't be played on this device. */
+export interface UnplayableEvent {
+  /** Internal queue-track ID (the `trackId` the load request carried). */
+  trackId: string;
+  source: TrackSource;
+  sourceId: string;
+  reason: UnplayableReason;
+  /** Raw error text from the bridge, when there was one. */
+  message?: string;
+}
+
+export type UnplayableListener = (event: UnplayableEvent) => void;
+
 export interface PlaybackBackend {
   /** Human-readable name for logging */
   readonly name: string;
@@ -89,6 +111,13 @@ export interface PlaybackBackend {
 
   /** Subscribe to track-end events */
   onTrackEnd(listener: TrackEndListener): () => void;
+
+  /**
+   * Subscribe to "this track can't be played" verdicts. Optional: only
+   * backends that can tell a dead track from a slow one implement it
+   * (today: WebViewSDKBackend, for SoundCloud).
+   */
+  onUnplayable?(listener: UnplayableListener): () => void;
 
   /** Apply voltage sag degradation (volume + rate reduction) */
   setVoltageSag(active: boolean): Promise<void>;
