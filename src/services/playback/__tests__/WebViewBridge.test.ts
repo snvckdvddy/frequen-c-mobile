@@ -27,12 +27,18 @@ import { SC_START_TIMEOUT_MS, WebViewSDKBackend } from '../WebViewBridge';
 
 // ─── Helpers ───────────────────────────────────────────────
 
+/**
+ * A load the host wants playing (auto-advance, skip while playing, Retry).
+ * A restore-style load, where the room comes back paused and waits for the
+ * host's tap, is `scRequest({ autoplay: false })`.
+ */
 function scRequest(overrides: Partial<TrackLoadRequest> = {}): TrackLoadRequest {
   return {
     trackId: 'qt_1',
     sourceId: '12345',
     source: 'soundcloud',
     durationSec: 200,
+    autoplay: true,
     ...overrides,
   };
 }
@@ -291,6 +297,12 @@ describe('WebViewSDKBackend dead-track detection (SoundCloud)', () => {
         'SoundCloud playback started',
       ]),
     );
+    // Release logcat has to show whether the watch armed for this load.
+    expect(logger.info).toHaveBeenCalledWith(
+      'WebViewSDK',
+      'Load command sent',
+      expect.objectContaining({ trackId: 'qt_1', autoplay: true }),
+    );
   });
 
   test('logs a dead track as a warning', async () => {
@@ -303,6 +315,143 @@ describe('WebViewSDKBackend dead-track detection (SoundCloud)', () => {
       'WebViewSDK',
       'SoundCloud track unplayable',
       expect.objectContaining({ trackId: 'qt_1', reason: 'start-timeout' }),
+    );
+  });
+});
+
+describe('WebViewSDKBackend restore-style loads (no playback requested)', () => {
+  // Cold launch brings the room back paused: the current track is loaded
+  // and the host presses play (verified on device 2026-11-02). That load
+  // must never start the dead-track clock, or a good track would be
+  // skipped for waiting on the host's tap.
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('a load without playback intent is not skipped however long it waits', async () => {
+    const { backend, unplayable } = makeBackend();
+    await backend.load(scRequest({ autoplay: false }));
+
+    jest.advanceTimersByTime(SC_START_TIMEOUT_MS * 3);
+
+    expect(unplayable).toHaveLength(0);
+  });
+
+  test('an omitted autoplay flag counts as no intent', async () => {
+    const { backend, unplayable } = makeBackend();
+    const restore: TrackLoadRequest = {
+      trackId: 'qt_1', sourceId: '12345', source: 'soundcloud', durationSec: 200,
+    };
+    await backend.load(restore);
+
+    jest.advanceTimersByTime(SC_START_TIMEOUT_MS * 3);
+
+    expect(unplayable).toHaveLength(0);
+  });
+
+  test('pressing play on that load starts the clock, and it fires if nothing plays', async () => {
+    const { backend, unplayable } = makeBackend();
+    await backend.load(scRequest({ autoplay: false }));
+    jest.advanceTimersByTime(SC_START_TIMEOUT_MS * 3);
+    expect(unplayable).toHaveLength(0);
+
+    await backend.play();
+
+    jest.advanceTimersByTime(SC_START_TIMEOUT_MS - 1);
+    expect(unplayable).toHaveLength(0);
+    jest.advanceTimersByTime(1);
+    expect(unplayable).toEqual([
+      { trackId: 'qt_1', source: 'soundcloud', sourceId: '12345', reason: 'start-timeout' },
+    ]);
+  });
+
+  test('pressing play on that load and then hearing audio is never a verdict', async () => {
+    const { backend, unplayable, bridge } = makeBackend();
+    await backend.load(scRequest({ autoplay: false }));
+
+    await backend.play();
+    bridge({ type: 'progress', isPlaying: true, elapsed: 0.5, duration: 200 });
+    jest.advanceTimersByTime(SC_START_TIMEOUT_MS * 3);
+
+    expect(unplayable).toHaveLength(0);
+  });
+
+  test('pausing again after play stops the clock', async () => {
+    const { backend, unplayable } = makeBackend();
+    await backend.load(scRequest({ autoplay: false }));
+    await backend.play();
+
+    await backend.pause();
+    jest.advanceTimersByTime(SC_START_TIMEOUT_MS * 3);
+
+    expect(unplayable).toHaveLength(0);
+  });
+
+  test('a load with playback intent starts the clock by itself', async () => {
+    const { backend, unplayable } = makeBackend();
+    await backend.load(scRequest({ autoplay: true }));
+
+    jest.advanceTimersByTime(SC_START_TIMEOUT_MS);
+
+    expect(unplayable).toHaveLength(1);
+    expect(unplayable[0].reason).toBe('start-timeout');
+  });
+
+  test('a Widget error still reports on a load nobody asked to play', async () => {
+    // An error means the Widget displayed a problem with the track, which
+    // is evidence whether or not the host pressed play.
+    const { backend, unplayable, bridge } = makeBackend();
+    await backend.load(scRequest({ autoplay: false }));
+
+    bridge({ type: 'error', message: 'SoundCloud Widget reported an error' });
+
+    expect(unplayable).toHaveLength(1);
+    expect(unplayable[0].reason).toBe('widget-error');
+  });
+
+  test('play pressed while the load is still queued sends it as a requested load', async () => {
+    const backend = new WebViewSDKBackend();
+    const unplayable: UnplayableEvent[] = [];
+    backend.onUnplayable((event) => unplayable.push(event));
+    backend.registerWebView(() => {});
+
+    // Cold launch: the bridge page is not ready, so the restore load queues.
+    await backend.load(scRequest({ autoplay: false }));
+    await backend.play();
+
+    backend.handleWebViewMessage(JSON.stringify({ type: 'ready' }));
+    jest.advanceTimersByTime(SC_START_TIMEOUT_MS - 1);
+    expect(unplayable).toHaveLength(0);
+    jest.advanceTimersByTime(1);
+    expect(unplayable).toHaveLength(1);
+  });
+
+  test('a queued restore load with no play stays unwatched once it is sent', async () => {
+    const backend = new WebViewSDKBackend();
+    const unplayable: UnplayableEvent[] = [];
+    backend.onUnplayable((event) => unplayable.push(event));
+    backend.registerWebView(() => {});
+
+    await backend.load(scRequest({ autoplay: false }));
+    backend.handleWebViewMessage(JSON.stringify({ type: 'ready' }));
+    jest.advanceTimersByTime(SC_START_TIMEOUT_MS * 3);
+
+    expect(unplayable).toHaveLength(0);
+  });
+
+  test('logs whether the load asked for playback', async () => {
+    const { backend } = makeBackend();
+    await backend.load(scRequest({ autoplay: false }));
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'WebViewSDK',
+      'Load command sent',
+      expect.objectContaining({ trackId: 'qt_1', autoplay: false }),
     );
   });
 });

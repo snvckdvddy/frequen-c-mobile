@@ -48,6 +48,14 @@ export interface TrackLoadRequest {
   source: TrackSource;       // Which service the track is from
   durationSec: number;       // Expected duration
   previewUrl?: string;       // Fallback audio URL (CDN or preview)
+  /**
+   * The caller wants this load to be playing (auto-advance, skip while
+   * playing, Retry). False or omitted for a restore-style load, where the
+   * room comes back paused and the host presses play. Backends use it to
+   * decide whether to start watching for a track that never starts; an
+   * explicit play() starts that watch either way.
+   */
+  autoplay?: boolean;
   accessCredential?: string; // Queuer's service access credential (for SDK backends)
   musicUserCredential?: string; // Apple Music user credential (for MusicKit JS)
   developerCredential?: string; // MusicKit developer token (for Apple Music SDK)

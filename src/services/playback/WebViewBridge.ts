@@ -18,8 +18,14 @@
  * but never play (label releases, embed-restricted uploads). The Widget
  * doesn't always raise an error for them, so a track that hasn't produced
  * real playback (progress past 0:00 while playing) within
- * SC_START_TIMEOUT_MS of load, or that errors before it starts, is
- * reported through onUnplayable. The host then skips it.
+ * SC_START_TIMEOUT_MS of playback being requested, or that errors before it
+ * starts, is reported through onUnplayable. The host then skips it.
+ *
+ * "Requested" means a load with autoplay set (auto-advance, skip while
+ * playing, Retry) or an explicit play(). A restore-style load (cold launch
+ * brings the room back paused and the host presses play) is not a request,
+ * so it never starts the clock; a perfectly good track must not be skipped
+ * for waiting on the host's tap.
  */
 
 import type {
@@ -36,11 +42,11 @@ import type { TrackSource } from '../../types';
 import { logger } from '../../utils/logger';
 
 /**
- * How long a SoundCloud track gets to start playing before it is called
- * unplayable. Healthy tracks start in 1-3s; the bridge's own autoplay
- * nudge gives up at ~4s. The rest is headroom for a cold first load on a
- * slow connection: skipping a good track is worse than a slow verdict on
- * a bad one.
+ * How long a SoundCloud track gets to start playing, once playback has
+ * been requested, before it is called unplayable. Healthy tracks start in
+ * 1-3s; the bridge's own autoplay nudge gives up at ~4s. The rest is
+ * headroom for a cold first load on a slow connection: skipping a good
+ * track is worse than a slow verdict on a bad one.
  */
 export const SC_START_TIMEOUT_MS = 12_000;
 
@@ -177,7 +183,12 @@ export class WebViewSDKBackend implements PlaybackBackend {
           });
           // An error before the track ever started means it isn't going to
           // (repeats after the verdict are ignored). An error mid-track
-          // keeps the old behavior: surface it, don't skip.
+          // keeps the old behavior: surface it, don't skip. Deliberately
+          // not gated on autoplay: the Widget's ERROR means it displayed an
+          // error for the track, which is evidence whether or not the host
+          // pressed play. Blocked autoplay is a silent pause with no ERROR
+          // (nothing in the Widget docs or the bridge's own notes says
+          // otherwise), so a paused restore load can't trip this.
           if (this.activeLoad && !this.startConfirmed) {
             this.reportUnplayable('widget-error', event.message);
             break;
@@ -224,7 +235,10 @@ export class WebViewSDKBackend implements PlaybackBackend {
     this.emitProgress();
 
     logger.info('WebViewSDK', 'Load command sent', {
-      trackId: request.trackId, source: request.source, sourceId: request.sourceId,
+      trackId: request.trackId,
+      source: request.source,
+      sourceId: request.sourceId,
+      autoplay: request.autoplay === true,
     });
     this.send({
       type: 'load',
@@ -250,9 +264,16 @@ export class WebViewSDKBackend implements PlaybackBackend {
       webViewAttached: this.postMessage !== null,
     });
     this.send({ type: 'play' });
-    // A manual play on a track that still hasn't started gets a fresh window.
+    // Pressing play is a request for playback, so it starts the clock for a
+    // restore-style load, and gives a track that is still waiting a fresh
+    // window.
     if (this.activeLoad && !this.startConfirmed && !this.unplayableReported) {
       this.armStartTimer();
+    }
+    // Play pressed before the queued load was even sent: it goes out as a
+    // requested load, not a restore.
+    if (this.pendingLoad) {
+      this.pendingLoad = { ...this.pendingLoad, autoplay: true };
     }
   }
 
@@ -307,7 +328,11 @@ export class WebViewSDKBackend implements PlaybackBackend {
 
   // ─── Dead-track watch (SoundCloud) ───────────────────────
 
-  /** Start watching a freshly sent load. Only SoundCloud is watched. */
+  /**
+   * Start watching a freshly sent load. Only SoundCloud is watched. The
+   * clock starts only if the caller wants playback (autoplay); a restore-style
+   * load is tracked but waits for play() or a Widget error.
+   */
   private beginStartWatch(request: TrackLoadRequest): void {
     this.clearStartWatch();
     if (request.source !== 'soundcloud') return;
@@ -316,7 +341,7 @@ export class WebViewSDKBackend implements PlaybackBackend {
     this.loadSentAt = Date.now();
     this.startConfirmed = false;
     this.unplayableReported = false;
-    this.armStartTimer();
+    if (request.autoplay) this.armStartTimer();
   }
 
   private armStartTimer(): void {

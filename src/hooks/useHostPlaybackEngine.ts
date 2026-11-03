@@ -24,7 +24,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  loadTrack, onProgress, onTrackEnd, onTrackUnplayable, stop as stopPlayback,
+  loadTrack, onProgress, onTrackEnd, onTrackUnplayable, resetPlaybackIntent,
+  stop as stopPlayback,
   type PlaybackState,
 } from '../services/playbackEngine';
 import { trackEnded, emitPlaybackState } from '../services/socket';
@@ -53,9 +54,13 @@ export function useHostPlaybackEngine({
 }: HostPlaybackParams): void {
 
   // Lives as long as the provider; reset when the session or hosting changes.
+  // The engine's playback intent resets with it: the first track loaded in a
+  // new hosting session is a restore (cold launch, rejoin), so it waits for
+  // the host's tap instead of being watched for a start.
   const [unplayableGuard] = useState(() => new UnplayableSkipGuard());
   useEffect(() => {
     unplayableGuard.reset();
+    resetPlaybackIntent();
   }, [unplayableGuard, sessionId, isHost]);
 
   // ─── Progress subscription ─────────────────────────────
@@ -99,6 +104,8 @@ export function useHostPlaybackEngine({
     const nowPlaying = queue[0] || null;
     if (nowPlaying && nowPlaying.id !== currentTrackRef.current) {
       currentTrackRef.current = nowPlaying.id;
+      // No autoplay option on purpose: the engine decides from the host's
+      // intent (restore waits for a tap; auto-advance and skip keep going).
       loadTrack(nowPlaying.id, nowPlaying.duration || 30, nowPlaying.previewUrl, nowPlaying.sourceId, nowPlaying.source);
       if (lastfmConnected) {
         api.integrations.updateNowPlaying(

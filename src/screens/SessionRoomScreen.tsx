@@ -397,7 +397,8 @@ export function SessionRoomScreen() {
   const handleRetryPlayback = useCallback(() => {
     const retryTrack = queue[0];
     if (!retryTrack) return;
-    loadTrack(retryTrack.id, retryTrack.duration || 30, retryTrack.previewUrl, retryTrack.sourceId, retryTrack.source).catch((err) => {
+    // Tapping Retry is a request to play, so the load is watched for a start.
+    loadTrack(retryTrack.id, retryTrack.duration || 30, retryTrack.previewUrl, retryTrack.sourceId, retryTrack.source, { autoplay: true }).catch((err) => {
       logger.warn('session', 'Playback retry failed', err);
     });
   }, [queue]);

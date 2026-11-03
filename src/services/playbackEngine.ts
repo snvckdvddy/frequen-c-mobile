@@ -51,6 +51,28 @@ let progressListeners: ProgressListener[] = [];
 let trackEndListeners: TrackEndListener[] = [];
 let trackUnplayableListeners: TrackUnplayableListener[] = [];
 
+// ─── Playback intent ────────────────────────────────────────
+// Whether the host wants audio running right now. It becomes
+// TrackLoadRequest.autoplay, which gates the dead-track watch: a room
+// restored on cold launch loads its current track but waits for the host to
+// press play (verified on device 2026-11-02), and that track must not be
+// skipped as "never started".
+//   'idle'    nothing asked yet (cold launch, new session): not wanted
+//   'wanted'  explicit play, Retry, or audio really moving
+//   'paused'  explicit pause. Real audio does not override it, because a
+//             progress report already in flight when pause lands would flip
+//             it back. An explicit play, or a new load, ends it.
+// stop() leaves it alone, so skipping while playing keeps the next track
+// watched; the host hook resets it when hosting starts or ends.
+type PlaybackIntent = 'idle' | 'wanted' | 'paused';
+let playbackIntent: PlaybackIntent = 'idle';
+
+function setPlaybackIntent(next: PlaybackIntent, why: string): void {
+  if (playbackIntent === next) return;
+  logger.info('playback', `Playback intent ${playbackIntent} -> ${next}`, { why });
+  playbackIntent = next;
+}
+
 // ─── Voltage Sag audio degradation ──────────────────────────
 let voltageSagActive = false;
 
@@ -68,6 +90,11 @@ function subscribeToRouter(): void {
   if (routerUnsubProgress) return; // already subscribed
 
   routerUnsubProgress = playbackRouter.onProgress((p) => {
+    // Audio really moving means the host is listening, even if nobody
+    // pressed play (the bridge autoplays). Never overrides an explicit pause.
+    if (p.isPlaying && p.elapsed > 0 && playbackIntent === 'idle') {
+      setPlaybackIntent('wanted', 'audio playing');
+    }
     state = {
       ...state,
       isPlaying: p.isPlaying,
@@ -100,6 +127,15 @@ function emitProgress(): void {
 
 // ─── Public API ─────────────────────────────────────────────
 
+export interface LoadTrackOptions {
+  /**
+   * The caller wants this track playing (Retry). Overrides the host's
+   * recorded intent. Left out, autoplay follows the host's intent, which
+   * is false for a restore-style load (nothing played yet this session).
+   */
+  autoplay?: boolean;
+}
+
 /**
  * Load a track and start playing.
  *
@@ -115,14 +151,26 @@ export async function loadTrack(
   previewUrl?: string,
   sourceId?: string,
   source?: TrackSource,
+  options?: LoadTrackOptions,
 ): Promise<void> {
 
   // Ensure we're subscribed to the router
   subscribeToRouter();
 
+  // Did the host ask for playback? Decided before this load can change the
+  // intent: a restore-style load (idle) is not a request, auto-advance and
+  // skip while playing (wanted) are, a track change while paused is not.
+  const autoplay = options?.autoplay ?? playbackIntent === 'wanted';
+  if (options?.autoplay) {
+    setPlaybackIntent('wanted', 'load asked for autoplay');
+  } else if (playbackIntent === 'paused') {
+    // A new load ends the pause: audio from the new track counts again.
+    setPlaybackIntent('idle', 'new load after pause');
+  }
+
   // info, not debug: the first line of the track lifecycle in release logcat.
   logger.info('playback', 'Load track', {
-    trackId, source: source ?? null, sourceId: sourceId ?? null, durationSec,
+    trackId, source: source ?? null, sourceId: sourceId ?? null, durationSec, autoplay,
   });
 
   // For CDN-backed sources, resolve fresh stream URLs via adapters.
@@ -179,6 +227,7 @@ export async function loadTrack(
       source: source || 'itunes',
       durationSec,
       previewUrl,
+      autoplay,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Playback load failed';
@@ -199,6 +248,7 @@ export async function togglePlayPause(): Promise<void> {
   if (timerFallbackId) {
     // Timer fallback toggle
     state = { ...state, isPlaying: !state.isPlaying };
+    setPlaybackIntent(state.isPlaying ? 'wanted' : 'paused', 'toggle');
     if (state.isPlaying) {
       resumeTimerFallback();
     } else {
@@ -210,14 +260,17 @@ export async function togglePlayPause(): Promise<void> {
   // Delegate to router
   const progress = playbackRouter.getProgress();
   if (progress.isPlaying) {
+    setPlaybackIntent('paused', 'toggle to pause');
     await playbackRouter.pause();
   } else {
+    setPlaybackIntent('wanted', 'toggle to play');
     await playbackRouter.play();
   }
 }
 
 /** Pause playback */
 export async function pause(): Promise<void> {
+  setPlaybackIntent('paused', 'pause');
   if (timerFallbackId) {
     pauseTimerFallback();
     state = { ...state, isPlaying: false };
@@ -229,6 +282,7 @@ export async function pause(): Promise<void> {
 
 /** Resume playback */
 export async function play(): Promise<void> {
+  setPlaybackIntent('wanted', 'play');
   if (timerFallbackId) {
     state = { ...state, isPlaying: true };
     resumeTimerFallback();
@@ -258,6 +312,14 @@ export async function seekTo(fraction: number): Promise<void> {
 /** Get current state snapshot */
 export function getState(): PlaybackState {
   return { ...state };
+}
+
+/**
+ * Forget what the host asked for. A new session, or this device starting or
+ * ending hosting, begins idle: the first load is a restore, not a request.
+ */
+export function resetPlaybackIntent(): void {
+  setPlaybackIntent('idle', 'reset');
 }
 
 /** Stop and reset */
@@ -385,5 +447,5 @@ export function isVoltageSagActive(): boolean {
 export default {
   loadTrack, togglePlayPause, pause, play, seekTo,
   getState, stop, onProgress, onTrackEnd, onTrackUnplayable, formatTime,
-  setVoltageSag, isVoltageSagActive,
+  setVoltageSag, isVoltageSagActive, resetPlaybackIntent,
 };
