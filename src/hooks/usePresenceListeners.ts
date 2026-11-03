@@ -78,6 +78,9 @@ export function usePresenceListeners({
         }
       }),
       onSessionEvent('participant-left', (data: { userId: string }) => {
+        // Our own departure only reaches us from a stale socket timing out
+        // after a reconnect; we are still here, so no "left" toast.
+        if (data.userId === userIdRef.current) return;
         setListeners((prev) => {
           const leaving = prev.find((l) => l.userId === data.userId);
           if (leaving) {

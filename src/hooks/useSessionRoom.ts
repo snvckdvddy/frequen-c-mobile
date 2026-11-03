@@ -467,6 +467,10 @@ export function useSessionRoom(sessionId: string) {
           }),
           onSessionEvent("participant-left", (data) => {
             if (!mounted || !data?.userId) return;
+            // After a network blip the old socket can time out on the
+            // server and broadcast our own departure to our new socket.
+            // We are connected, so never drop ourselves from the roster.
+            if (data.userId === user?.id) return;
             setListeners((prev) =>
               prev.filter((l) => l.userId !== data.userId),
             );
