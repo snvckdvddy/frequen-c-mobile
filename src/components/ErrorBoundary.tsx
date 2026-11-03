@@ -7,6 +7,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { Text, Button } from './ui';
 import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
@@ -39,6 +40,13 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     const label = this.props.screenName ? `[ErrorBoundary:${this.props.screenName}]` : '[ErrorBoundary]';
     console.error(label, error, errorInfo);
+    // Render errors caught here never reach Sentry's global handler, and
+    // release builds hide the message on screen, so a crash was invisible
+    // (2026-11-02). Report it with the screen and component stack.
+    Sentry.captureException(error, {
+      tags: { boundary: this.props.screenName ?? 'root' },
+      extra: { componentStack: errorInfo.componentStack },
+    });
   }
 
   handleReset = () => {
