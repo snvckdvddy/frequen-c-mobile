@@ -76,3 +76,10 @@ Custom skills in `../_skills/`: `brainstorming`, `writing-plans`, `api-design-pr
 - Mobile-first: design for phone screens
 - All new files must pass `npx tsc --noEmit` (hooks enforce this automatically)
 - No `any` types in production code (hooks block edits that introduce or leave `any`)
+
+## OTA updates (hard rule)
+
+- Never run `eas update` directly from this folder or from the MusicApp workspace. A workspace build bundles different package versions than the installed APK and crashed two OTAs on 2026-11-02.
+- Publish with `npm run ota:publish -- "<message>"`. Add `--dry-run` first to see every check. It builds from `git archive HEAD` in an isolated copy under `%LOCALAPPDATA%\frequenc-ota` using the lockfile in `scripts/ota/`, and refuses to run on uncommitted changes or when native or dependency files differ from the APK's commit.
+- New native code (`modules/`, `android/`), Expo config changes, or any dependency change needs a new EAS build, not an OTA. After a new build, update `scripts/ota/apk-baseline.json` and the lockfile (steps in `scripts/ota/README.md`).
+- Check a published update on the phone by reading its logs over adb (see memory reference-device-adb).

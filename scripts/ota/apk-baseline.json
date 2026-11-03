@@ -1,0 +1,22 @@
+{
+  "runtimeVersion": "1.2.0",
+  "channel": "preview",
+  "buildProfile": "preview:apk",
+  "buildId": "b7c02d56-3a67-414d-b73a-603e555bbffe",
+  "commit": "bfc51916d8fbdde1dcd78b3375d8d10feb469972",
+  "lockfile": "apk-1.2.0.package-lock.json",
+  "lockfileSha256": "5253c2df77c8853cf8b9d301d5a786cf4e95cfecd80e38daa51ac8ece3f32889",
+  "packages": {
+    "expo": "54.0.38",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-reanimated": "4.1.7",
+    "react-native-worklets": "0.5.1"
+  },
+  "singletons": [
+    "react",
+    "react-native",
+    "react-native-reanimated",
+    "react-native-worklets"
+  ]
+}

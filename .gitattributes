@@ -1,0 +1,3 @@
+# The OTA tooling must stay LF on every checkout. This machine uses core.autocrlf=true, which would turn
+# publish-ota.sh into CRLF and break bash, and would change the lockfile bytes the baseline hash covers.
+scripts/ota/* text eol=lf

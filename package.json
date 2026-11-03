@@ -15,7 +15,8 @@
     "smoke:all": "npm run smoke:backend && npm run smoke:create-session && npm run smoke:spotify",
     "qa:preflight": "npx tsc --noEmit && npm test",
     "qa:backend": "npm run smoke:all",
-    "qa:baseline": "npm run qa:preflight && npm run qa:backend"
+    "qa:baseline": "npm run qa:preflight && npm run qa:backend",
+    "ota:publish": "bash scripts/ota/publish-ota.sh"
   },
   "dependencies": {
     "@expo-google-fonts/chakra-petch": "^0.4.1",
