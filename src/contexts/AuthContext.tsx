@@ -5,7 +5,7 @@
  * On mount, checks for stored token and auto-authenticates.
  */
 
-import React, { createContext, useContext, useEffect, useReducer, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useReducer, useCallback, useRef, useState } from 'react';
 import {
   authApi,
   ApiError,
@@ -26,6 +26,17 @@ import { showToast } from '../components/ui';
 import { useBiometric } from '../hooks/useBiometric';
 import type { BiometricState, EnableBiometricResult } from '../hooks/useBiometric';
 import { handshakeBus } from '../services/handshake/handshakeBus';
+import {
+  BACKGROUND_RETRY_DELAYS_MS,
+  FOREGROUND_RETRY_DELAYS_MS,
+  RetryScope,
+  UNVERIFIED_RECHECK_INTERVAL_MS,
+  resolveBootstrap,
+  resolveRefresh,
+  retryTransient,
+} from '../services/authSessionRecovery';
+import { clearCachedUser, readCachedUser, writeCachedUser } from '../services/authUserCache';
+import { logger } from '../utils/logger';
 
 WebBrowser.maybeCompleteAuthSession();
 const BYPASS_AUTH = (process.env.EXPO_PUBLIC_BYPASS_AUTH || 'false') === 'true';
@@ -230,6 +241,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const lastHandledAuthUrlRef = useRef<string | null>(null);
   const pendingAuthProviderRef = useRef<PendingAuthProvider | null>(null);
   const pendingAuthStartedAtRef = useRef<number | null>(null);
+
+  // Latest bio and state for async work that outlives the render it started in
+  // (retries, timers, sign-in). A callback memoized on first render would
+  // otherwise keep reading the initial bio.isEnabled, which is always false.
+  const bioRef = useRef(bio);
+  bioRef.current = bio;
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  // Session recovery (see services/authSessionRecovery.ts). The scope cancels
+  // every retry loop at once, and each cancel() starts a new session generation:
+  // work that began in an earlier one (a token refresh in flight at logout) is
+  // dropped when it lands. unverifiedSessionRef is true while the app runs on the
+  // cached user and the server has not confirmed the session yet;
+  // slowVerifyTimerRef is the 5 minute recheck that runs only during that time.
+  const [sessionScope] = useState(() => new RetryScope());
+  const unverifiedSessionRef = useRef(false);
+  const verifyingRef = useRef(false);
+  const slowVerifyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Spotify Auth Request Setup
   const [request, response, promptAsync] = useAuthRequest(
@@ -539,6 +569,134 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return;
   }, []);
 
+  // ─── Session recovery ─────────────────────────────────────
+  // Only the server saying the session is over ends it: 401, or 404 for a deleted
+  // account, on me() or refresh(). Timeouts, network errors, 5xx (Railway cold
+  // start) and 429 keep it and retry. The decisions live in
+  // services/authSessionRecovery.ts; this is the wiring.
+
+  const stopSlowVerify = useCallback(() => {
+    if (slowVerifyTimerRef.current !== null) {
+      clearInterval(slowVerifyTimerRef.current);
+      slowVerifyTimerRef.current = null;
+    }
+  }, []);
+
+  // The server confirmed the session (any successful me()), so nothing is left to
+  // verify and the 5 minute recheck can stop.
+  const markSessionVerified = useCallback(() => {
+    unverifiedSessionRef.current = false;
+    stopSlowVerify();
+  }, [stopSlowVerify]);
+
+  // Cancel every pending retry (cold-start backoff, cached-session checks, the
+  // slow recheck) and end the current session generation, so a token refresh
+  // still in flight is discarded when it lands. Called on logout, account
+  // deletion, auth rejection, and unmount.
+  const cancelSessionRetries = useCallback(() => {
+    sessionScope.cancel();
+    unverifiedSessionRef.current = false;
+    stopSlowVerify();
+  }, [sessionScope, stopSlowVerify]);
+
+  useEffect(() => () => cancelSessionRetries(), [cancelSessionRetries]);
+
+  // The stored credentials are dead: the server answered 401 or 404, or the token
+  // is past its exp and the server could not be asked. Wipe every copy (JWT,
+  // cached user, biometric token) and drop to the login screen. LOGOUT is
+  // dispatched even if a wipe step throws, so the UI can't get stuck.
+  const handleAuthRejection = useCallback(async () => {
+    cancelSessionRetries();
+    try {
+      await clearToken();
+      await clearCachedUser();
+      if (bioRef.current.isEnabled) {
+        await bioRef.current.disableBiometric();
+      }
+    } finally {
+      dispatch({ type: 'LOGOUT' });
+    }
+  }, [cancelSessionRetries]);
+
+  // Keep the biometric copy of the JWT in step with the SecureStore one. A stale
+  // copy can otherwise overwrite a newer session token on the next biometric unlock.
+  const syncBiometricToken = useCallback(async (token: string) => {
+    if (bioRef.current.isEnabled) {
+      await bioRef.current.updateStoredToken(token);
+    }
+  }, []);
+
+  // Runs while the app is signed in on the cached user and the server has not
+  // confirmed the session. A 401 or 404 signs out, a success swaps in the fresh
+  // user, and anything else leaves the session alone until the next attempt.
+  const verifyCachedSession = useCallback(async (delaysMs: readonly number[]) => {
+    if (!unverifiedSessionRef.current || verifyingRef.current) return;
+    verifyingRef.current = true;
+    try {
+      const sessionCancelled = sessionScope.begin();
+      const outcome = await retryTransient({
+        attempt: () => authApi.me(),
+        delaysMs,
+        sleep: sessionScope.sleep,
+        // Also stop once something else (a token refresh) has verified the session
+        // while this was waiting, so it doesn't make a pointless extra call.
+        isCancelled: () => sessionCancelled() || !unverifiedSessionRef.current,
+      });
+      if (outcome.kind === 'success') {
+        markSessionVerified();
+        // Use the token in state now, not the one bootstrap started with: a refresh
+        // may have replaced it while this was waiting.
+        const currentToken = stateRef.current.token;
+        if (currentToken) {
+          dispatch({ type: 'SET_USER', payload: { user: outcome.value.user, token: currentToken } });
+          uploadPushToken();
+        }
+      } else if (outcome.kind === 'rejected') {
+        logger.info('auth', 'Cached session rejected by the server (401 or 404); signing out');
+        await handleAuthRejection();
+      }
+    } finally {
+      verifyingRef.current = false;
+    }
+  }, [sessionScope, handleAuthRejection, markSessionVerified, uploadPushToken]);
+
+  // The quick checks (5s, 15s, 45s) cover a short outage. For a longer one, look
+  // again every 5 minutes while the app is in the foreground. The timer stops when
+  // the session is verified, ended, or unmounted (markSessionVerified and
+  // cancelSessionRetries). A tick while the app is backgrounded is skipped; the
+  // foreground listener below checks as soon as the app comes back.
+  const startSlowVerify = useCallback(() => {
+    stopSlowVerify();
+    slowVerifyTimerRef.current = setInterval(() => {
+      if (!unverifiedSessionRef.current) {
+        stopSlowVerify();
+        return;
+      }
+      if (AppState.currentState !== 'active') return;
+      void verifyCachedSession(FOREGROUND_RETRY_DELAYS_MS);
+    }, UNVERIFIED_RECHECK_INTERVAL_MS);
+  }, [stopSlowVerify, verifyCachedSession]);
+
+  // Check once more each time the app returns to the foreground while the session
+  // is still unverified.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        void verifyCachedSession(FOREGROUND_RETRY_DELAYS_MS);
+      }
+    });
+    return () => sub.remove();
+  }, [verifyCachedSession]);
+
+  // Remember the last good user so a cold start during a backend hiccup can stay
+  // signed in. Keyed on state.user so it covers every SET_USER: bootstrap, login,
+  // register, social sign-in, token refresh, and the provider connect flows.
+  // Logout, account deletion, and auth rejection clear it.
+  useEffect(() => {
+    if (BYPASS_AUTH || !state.isAuthenticated || !state.user) return;
+    void writeCachedUser(state.user);
+  }, [state.user, state.isAuthenticated]);
+
   // Check for existing token on mount (biometric-aware)
   useEffect(() => {
     async function bootstrap() {
@@ -568,16 +726,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           token = await getStoredToken();
         }
 
-        if (token) {
-          const { user } = await authApi.me();
-          await storeToken(token);
-          dispatch({ type: 'SET_USER', payload: { user, token } });
-          uploadPushToken();
-        } else {
+        if (!token) {
           dispatch({ type: 'SET_BOOTSTRAP_LOADING', payload: false });
+          return;
+        }
+
+        // Only the server ending the session (401, or 404 for a deleted account)
+        // means the token is dead. A timeout, network error, or 5xx must not sign
+        // the user out or wipe the token. While the server is not answering, a
+        // token already past its exp counts as dead too, and a cached user that
+        // belongs to a different account than the token is not used.
+        const resolution = await resolveBootstrap({
+          token,
+          fetchMe: () => authApi.me(),
+          readCachedUser,
+          sleep: sessionScope.sleep,
+          isCancelled: sessionScope.begin(),
+        });
+
+        switch (resolution.kind) {
+          case 'verified':
+            await storeToken(token);
+            dispatch({ type: 'SET_USER', payload: { user: resolution.user, token } });
+            uploadPushToken();
+            break;
+          case 'resume-cached':
+            // Backend unreachable but the token was never rejected: stay signed in
+            // on the last good user and keep checking in the background.
+            logger.info('auth', 'Backend unreachable at launch; resuming on the cached user');
+            unverifiedSessionRef.current = true;
+            dispatch({ type: 'SET_USER', payload: { user: resolution.user, token } });
+            void verifyCachedSession(BACKGROUND_RETRY_DELAYS_MS);
+            startSlowVerify();
+            break;
+          case 'rejected':
+            logger.info('auth', 'Stored session is dead (server rejected it, the account is gone, or the token expired); signing out');
+            await handleAuthRejection();
+            break;
+          case 'gave-up':
+            // Still unreachable and nothing cached. Nothing proves the token is bad,
+            // so it stays in storage and the next launch tries again.
+            logger.info('auth', 'Backend unreachable after retries; showing login, stored token kept');
+            dispatch({ type: 'LOGOUT' });
+            break;
+          case 'cancelled':
+            break;
         }
       } catch {
-        await clearToken();
+        // Unexpected failure outside the me() call. Keep the stored token and show
+        // login so the loading screen can never hang.
         dispatch({ type: 'LOGOUT' });
       }
     }
@@ -604,26 +801,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { token, user } = await authApi.login(email, password);
       await storeToken(token);
+      await syncBiometricToken(token);
       dispatch({ type: 'SET_USER', payload: { user, token } });
       uploadPushToken();
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Login failed' });
       throw error;
     }
-  }, [uploadPushToken]);
+  }, [uploadPushToken, syncBiometricToken]);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
     // No SET_BOOTSTRAP_LOADING true — see login() above for full reasoning.
     try {
       const { token, user } = await authApi.register(username, email, password);
       await storeToken(token);
+      await syncBiometricToken(token);
       dispatch({ type: 'SET_USER', payload: { user, token } });
       uploadPushToken();
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Registration failed' });
       throw error;
     }
-  }, [uploadPushToken]);
+  }, [uploadPushToken, syncBiometricToken]);
 
   const loginWithApple = useCallback(async (
     identityToken: string,
@@ -635,6 +834,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { token, user: authedUser, isNewUser } = await authApi.apple(identityToken, user, fullName, email);
       await storeToken(token);
+      await syncBiometricToken(token);
       dispatch({ type: 'SET_USER', payload: { user: authedUser, token } });
       uploadPushToken();
       return { isNewUser };
@@ -642,13 +842,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Apple sign in failed' });
       throw error;
     }
-  }, [uploadPushToken]);
+  }, [uploadPushToken, syncBiometricToken]);
 
   const loginWithGoogle = useCallback(async (idToken: string): Promise<{ isNewUser: boolean }> => {
     // No SET_BOOTSTRAP_LOADING true — see login() above for full reasoning.
     try {
       const { token, user, isNewUser } = await authApi.google(idToken);
       await storeToken(token);
+      await syncBiometricToken(token);
       dispatch({ type: 'SET_USER', payload: { user, token } });
       uploadPushToken();
       return { isNewUser };
@@ -656,33 +857,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Google sign in failed' });
       throw error;
     }
-  }, [uploadPushToken]);
+  }, [uploadPushToken, syncBiometricToken]);
 
   const setPassword = useCallback(async (password: string) => {
     await authApi.setPassword(password);
     // Re-fetch user so local state reflects the new password status
     if (state.token) {
       const { user } = await authApi.me();
+      markSessionVerified();
       dispatch({ type: 'SET_USER', payload: { user, token: state.token } });
     }
-  }, [state.token]);
+  }, [state.token, markSessionVerified]);
 
   const logout = useCallback(async () => {
+    // Stop any pending session retries first so none can land after the logout
+    cancelSessionRetries();
     // Wipe biometric-stored token on logout so it can't unlock a stale session
     if (bio.isEnabled) {
       await bio.disableBiometric();
     }
     await authApi.logout();
+    await clearCachedUser();
     dispatch({ type: 'LOGOUT' });
-  }, [bio.isEnabled, bio.disableBiometric]);
+  }, [bio.isEnabled, bio.disableBiometric, cancelSessionRetries]);
 
   const deleteAccount = useCallback(async () => {
     if (bio.isEnabled) {
       await bio.disableBiometric();
     }
     await authApi.deleteAccount();
+    cancelSessionRetries();
+    await clearCachedUser();
     dispatch({ type: 'LOGOUT' });
-  }, [bio.isEnabled, bio.disableBiometric]);
+  }, [bio.isEnabled, bio.disableBiometric, cancelSessionRetries]);
 
   // ─── Auto Token Refresh ────────────────────────────────────
   // Decode JWT exp, schedule refresh 1 hour before expiry.
@@ -707,23 +914,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const performRefresh = useCallback(async () => {
-    try {
-      const { token: newToken } = await authApi.refresh();
-      const { user: freshUser } = await authApi.me();
-      await storeToken(newToken);
-      // Keep biometric store in sync so biometric unlock uses fresh JWT
-      if (bio.isEnabled) {
-        await bio.updateStoredToken(newToken);
-      }
-      dispatch({ type: 'SET_USER', payload: { user: freshUser, token: newToken } });
-      scheduleRefresh(newToken);
-    } catch {
-      // Refresh failed — token may be expired, force logout
-      await authApi.logout();
-      dispatch({ type: 'LOGOUT' });
+  const performRefresh = useCallback(async (): Promise<void> => {
+    // The session this refresh belongs to. If it ends while the requests are in
+    // flight (logout, account deletion, auth rejection, unmount: the scope is
+    // cancelled; or the reducer already dropped to logged out), the result is
+    // discarded. A late success must not store a token or sign the user back in,
+    // and a late 401 must not wipe whatever session replaced this one.
+    const sessionCancelled = sessionScope.begin();
+    const sessionEnded = () => sessionCancelled() || !stateRef.current.isAuthenticated;
+
+    const result = await resolveRefresh({
+      refresh: () => authApi.refresh(),
+      fetchMe: () => authApi.me(),
+      isCancelled: sessionEnded,
+    });
+
+    switch (result.kind) {
+      case 'refreshed':
+        await storeToken(result.token);
+        // Keep biometric store in sync so biometric unlock uses fresh JWT
+        await syncBiometricToken(result.token);
+        // The biometric write can wait on a prompt; the user may have logged out meanwhile.
+        if (sessionEnded()) return;
+        markSessionVerified();
+        dispatch({ type: 'SET_USER', payload: { user: result.user, token: result.token } });
+        scheduleRefresh(result.token);
+        return;
+      case 'sign-out':
+        // The server answered 401 or 404: the token is expired or invalid, or the
+        // account is gone. Either way this session cannot continue.
+        logger.info('auth', 'Token refresh rejected by the server (401 or 404); signing out');
+        await handleAuthRejection();
+        return;
+      case 'retry-later':
+        // Timeout, network error, 5xx, or 429: the token may still be good, so keep
+        // the session and try again later. This reuses the refresh timer, so the
+        // retry is cleared on logout and unmount along with the scheduled refresh.
+        logger.info('auth', 'Token refresh failed transiently; retrying in 5 minutes');
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = setTimeout(() => {
+          void performRefresh();
+        }, result.delayMs);
+        return;
+      case 'cancelled':
+        return;
     }
-  }, [scheduleRefresh, bio.isEnabled, bio.updateStoredToken]);
+  }, [sessionScope, scheduleRefresh, syncBiometricToken, handleAuthRejection, markSessionVerified]);
 
   // Schedule on login/register/bootstrap
   useEffect(() => {
