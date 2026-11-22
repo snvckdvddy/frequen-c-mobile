@@ -42,6 +42,10 @@ const SERVICES: ServiceMeta[] = [
   { key: 'spotify',     label: 'Spotify',     icon: 'musical-notes-outline' },
 ];
 
+// Files on this device. Not a service: nothing to connect, so it is always
+// selectable, and it leads the row when a surface offers it.
+const LOCAL_SOURCE: ServiceMeta = { key: 'local', label: 'Local', icon: 'folder-open-outline' };
+
 // ─── Props ──────────────────────────────────────────────────
 
 export interface ServiceSelectorPillsProps {
@@ -49,10 +53,12 @@ export interface ServiceSelectorPillsProps {
   connectedServices: TrackSource[];
   /** Currently selected service (highlighted pill) */
   selectedService: TrackSource | null;
-  /** Called when the user taps a connected service pill */
+  /** Called when the user taps a connected service pill (or the Local pill) */
   onSelectService: (service: TrackSource) => void;
   /** Called when the user taps a disconnected service pill (navigate to settings) */
   onConnectService?: (service: TrackSource) => void;
+  /** Lead the row with a Local (device files) pill. Hosts only; it needs no connection. */
+  showLocal?: boolean;
 }
 
 // ─── Component ──────────────────────────────────────────────
@@ -62,7 +68,9 @@ export function ServiceSelectorPills({
   selectedService,
   onSelectService,
   onConnectService,
+  showLocal = false,
 }: ServiceSelectorPillsProps) {
+  const pills = showLocal ? [LOCAL_SOURCE, ...SERVICES] : SERVICES;
   return (
     <ScrollView
       horizontal
@@ -70,8 +78,8 @@ export function ServiceSelectorPills({
       style={styles.scrollView}
       contentContainerStyle={styles.container}
     >
-      {SERVICES.map((svc) => {
-        const isConnected = connectedServices.includes(svc.key);
+      {pills.map((svc) => {
+        const isConnected = svc.key === LOCAL_SOURCE.key || connectedServices.includes(svc.key);
         const isSelected = selectedService === svc.key;
         // Subscription-beta sources (Spotify as of Feb 2026) carry a
         // "Restricted Beta" treatment. The badge stays visible whether

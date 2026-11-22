@@ -48,6 +48,9 @@ import {
 import {
   loadTrack, stop as stopPlayback, togglePlayPause,
 } from '../services/playbackEngine';
+import {
+  canQueueLocalFiles, localRecordToQueueTrack, type LocalTrackRecord,
+} from '../services/localLibrary';
 import { USE_MOCKS, isRoomModeLocked } from '../services/config';
 import { JoinLeaveToast, ListenerDrawer, type ToastMessage } from '../components/ListenerPresence';
 import { ChatPanel } from '../components/ChatPanel';
@@ -358,6 +361,21 @@ export function SessionRoomScreen() {
       showToast('Failed to search suggested track.', 'error', '!');
     }
   }, [handleAddTrack]);
+
+  // Local files play from the host's phone, so only the real host is offered
+  // them (not the dev-mode host preview: the file would sit on the wrong
+  // device). Same rule and same queue row as the Library tab's Local segment.
+  // The sheet shows ADDED then IN QUEUE on the row, so no toast here.
+  const canQueueLocal = canQueueLocalFiles({
+    hasActiveSession: Boolean(session?.isLive),
+    hostId: session?.hostId,
+    userId: user?.id,
+  });
+  const handleQueueLocal = useCallback((rec: LocalTrackRecord) => {
+    if (!canQueueLocal || !user || !session) return;
+    addToQueue(session.id, localRecordToQueueTrack(rec, user));
+    notifySuccess();
+  }, [canQueueLocal, user, session]);
 
   // Room Settings: emit behavior update to all clients
   const handleUpdateBehaviors = useCallback((partial: Partial<RoomBehaviors>) => {
@@ -935,6 +953,7 @@ export function SessionRoomScreen() {
               }}
               onAddSuggestion={handleAddSuggestion}
               connectedServices={user?.connectedServices}
+              onQueueLocal={canQueueLocal ? handleQueueLocal : undefined}
             />
           )}
 

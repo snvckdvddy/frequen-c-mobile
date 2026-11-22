@@ -23,7 +23,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
-import type { Track } from '../types';
+import type { QueueTrack, Track } from '../types';
 import { logger } from '../utils/logger';
 import { decodeBase64, id3TagLength, parseId3v2, type Id3Tags } from './id3';
 
@@ -62,6 +62,33 @@ async function ensureDir(): Promise<void> {
 
 async function persist(list: LocalTrackRecord[]): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+type LibraryListener = (library: LocalTrackRecord[]) => void;
+const libraryListeners = new Set<LibraryListener>();
+
+/**
+ * Run `listener` with the new list whenever an import, a removal or the tag
+ * backfill changes the library. Every mounted view of it (the Library tab
+ * stays mounted while the room sheet opens over it) shows the same files.
+ * Returns the unsubscribe function.
+ */
+export function subscribeToLocalLibrary(listener: LibraryListener): () => void {
+  libraryListeners.add(listener);
+  return () => {
+    libraryListeners.delete(listener);
+  };
+}
+
+/** Tell subscribers about a library that has just been saved. A listener that throws never fails the write. */
+function announceLibrary(library: LocalTrackRecord[]): void {
+  libraryListeners.forEach((listener) => {
+    try {
+      listener(library);
+    } catch (err) {
+      logger.warn('localLibrary', 'A library listener threw', err);
+    }
+  });
 }
 
 export async function listLocalTracks(): Promise<LocalTrackRecord[]> {
@@ -198,6 +225,7 @@ export async function importLocalTracks(): Promise<LocalTrackRecord[]> {
     }
 
     await persist(library);
+    announceLibrary(library);
     return library;
   });
 }
@@ -227,6 +255,7 @@ export function backfillLocalTags(): Promise<LocalTrackRecord[]> {
     } catch (err) {
       logger.warn('localLibrary', 'Could not save tags read from existing files', err);
     }
+    announceLibrary(library);
     return library;
   });
 }
@@ -245,6 +274,7 @@ export function removeLocalTrack(id: string): Promise<LocalTrackRecord[]> {
     }
     const next = library.filter((t) => t.id !== id);
     await persist(next);
+    announceLibrary(next);
     return next;
   });
 }
@@ -261,4 +291,53 @@ export function localRecordToTrack(rec: LocalTrackRecord): Track {
     sourceId: rec.id,
     previewUrl: rec.uri,
   };
+}
+
+/**
+ * Local files exist on THIS phone and play from the room's output device, so
+ * only the host can queue them. One rule for every surface that offers local
+ * files (the Library tab and the in-room add-track sheet), so they cannot
+ * drift apart.
+ */
+export function canQueueLocalFiles(input: {
+  hasActiveSession: boolean;
+  hostId: string | undefined;
+  userId: string | undefined;
+}): boolean {
+  return input.hasActiveSession && !!input.userId && input.hostId === input.userId;
+}
+
+/**
+ * The row sent to the server when a local file is queued: the track, who
+ * added it, and an empty vote state. Both queue surfaces build it here and
+ * hand it to the same addToQueue call.
+ */
+export function localRecordToQueueTrack(
+  rec: LocalTrackRecord,
+  user: { id: string; username: string },
+  now: Date = new Date(),
+): QueueTrack {
+  return {
+    ...localRecordToTrack(rec),
+    addedBy: { userId: user.id, username: user.username },
+    addedById: user.id,
+    addedAt: now.toISOString(),
+    votes: 0,
+    voltageBoost: 0,
+    reactions: [],
+  };
+}
+
+/** m:ss for a track length in seconds; a file whose length is unknown reads --:--. */
+export function formatLocalDuration(sec: number): string {
+  if (!sec) return '--:--';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** "Artist · m:ss" for a list row; just the length when the file has no artist tag. */
+export function describeLocalFile(rec: LocalTrackRecord): string {
+  const length = formatLocalDuration(rec.durationSec);
+  return rec.artist ? `${rec.artist} · ${length}` : length;
 }

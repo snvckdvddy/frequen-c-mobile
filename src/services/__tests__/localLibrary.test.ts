@@ -68,11 +68,16 @@ jest.mock('expo-file-system/legacy', () => ({
 
 import {
   backfillLocalTags,
+  canQueueLocalFiles,
+  describeLocalFile,
+  formatLocalDuration,
   importLocalTracks,
   listLocalTracks,
+  localRecordToQueueTrack,
   localRecordToTrack,
   readLocalTags,
   removeLocalTrack,
+  subscribeToLocalLibrary,
   type LocalTrackRecord,
 } from '../localLibrary';
 
@@ -376,6 +381,200 @@ describe('localRecordToTrack', () => {
     const track = localRecordToTrack(record({ id: 'local_2', uri: 'file:///b.mp3', title: 'b' }));
     expect(track.artist).toBe('Local file');
     expect(track.album).toBeUndefined();
+  });
+});
+
+// ─── Staying in sync across screens ──────────────────────────
+// The Library tab stays mounted while the in-room add-track sheet opens over
+// it, so a change made in one has to reach the other.
+
+describe('subscribeToLocalLibrary', () => {
+  const unsubscribers: Array<() => void> = [];
+
+  function listen(): LocalTrackRecord[][] {
+    const seen: LocalTrackRecord[][] = [];
+    unsubscribers.push(subscribeToLocalLibrary((library) => seen.push(library)));
+    return seen;
+  }
+
+  afterEach(() => {
+    unsubscribers.splice(0).forEach((unsubscribe) => unsubscribe());
+  });
+
+  it('hands every subscriber the new library after an import', async () => {
+    const first = listen();
+    const second = listen();
+    mockFiles.set('file:///cache/new.mp3', mp3WithTag({ title: 'New One' }));
+    pickerReturns('new.mp3');
+
+    const library = await importLocalTracks();
+
+    expect(first).toEqual([library]);
+    expect(second).toEqual([library]);
+    expect(library.map((r) => r.title)).toEqual(['New One']);
+  });
+
+  it('says nothing when the picker is cancelled, since nothing changed', async () => {
+    const seen = listen();
+    jest.mocked(DocumentPicker.getDocumentAsync).mockResolvedValue({ canceled: true, assets: null });
+
+    await importLocalTracks();
+
+    expect(seen).toEqual([]);
+  });
+
+  it('hands subscribers the library without the file after a removal', async () => {
+    mockStore.set(STORAGE_KEY, JSON.stringify([
+      record({ id: 'keep', uri: 'file:///keep.mp3', title: 'Keep', tagsChecked: true }),
+      record({ id: 'drop', uri: 'file:///drop.mp3', title: 'Drop', tagsChecked: true }),
+    ]));
+    const seen = listen();
+
+    await removeLocalTrack('drop');
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].map((r) => r.id)).toEqual(['keep']);
+  });
+
+  it('hands subscribers the tagged library after a backfill, and nothing when no file is pending', async () => {
+    mockFiles.set('file:///app/documents/local-library/a.mp3', mp3WithTag({ title: 'Gate A Tone One', artist: 'Frequen-C Test' }));
+    mockStore.set(STORAGE_KEY, JSON.stringify([
+      record({ id: 'a', uri: 'file:///app/documents/local-library/a.mp3', title: 'gatea tone one' }),
+    ]));
+    const seen = listen();
+
+    await backfillLocalTags();
+    await backfillLocalTags();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0][0]).toMatchObject({ title: 'Gate A Tone One', artist: 'Frequen-C Test', tagsChecked: true });
+  });
+
+  it('stops telling a subscriber once it has unsubscribed', async () => {
+    const seen: LocalTrackRecord[][] = [];
+    const unsubscribe = subscribeToLocalLibrary((library) => seen.push(library));
+    unsubscribe();
+    mockFiles.set('file:///cache/new.mp3', mp3WithTag({ title: 'New One' }));
+    pickerReturns('new.mp3');
+
+    await importLocalTracks();
+
+    expect(seen).toEqual([]);
+  });
+
+  it('still finishes the import, and tells the other subscribers, when one throws', async () => {
+    unsubscribers.push(subscribeToLocalLibrary(() => {
+      throw new Error('listener broke');
+    }));
+    const seen = listen();
+    mockFiles.set('file:///cache/new.mp3', mp3WithTag({ title: 'New One' }));
+    pickerReturns('new.mp3');
+
+    const library = await importLocalTracks();
+
+    expect(library).toHaveLength(1);
+    expect(storedLibrary()).toEqual(library);
+    expect(seen).toEqual([library]);
+  });
+});
+
+// ─── Queueing from a room ────────────────────────────────────
+// The Library tab and the in-room add-track sheet both queue a local file; the
+// rule for who may, and the row that goes to the server, come from here.
+
+describe('canQueueLocalFiles', () => {
+  it('lets the host of a live room queue local files', () => {
+    expect(canQueueLocalFiles({ hasActiveSession: true, hostId: 'host', userId: 'host' })).toBe(true);
+  });
+
+  it('keeps a guest out, since the file would have to play from the host phone', () => {
+    expect(canQueueLocalFiles({ hasActiveSession: true, hostId: 'host', userId: 'guest' })).toBe(false);
+  });
+
+  it('needs a live room, even for the user who hosted one', () => {
+    expect(canQueueLocalFiles({ hasActiveSession: false, hostId: 'host', userId: 'host' })).toBe(false);
+  });
+
+  it('is false while the user or the host is not known yet', () => {
+    expect(canQueueLocalFiles({ hasActiveSession: true, hostId: undefined, userId: undefined })).toBe(false);
+    expect(canQueueLocalFiles({ hasActiveSession: true, hostId: 'host', userId: undefined })).toBe(false);
+    expect(canQueueLocalFiles({ hasActiveSession: true, hostId: undefined, userId: 'host' })).toBe(false);
+  });
+});
+
+describe('localRecordToQueueTrack', () => {
+  const user = { id: 'user_1', username: 'caleb' };
+  const rec = record({
+    id: 'local_1',
+    uri: 'file:///app/documents/local-library/local_1.mp3',
+    title: 'Gate A Tone One',
+    artist: 'Frequen-C Test',
+    durationSec: 12,
+  });
+
+  it('is the local track plus who added it and an empty vote state', () => {
+    const queued = localRecordToQueueTrack(rec, user, new Date('2026-11-22T12:00:00.000Z'));
+
+    expect(queued).toEqual({
+      ...localRecordToTrack(rec),
+      addedBy: { userId: 'user_1', username: 'caleb' },
+      addedById: 'user_1',
+      addedAt: '2026-11-22T12:00:00.000Z',
+      votes: 0,
+      voltageBoost: 0,
+      reactions: [],
+    });
+  });
+
+  it('keeps what playback needs: the local source and the file URI', () => {
+    const queued = localRecordToQueueTrack(rec, user);
+
+    expect(queued.source).toBe('local');
+    expect(queued.sourceId).toBe('local_1');
+    expect(queued.previewUrl).toBe('file:///app/documents/local-library/local_1.mp3');
+    expect(queued.duration).toBe(12);
+  });
+
+  it('stamps the add time from the clock when none is given', () => {
+    const before = Date.now();
+    const queued = localRecordToQueueTrack(rec, user);
+    const stamped = Date.parse(queued.addedAt);
+
+    expect(stamped).toBeGreaterThanOrEqual(before);
+    expect(stamped).toBeLessThanOrEqual(Date.now());
+  });
+});
+
+describe('formatLocalDuration', () => {
+  it('reads minutes and zero-padded seconds', () => {
+    expect(formatLocalDuration(5)).toBe('0:05');
+    expect(formatLocalDuration(65)).toBe('1:05');
+    expect(formatLocalDuration(600)).toBe('10:00');
+  });
+
+  it('reads --:-- for a file whose length is not known', () => {
+    expect(formatLocalDuration(0)).toBe('--:--');
+    expect(formatLocalDuration(Number.NaN)).toBe('--:--');
+  });
+
+  it('drops a fractional second instead of printing it', () => {
+    expect(formatLocalDuration(65.7)).toBe('1:05');
+  });
+});
+
+describe('describeLocalFile', () => {
+  it('leads with the artist tag, then the length', () => {
+    expect(describeLocalFile(record({ id: 'a', uri: 'file:///a.mp3', title: 'a', artist: 'Frequen-C Test', durationSec: 4 })))
+      .toBe('Frequen-C Test · 0:04');
+  });
+
+  it('is just the length for a file with no artist tag', () => {
+    expect(describeLocalFile(record({ id: 'b', uri: 'file:///b.mp3', title: 'b', durationSec: 245 }))).toBe('4:05');
+  });
+
+  it('keeps the artist when the length is unknown', () => {
+    expect(describeLocalFile(record({ id: 'c', uri: 'file:///c.mp3', title: 'c', artist: 'Someone', durationSec: 0 })))
+      .toBe('Someone · --:--');
   });
 });
 

@@ -12,17 +12,22 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { Track, ConnectedServices } from '../../types';
+import type { Track, ConnectedServices, TrackSource } from '../../types';
 import { OracleModeCard } from '../../components/room/OracleModeCard';
 import { ServiceSelectorPills } from '../../components/library/ServiceSelectorPills';
 import { PlaylistList } from '../../components/library/PlaylistList';
 import { PlaylistTrackList } from '../../components/library/PlaylistTrackList';
 import { useLibraryBrowse } from '../../hooks/useLibraryBrowse';
+import { useLocalLibrary } from '../../hooks/useLocalLibrary';
 import TacticalGridBackground from '../session-v2/components/TacticalGridBackground';
 import { tacticalTokens } from '../session-v2/theme/tacticalTokens';
 import type { SearchHudSource } from '../../hooks/useSearch';
 import type { SearchDiagnostics, SearchProviderState } from '../../services/api';
 import { getAccessForSource } from '../../services/adapters/musicServiceAdapter';
+import { describeLocalFile, type LocalTrackRecord } from '../../services/localLibrary';
+import { palette, withAlpha } from '../../design/tokens/materials';
+import { getSourceColor, getSourceLabel } from '../../design/tokens/sourceColors';
+import { getRowActionLabel, resolveLibrarySource } from './librarySource';
 import { BetaBadge } from '@/components/ui';
 
 type SearchMode = 'database' | 'oracle';
@@ -77,6 +82,12 @@ export interface SearchHudOverlayProps {
   onAddSuggestion?: (title: string, artist: string) => void;
   /** Connected services for library browsing (optional — hides Library tab if absent) */
   connectedServices?: ConnectedServices;
+  /**
+   * Host only: queue a file from this phone. Passing it adds the Local source
+   * to the LIBRARY tab. Leave it out for guests; local files play from the
+   * host's device, so a guest's sheet never offers them.
+   */
+  onQueueLocal?: (record: LocalTrackRecord) => void;
 }
 
 export function SearchHudOverlay({
@@ -95,16 +106,28 @@ export function SearchHudOverlay({
   onPatchTrack,
   onAddSuggestion,
   connectedServices,
+  onQueueLocal,
 }: SearchHudOverlayProps) {
   const [hudTab, setHudTab] = useState<HudTab>('search');
   const [searchMode, setSearchMode] = useState<SearchMode>('database');
   const [patchedId, setPatchedId] = useState<string | null>(null);
+  const [localPicked, setLocalPicked] = useState(false);
   const activeSourceCount = Object.values(sources).filter(Boolean).length;
 
   // ─── Library tab (via shared hook) ─────────────────────────
   const library = useLibraryBrowse({
     connectedServices,
     enableCache: false, // in-session browsing doesn't need disk cache
+  });
+
+  // Local files: the same list and ID3 backfill the Library screen uses.
+  // Only a host is offered them, so a guest's sheet never loads the list.
+  const localAvailable = !!onQueueLocal;
+  const local = useLocalLibrary({ enabled: localAvailable });
+  const librarySource = resolveLibrarySource({
+    localAvailable,
+    localPicked,
+    connectedServiceCount: library.connectedSources.length,
   });
   const isDevRuntime = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
 
@@ -216,13 +239,30 @@ export function SearchHudOverlay({
     onSourcesChange((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handlePatch = (track: Track) => {
+  // A tapped row reads ADDED for a beat, then the add goes through.
+  const patchAfterBeat = (id: string, commit: () => void) => {
     if (patchedId) return;
-    setPatchedId(track.id);
+    setPatchedId(id);
     setTimeout(() => {
-      onPatchTrack(track);
+      commit();
       setPatchedId(null);
     }, 300);
+  };
+
+  const handlePatch = (track: Track) => patchAfterBeat(track.id, () => onPatchTrack(track));
+
+  const handlePatchLocal = (record: LocalTrackRecord) =>
+    patchAfterBeat(record.id, () => onQueueLocal?.(record));
+
+  // The Local pill is not a service: it only switches the panel, and any
+  // service pill switches back.
+  const handleSelectLibrarySource = (service: TrackSource) => {
+    if (service === 'local') {
+      setLocalPicked(true);
+      return;
+    }
+    setLocalPicked(false);
+    library.selectService(service);
   };
 
   const renderRow = ({ item }: { item: Track }) => {
@@ -281,7 +321,55 @@ export function SearchHudOverlay({
             <View style={styles.tagClusterSpacer} />
           )}
           <Text style={[styles.costText, styles.costTextActive]}>
-            {inQueue ? 'IN QUEUE' : isPatched ? 'ADDED ✓' : 'ADD'}
+            {getRowActionLabel({ inQueue, patched: isPatched })}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  };
+
+  // Local files reuse the search rows' look: same frame, with a note glyph in
+  // place of cover art and the LOCAL tag in place of provider tags. Queue rows
+  // carry the file's id as their sourceId, so that is what marks it IN QUEUE.
+  const renderLocalRow = ({ item }: { item: LocalTrackRecord }) => {
+    const inQueue = queuedTrackIds.includes(item.id);
+    const isPatched = patchedId === item.id;
+    const localColor = getSourceColor('local');
+
+    return (
+      <Pressable
+        onPress={() => (inQueue ? null : handlePatchLocal(item))}
+        disabled={inQueue || !!patchedId}
+        style={({ pressed }) => [
+          styles.trackRow,
+          inQueue && styles.trackRowDisabled,
+          isPatched && styles.trackRowPatched,
+          pressed && !inQueue && !isPatched && styles.pressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={inQueue ? `${item.title} already in queue` : `Add ${item.title} from this phone`}
+      >
+        <View style={[styles.trackArt, styles.localArt]}>
+          <Ionicons name="musical-note-outline" size={18} color={localColor} />
+        </View>
+
+        <View style={styles.trackBody}>
+          <Text style={styles.trackTitle} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text style={styles.trackArtist} numberOfLines={1}>
+            {describeLocalFile(item)}
+          </Text>
+        </View>
+
+        <View style={styles.trackRail}>
+          <View style={styles.tagCluster}>
+            <View style={[styles.tagBadge, { borderColor: localColor, backgroundColor: withAlpha(localColor, 0.1) }]}>
+              <Text style={[styles.tagBadgeText, { color: localColor }]}>{getSourceLabel('local')}</Text>
+            </View>
+          </View>
+          <Text style={[styles.costText, styles.costTextActive]}>
+            {getRowActionLabel({ inQueue, patched: isPatched })}
           </Text>
         </View>
       </Pressable>
@@ -330,11 +418,49 @@ export function SearchHudOverlay({
           {hudTab === 'library' && (
             <View style={styles.libraryContent}>
               <ServiceSelectorPills
+                showLocal={localAvailable}
                 connectedServices={library.connectedSources}
-                selectedService={library.selectedService}
-                onSelectService={library.selectService}
+                selectedService={librarySource === 'local' ? 'local' : library.selectedService}
+                onSelectService={handleSelectLibrarySource}
               />
-              {library.connectedSources.length === 0 ? (
+              {librarySource === 'local' ? (
+                <View style={styles.localPanel}>
+                  <View style={styles.localHeader}>
+                    <View style={styles.localHeaderCopy}>
+                      <Text style={styles.localHeaderTitle}>DEVICE AUDIO</Text>
+                      <Text style={styles.localHeaderSub}>PLAYS FROM THIS PHONE</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => void local.importTracks()}
+                      disabled={local.importing}
+                      style={({ pressed }) => [
+                        styles.importBtn,
+                        local.importing && styles.importBtnBusy,
+                        pressed && !local.importing && styles.pressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Import audio files"
+                      accessibilityState={{ disabled: local.importing, busy: local.importing }}
+                    >
+                      <Ionicons name="add" size={14} color={tacticalTokens.colors.ice} />
+                      <Text style={styles.importBtnText}>{local.importing ? 'IMPORTING' : 'IMPORT'}</Text>
+                    </Pressable>
+                  </View>
+                  <FlatList
+                    data={local.tracks}
+                    keyExtractor={(rec) => rec.id}
+                    renderItem={renderLocalRow}
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={styles.results}
+                    ListEmptyComponent={
+                      <View style={styles.empty}>
+                        <Text style={styles.emptyText}>NO LOCAL FILES YET</Text>
+                        <Text style={styles.libraryEmptySubtext}>IMPORT AUDIO FROM THIS PHONE</Text>
+                      </View>
+                    }
+                  />
+                </View>
+              ) : library.connectedSources.length === 0 ? (
                 <View style={styles.libraryEmpty}>
                   <Text style={styles.libraryEmptyText}>NO SERVICES CONNECTED</Text>
                   <Text style={styles.libraryEmptySubtext}>CONNECT A PROVIDER IN SETTINGS</Text>
@@ -999,6 +1125,62 @@ const styles = StyleSheet.create({
     color: tacticalTokens.colors.textMuted,
     letterSpacing: 1,
     marginTop: tacticalTokens.spacing.xs,
+  },
+
+  // ─── Library Tab: Local source ────────────────
+  // Rows reuse trackRow / trackArt / trackBody / trackRail above; only the
+  // panel header, the IMPORT button and the cover-art stand-in are new.
+  localPanel: {
+    flex: 1,
+  },
+  localHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: tacticalTokens.spacing.md,
+    paddingHorizontal: tacticalTokens.spacing.xl,
+    paddingTop: tacticalTokens.spacing.sm,
+    paddingBottom: tacticalTokens.spacing.xs + 2,
+  },
+  localHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  localHeaderTitle: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 10,
+    color: tacticalTokens.colors.textDim,
+    letterSpacing: 2,
+  },
+  localHeaderSub: {
+    marginTop: 2,
+    fontFamily: tacticalTokens.fonts.mono,
+    fontSize: 9,
+    color: tacticalTokens.colors.textMuted,
+    letterSpacing: 1,
+  },
+  importBtn: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tacticalTokens.spacing.xs,
+    paddingHorizontal: tacticalTokens.spacing.md,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.ice,
+    backgroundColor: withAlpha(palette.ice, 0.12),
+  },
+  importBtnBusy: {
+    opacity: 0.55,
+  },
+  importBtnText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: 10,
+    color: tacticalTokens.colors.ice,
+    letterSpacing: 1.4,
+  },
+  localArt: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

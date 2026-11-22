@@ -23,10 +23,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
 import { useLibraryBrowse } from '../hooks/useLibraryBrowse';
+import { useLocalLibrary } from '../hooks/useLocalLibrary';
 import { sessionApi } from '../services/api';
 import { addToQueue } from '../services/socket';
 import {
-  backfillLocalTags, importLocalTracks, listLocalTracks, removeLocalTrack, localRecordToTrack,
+  canQueueLocalFiles, describeLocalFile, localRecordToQueueTrack,
   type LocalTrackRecord,
 } from '../services/localLibrary';
 import { parseServerTimestamp } from '../utils/serverTime';
@@ -34,7 +35,7 @@ import { VoidSurface } from '../design/components';
 import { palette } from '../design/tokens/materials';
 import { colors } from '../design/tokens/colors';
 import { spacing } from '../theme/spacing';
-import type { Track, Session, RoomMode, QueueTrack } from '../types';
+import type { Track, Session, RoomMode } from '../types';
 
 // ─── Segment Tabs ────────────────────────────────────────────
 
@@ -281,72 +282,31 @@ export function LibraryScreen({ onOpenRoom, initialSegment, route }: LibraryScre
   }, [hasActiveSession]);
 
   // ─── Local files (device audio, host-output native path) ──
-  const [localTracks, setLocalTracks] = useState<LocalTrackRecord[]>([]);
-  const [importing, setImporting] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    // Show the saved list right away, then fill in ID3 titles and artists for
-    // files imported before tags were read (each file is checked only once).
-    void listLocalTracks()
-      .then((list) => {
-        if (active) setLocalTracks(list);
-        return backfillLocalTags();
-      })
-      .then((list) => {
-        if (active) setLocalTracks(list);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  // List, ID3 backfill, import and remove live in the shared hook; the
+  // in-room add-track sheet reads the same list through it.
+  const {
+    tracks: localTracks,
+    importing,
+    importTracks: handleImportLocal,
+    removeTrack: handleRemoveLocal,
+  } = useLocalLibrary();
 
   // Local files exist on THIS device, so queueing is host-only: the
   // host's phone is the room's output. Guests queueing their local
   // files needs the auto-host-handoff design pass (known_debt #1).
-  const canQueueLocal =
-    hasActiveSession && globalRoom.session?.hostId === user?.id;
-
-  const handleImportLocal = useCallback(async () => {
-    setImporting(true);
-    try {
-      const next = await importLocalTracks();
-      setLocalTracks(next);
-    } catch {
-      showToast('Import failed. Try a different file.', 'error', '!');
-    } finally {
-      setImporting(false);
-    }
-  }, []);
-
-  const handleRemoveLocal = useCallback(async (id: string) => {
-    setLocalTracks(await removeLocalTrack(id));
-  }, []);
+  const canQueueLocal = canQueueLocalFiles({
+    hasActiveSession,
+    hostId: globalRoom.session?.hostId,
+    userId: user?.id,
+  });
 
   const handleQueueLocal = useCallback((rec: LocalTrackRecord) => {
     if (!canQueueLocal || !user || !globalRoom.session) return;
-    const track = localRecordToTrack(rec);
-    const queueTrack: QueueTrack = {
-      ...track,
-      addedBy: { userId: user.id, username: user.username },
-      addedById: user.id,
-      addedAt: new Date().toISOString(),
-      votes: 0,
-      voltageBoost: 0,
-      reactions: [],
-    };
-    addToQueue(globalRoom.session.id, queueTrack);
+    addToQueue(globalRoom.session.id, localRecordToQueueTrack(rec, user));
     // No inline queue surface exists on this screen, so the toast is
     // the only confirmation channel (allowed per toast policy).
     showToast(`"${rec.title}" queued to ${globalRoom.session.name}.`, 'success', '!');
   }, [canQueueLocal, user, globalRoom.session]);
-
-  const formatDuration = (sec: number): string => {
-    if (!sec) return '--:--';
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${String(s).padStart(2, '0')}`;
-  };
 
   return (
     <SafeScreen>
@@ -464,7 +424,7 @@ export function LibraryScreen({ onOpenRoom, initialSegment, route }: LibraryScre
                               {rec.title}
                             </Text>
                             <Text variant="bodySmall" color={palette.slate} numberOfLines={1}>
-                              {rec.artist ? `${rec.artist} · ` : ''}{formatDuration(rec.durationSec)} · LOCAL
+                              {describeLocalFile(rec)} · LOCAL
                             </Text>
                           </View>
                           {canQueueLocal && (
