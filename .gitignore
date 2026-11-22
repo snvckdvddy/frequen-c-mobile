@@ -50,3 +50,8 @@ client_secret*.json
 .env
 tsc.log
 tsc-output.txt
+
+# agent artifacts / env
+.env.*
+!.env.example
+tmpclaude-*
