@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { tacticalTokens } from '../theme/tacticalTokens';
+import { getHostOutputStatus } from '../adapters/transportControls';
+import { usePauseSettle } from '../hooks/usePauseSettle';
 
 interface SkipVoteState {
   votes: number;
@@ -50,6 +52,15 @@ export function TacticalTransportDeck({
     : null;
   const idle = !hasCurrentTrack;
 
+  // A tapped pause shows at once and holds against late "playing" reports,
+  // so the button settles straight to paused (see pauseSettle.ts).
+  const { displayedPlaying, notePlayPauseTap } = usePauseSettle(isPlaying, isLoading);
+  const handlePlayPause = useCallback(() => {
+    notePlayPauseTap();
+    onPlayPause();
+  }, [notePlayPauseTap, onPlayPause]);
+  const hostStatus = getHostOutputStatus(isPlaying);
+
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>
       <View style={[styles.transportRow, compact && styles.transportRowCompact]}>
@@ -73,7 +84,7 @@ export function TacticalTransportDeck({
 
           {isHost ? (
             <Pressable
-              onPress={onPlayPause}
+              onPress={handlePlayPause}
               disabled={!hasCurrentTrack}
               style={({ pressed }) => [
                 styles.playButton,
@@ -82,17 +93,17 @@ export function TacticalTransportDeck({
                 pressed && hasCurrentTrack && styles.playPressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel={isPlaying ? 'Pause playback' : 'Play playback'}
+              accessibilityLabel={displayedPlaying ? 'Pause playback' : 'Play playback'}
               accessibilityState={{ disabled: !hasCurrentTrack }}
             >
               {isLoading ? (
                 <ActivityIndicator size="small" color={tacticalTokens.colors.void} />
               ) : (
                 <Ionicons
-                  name={isPlaying ? 'pause' : 'play'}
+                  name={displayedPlaying ? 'pause' : 'play'}
                   size={30}
                   color={tacticalTokens.colors.void}
-                  style={!isPlaying ? { marginLeft: 3 } : undefined}
+                  style={!displayedPlaying ? { marginLeft: 3 } : undefined}
                 />
               )}
             </Pressable>
@@ -105,11 +116,7 @@ export function TacticalTransportDeck({
                 idle && styles.disabledTransport,
               ]}
               accessibilityRole="text"
-              accessibilityLabel={
-                isPlaying
-                  ? 'Audio is playing from the host device'
-                  : 'Host playback is paused'
-              }
+              accessibilityLabel={hostStatus.accessibilityLabel}
             >
               <Ionicons
                 name="radio-outline"
@@ -117,7 +124,7 @@ export function TacticalTransportDeck({
                 color={isPlaying ? tacticalTokens.colors.white : '#6A6A6A'}
               />
               <Text style={[styles.hostOutputText, !isPlaying && styles.hostOutputTextPaused]}>
-                {isPlaying ? 'HOST OUTPUT' : 'HOST PAUSED'}
+                {hostStatus.label}
               </Text>
             </View>
           )}

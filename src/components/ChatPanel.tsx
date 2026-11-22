@@ -151,13 +151,21 @@ export function ChatPanel({ sessionId, userId, username, visible, history, onClo
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  // The pan responder below is created once, so calling `onClose` directly
+  // would keep running the callback from this panel's first render. The
+  // parent's onClose reads chat state, so a swipe-down close used the state
+  // from when the panel opened, not from when it was dismissed.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   const closePanResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) =>
         gestureState.dy > 12 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 80 || (gestureState.dy > 35 && gestureState.vy > 0.9)) {
-          onClose();
+          onCloseRef.current();
         }
       },
     })

@@ -135,6 +135,9 @@ function TabNavigator() {
   const globalRoom = useGlobalSessionRoom();
   const currentTrack = globalRoom.queue[0];
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  // Same test the provider uses to mount the playback WebView: only the
+  // host's device has transport over the audio.
+  const isHost = Boolean(user?.id && globalRoom.session?.hostId === user.id);
 
   const handlePress = () => {
     if (globalRoom.session?.id) {
@@ -147,7 +150,9 @@ function TabNavigator() {
     const behaviors = globalRoom.session.behaviors || DEFAULT_BEHAVIORS;
     const { skipped } = skipCurrentTrack(globalRoom.queue, user.id, globalRoom.session.hostId, behaviors);
     if (skipped) {
-      globalRoom.advanceQueue();
+      // 'skip' so the host does not also get a "Preview ended" toast; the
+      // server's track-skipped echo names who skipped.
+      globalRoom.advanceQueue('skip');
       // Tell the room — without this emit the MiniPlayer skip only
       // mutated local state and silently desynced from the session.
       skipTrack(globalRoom.session.id, user.id);
@@ -287,6 +292,7 @@ function TabNavigator() {
           <MiniPlayer
             track={currentTrack}
             playback={globalRoom.playback}
+            isHost={isHost}
             onPlayPause={togglePlayPause}
             onSkip={handleSkip}
             onPress={handlePress}

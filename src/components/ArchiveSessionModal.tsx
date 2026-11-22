@@ -1,17 +1,19 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ChromeButton, LEDReadout, ModuleFaceplate } from '../design/components';
-import { palette } from '../design/tokens/materials';
-import { colors } from '../design/tokens/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChromeButton, LEDReadout } from '../design/components';
+import { palette, withAlpha } from '../design/tokens/materials';
 import { fontFamily, fontSize, letterSpacing as ls } from '../design/tokens/typography';
 import { spacing } from '../theme/spacing';
+import { buildArchiveSummary } from '../services/archiveSummary';
 import type { Session, Track } from '../types';
 import { Text, TrackListItem } from './ui';
 
@@ -20,139 +22,134 @@ interface ArchiveSessionModalProps {
   onClose: () => void;
 }
 
-function getArchiveTrackCount(session: Session): number {
-  return session.queue.length + (session.currentTrack ? 1 : 0);
+/** Share of the screen the scrolling body may take; the label, header and CLOSE sit around it. */
+const BODY_MAX_HEIGHT_RATIO = 0.55;
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
+  );
 }
 
-function getPlayedCount(session: Session): number {
-  return session.tracksPlayedCount ?? 0;
-}
-
-function formatArchiveDate(dateStr?: string): string {
-  if (!dateStr) return 'Unknown';
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return dateStr;
-  return date.toISOString().slice(0, 10);
-}
-
-function formatArchiveDuration(session: Session): string {
-  if (!session.endedAt) return 'LIVE';
-
-  const start = new Date(session.createdAt).getTime();
-  const end = new Date(session.endedAt).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 'Unknown';
-
-  const totalMinutes = Math.max(1, Math.round((end - start) / 60000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours === 0) return `${minutes}m`;
-  if (minutes === 0) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
-}
-
-function getModeLabel(session: Session): string {
-  if (session.roomMode === 'campfire') return 'CAMPFIRE';
-  if (session.roomMode === 'spotlight') return 'SPOTLIGHT';
-  return 'OPEN FLOOR';
-}
-
-function getArchiveTracks(session: Session): Track[] {
-  return [session.currentTrack, ...session.queue].filter(Boolean) as Track[];
+function TrackRows({ tracks }: { tracks: Track[] }) {
+  return (
+    <>
+      {tracks.map((track, index) => (
+        <TrackListItem
+          key={`${track.id}-${index}`}
+          title={track.title}
+          artist={track.artist}
+          albumArt={track.albumArt}
+          duration={track.duration}
+          addedBy={track.addedBy?.username}
+          source={track.source}
+          metadataSource={track.metadataSource}
+          showMenu={false}
+        />
+      ))}
+    </>
+  );
 }
 
 export function ArchiveSessionModal({ session, onClose }: ArchiveSessionModalProps) {
-  if (!session) return null;
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const summary = useMemo(() => (session ? buildArchiveSummary(session) : null), [session]);
 
-  const tracks = getArchiveTracks(session);
-  const trackCount = getArchiveTrackCount(session);
-  const playedCount = getPlayedCount(session);
-  const listenerCount = session.listeners.length;
-  const lastTrack = session.currentTrack || session.queue[0];
+  if (!session || !summary) return null;
 
   return (
     <Modal
-      visible={!!session}
+      visible
       animationType="slide"
       transparent
+      statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
+      <View style={styles.backdrop} accessibilityViewIsModal>
+        {/* Tapping the dimmed area above the sheet closes it, same as the X and CLOSE. */}
+        <Pressable
+          style={styles.dismissArea}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss archive detail"
+        />
+
         <View style={styles.sheet}>
-          <ModuleFaceplate label="ARCHIVE DETAIL" screws>
-            <View style={styles.header}>
-              <View style={styles.headerText}>
-                <Text style={styles.sessionName}>{session.name}</Text>
-                <Text style={styles.metaText}>
-                  HOST: {session.hostUsername || 'Unknown'} · SAVED: {formatArchiveDate(session.createdAt)}
-                </Text>
-                <Text style={styles.metaText}>
-                  LENGTH: {formatArchiveDuration(session)} · PLAYED: {playedCount}
-                </Text>
-                {!!session.genre && (
-                  <Text style={styles.metaText}>GENRE: {session.genre}</Text>
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={onClose}
-                style={styles.closeButton}
-                accessibilityRole="button"
-                accessibilityLabel="Close archive detail"
-              >
-                <Ionicons name="close" size={18} color={palette.silver} />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.labelBar}>
+            <Text style={styles.label}>ARCHIVE DETAIL</Text>
+          </View>
 
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={styles.sessionName} numberOfLines={2}>{summary.name}</Text>
+              <Text style={styles.metaText}>CODE {summary.code} · {summary.modeLabel}</Text>
+            </View>
+            <Pressable
+              onPress={onClose}
+              style={styles.closeButton}
+              accessibilityRole="button"
+              accessibilityLabel="Close archive detail"
+            >
+              <Ionicons name="close" size={18} color={palette.silver} />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            style={[styles.body, { maxHeight: Math.round(windowHeight * BODY_MAX_HEIGHT_RATIO) }]}
+            contentContainerStyle={styles.bodyContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.statsRow}>
-              <LEDReadout value={String(playedCount)} label="PLAYED" size="md" variant="amber" />
-              <LEDReadout value={String(listenerCount)} label="CREW" size="md" variant="ice" />
-              <LEDReadout value={getModeLabel(session)} label="MODE" size="sm" variant="ice" />
+              <LEDReadout value={String(summary.tracksPlayed)} label="PLAYED" size="md" variant="amber" />
+              <LEDReadout value={String(summary.crewCount)} label="CREW" size="md" variant="ice" />
+              <LEDReadout value={summary.lengthLabel} label="LENGTH" size="md" variant="ice" />
             </View>
 
-            {lastTrack ? (
-              <View style={styles.nowPlayingBlock}>
-                <Text style={styles.sectionLabel}>LAST NOW PLAYING</Text>
-                <TrackListItem
-                  title={lastTrack.title}
-                  artist={lastTrack.artist}
-                  albumArt={lastTrack.albumArt}
-                  duration={lastTrack.duration}
-                  source={lastTrack.source}
-                  metadataSource={lastTrack.metadataSource}
-                  showMenu={false}
-                />
+            <View style={styles.block}>
+              <View style={styles.detailList}>
+                <DetailRow label="HOST" value={summary.host} />
+                <DetailRow label="STARTED" value={summary.startedLabel} />
+                <DetailRow label="ENDED" value={summary.endedLabel} />
+                {summary.genre ? <DetailRow label="GENRE" value={summary.genre} /> : null}
+                {summary.crewLine ? <DetailRow label="WITH" value={summary.crewLine} /> : null}
+                {summary.description ? <DetailRow label="NOTE" value={summary.description} /> : null}
+              </View>
+            </View>
+
+            {summary.lastOnAir ? (
+              <View style={styles.block}>
+                <Text style={styles.sectionLabel}>LAST ON AIR</Text>
+                <TrackRows tracks={[summary.lastOnAir]} />
               </View>
             ) : null}
 
-            <View style={styles.trackBlock}>
-              <Text style={styles.sectionLabel}>ARCHIVE TRACKLIST · {trackCount} CAPTURED</Text>
-              {tracks.length > 0 ? (
-                <ScrollView style={styles.trackScroll} contentContainerStyle={styles.trackScrollContent}>
-                  {tracks.map((track) => (
-                    <TrackListItem
-                      key={track.id}
-                      title={track.title}
-                      artist={track.artist}
-                      albumArt={track.albumArt}
-                      duration={track.duration}
-                      addedBy={track.addedBy?.username}
-                      source={track.source}
-                      metadataSource={track.metadataSource}
-                      showMenu={false}
-                    />
-                  ))}
-                </ScrollView>
-              ) : (
+            {summary.leftInQueue.length > 0 ? (
+              <View style={styles.block}>
+                <Text style={styles.sectionLabel}>LEFT IN QUEUE · {summary.leftInQueue.length}</Text>
+                <TrackRows tracks={summary.leftInQueue} />
+              </View>
+            ) : null}
+
+            {!summary.hasTrackDetail ? (
+              <View style={styles.block}>
+                <Text style={styles.sectionLabel}>TRACKLIST</Text>
                 <View style={styles.emptyState}>
                   <Ionicons name="disc-outline" size={24} color={palette.slate} />
-                  <Text style={styles.emptyText}>No archived tracks were captured for this room.</Text>
+                  <Text style={styles.emptyText}>{summary.trackNote}</Text>
                 </View>
-              )}
-            </View>
+              </View>
+            ) : null}
+          </ScrollView>
 
-            <ChromeButton onPress={onClose} size="md" style={styles.closeCta}>
+          <View style={[styles.footer, { paddingBottom: spacing.md + insets.bottom }]}>
+            <ChromeButton onPress={onClose} size="md">
               CLOSE
             </ChromeButton>
-          </ModuleFaceplate>
+          </View>
         </View>
       </View>
     </Modal>
@@ -162,19 +159,38 @@ export function ArchiveSessionModal({ session, onClose }: ArchiveSessionModalPro
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(5, 8, 14, 0.82)',
+    backgroundColor: withAlpha(palette.void, 0.82),
     justifyContent: 'flex-end',
   },
+  dismissArea: {
+    flex: 1,
+  },
   sheet: {
-    maxHeight: '88%',
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+    backgroundColor: palette.matte,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: palette.borderHard,
     overflow: 'hidden',
+  },
+  labelBar: {
+    padding: 12,
+    backgroundColor: palette.matteGhost,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSoft,
+  },
+  label: {
+    fontFamily: fontFamily.displayBold,
+    fontSize: fontSize.lg,
+    letterSpacing: ls.wide,
+    textTransform: 'uppercase',
+    color: palette.acid,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
   },
   headerText: {
     flex: 1,
@@ -189,62 +205,79 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontFamily: fontFamily.mono,
-    fontSize: 11,
+    fontSize: fontSize.sm,
     color: palette.silver,
     letterSpacing: ls.wide,
-    marginBottom: 4,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 0,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#111111',
+    backgroundColor: palette.matte,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: palette.borderHard,
+  },
+  body: {
+    flexGrow: 0,
+  },
+  bodyContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: spacing.sm,
-    marginTop: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
-  nowPlayingBlock: {
+  block: {
     borderWidth: 1,
-    borderColor: '#333333',
-    borderRadius: 0,
-    backgroundColor: '#111111',
+    borderColor: palette.borderHard,
+    backgroundColor: palette.matte,
     overflow: 'hidden',
     marginBottom: spacing.md,
   },
-  trackBlock: {
-    borderWidth: 1,
-    borderColor: '#333333',
-    borderRadius: 0,
-    backgroundColor: '#111111',
-    overflow: 'hidden',
+  detailList: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSoft,
+  },
+  detailLabel: {
+    width: 76,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.sm,
+    color: palette.slate,
+    letterSpacing: ls.wide,
+  },
+  detailValue: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.sm,
+    color: palette.frost,
   },
   sectionLabel: {
     fontFamily: fontFamily.mono,
-    fontSize: 11,
+    fontSize: fontSize.sm,
     color: palette.silver,
     letterSpacing: ls.wide,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.xs,
   },
-  trackScroll: {
-    maxHeight: 320,
-  },
-  trackScrollContent: {
-    paddingBottom: spacing.sm,
-  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.xl,
+    paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
     gap: spacing.sm,
   },
@@ -252,9 +285,10 @@ const styles = StyleSheet.create({
     color: palette.slate,
     textAlign: 'center',
   },
-  closeCta: {
-    marginTop: spacing.lg,
-    alignSelf: 'center',
+  footer: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
   },
 });
 

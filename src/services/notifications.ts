@@ -144,18 +144,20 @@ export async function notifyParticipantJoined(
 }
 
 /**
- * Notify when a track starts playing.
+ * Track changes intentionally post no system notification. The room screen and
+ * mini player already show what is playing, and a "Now Playing" banner with a
+ * sound on every advance, skip, and auto-advance was noise.
+ *
+ * The parameters stay only because useSessionRoom's advanceQueue still calls
+ * this with (title, artist, sessionId); dropping them would fail that call's
+ * type check. Remove the call there first, then delete this function.
  */
 export async function notifyTrackChanged(
   trackTitle: string,
   artist: string,
   sessionId: string
 ): Promise<void> {
-  await sendLocalNotification(
-    'Now Playing',
-    `${trackTitle} — ${artist}`,
-    { type: 'track-changed', sessionId }
-  );
+  // Deliberately empty: see above.
 }
 
 // ─── Response Handling ──────────────────────────────────────

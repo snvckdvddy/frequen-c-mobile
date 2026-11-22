@@ -8,6 +8,12 @@ import {
   type SearchProviderDiagnostic,
 } from './api';
 import type { ConnectedServices, ServiceConnection } from '../types';
+import { formatUpdateDiagnosticsLines, getRunningUpdate, logRunningUpdateOnce } from './updateInfo';
+
+// AuthContext imports this file before the first render, so this runs once per
+// launch and puts the running OTA update in `adb logcat` even from the login
+// screen. A call next to initCrashReporting() in App.tsx would be the tidier home.
+logRunningUpdateOnce();
 
 export interface AuthDiagnostics {
   appOwnership: string;
@@ -143,6 +149,7 @@ export function formatFullDiagnosticsText(): string {
   lines.push(`Expo SDK: ${sdkVersion}`);
   lines.push(`App ownership: ${auth.appOwnership}`);
   lines.push(`Expo Go: ${auth.isExpoGo ? 'yes' : 'no'}`);
+  lines.push(...formatUpdateDiagnosticsLines(getRunningUpdate()));
   lines.push('');
 
   lines.push('--- CONNECTED SERVICES ---');

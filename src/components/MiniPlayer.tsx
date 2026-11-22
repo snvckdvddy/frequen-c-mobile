@@ -12,6 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatTime, type PlaybackState } from '../services/playbackEngine';
 import type { QueueTrack } from '../types';
 import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
+import {
+  deriveMiniPlayerControls,
+  getHostOutputStatus,
+} from '../features/session-v2/adapters/transportControls';
+import { usePauseSettle } from '../features/session-v2/hooks/usePauseSettle';
 import { getSourceColor } from '../design/tokens/sourceColors';
 import { PreviewBadge } from './ui';
 
@@ -24,6 +29,9 @@ export interface MiniPlayerProps {
   onPress: () => void;
   onPlayPause?: () => void;
   canSkip?: boolean;
+  /** Host-output model: only the host's device has transport over the audio.
+   *  A guest gets a read-only host status instead of pause and skip. */
+  isHost: boolean;
 }
 
 function MonoText(props: { children: React.ReactNode; style?: import('react-native').StyleProp<import('react-native').TextStyle>; numberOfLines?: number }) {
@@ -37,10 +45,29 @@ export function MiniPlayer({
   onPress,
   onPlayPause,
   canSkip = true,
+  isHost,
 }: MiniPlayerProps) {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const glowOpacity = useRef(new Animated.Value(0.35)).current;
   const sourceColor = getSourceColor(track.source);
+
+  // A tapped pause shows at once and holds against late "playing" reports,
+  // so the button and glow settle straight to paused (see pauseSettle.ts).
+  const { displayedPlaying, notePlayPauseTap } = usePauseSettle(
+    playback.isPlaying,
+    playback.isLoading,
+  );
+  const controls = deriveMiniPlayerControls({
+    isHost,
+    hasPlayPause: !!onPlayPause,
+    canSkip,
+  });
+  const hostStatus = getHostOutputStatus(playback.isPlaying);
+
+  const handlePlayPause = () => {
+    notePlayPauseTap();
+    onPlayPause?.();
+  };
 
   useEffect(() => {
     Animated.timing(progressAnim, {
@@ -51,7 +78,7 @@ export function MiniPlayer({
   }, [playback.progress, progressAnim]);
 
   useEffect(() => {
-    if (!playback.isPlaying) return;
+    if (!displayedPlaying) return;
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(glowOpacity, { toValue: 0.82, duration: 1100, useNativeDriver: true }),
@@ -60,7 +87,7 @@ export function MiniPlayer({
     );
     pulse.start();
     return () => pulse.stop();
-  }, [glowOpacity, playback.isPlaying]);
+  }, [glowOpacity, displayedPlaying]);
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -71,7 +98,7 @@ export function MiniPlayer({
     <View style={styles.shell}>
       <View style={styles.progressTrack}>
         <Animated.View style={[styles.progressFill, { width: progressWidth as unknown as import('react-native').DimensionValue, backgroundColor: sourceColor }]} />
-        {playback.isPlaying ? <Animated.View style={[styles.progressGlow, { opacity: glowOpacity, backgroundColor: sourceColor }]} /> : null}
+        {displayedPlaying ? <Animated.View style={[styles.progressGlow, { opacity: glowOpacity, backgroundColor: sourceColor }]} /> : null}
       </View>
 
       <View style={styles.content}>
@@ -106,22 +133,44 @@ export function MiniPlayer({
         </Pressable>
 
         <View style={styles.controls}>
-          {onPlayPause ? (
+          {controls.showHostStatus ? (
+            <View
+              style={styles.hostStatus}
+              accessibilityRole="text"
+              accessibilityLabel={hostStatus.accessibilityLabel}
+            >
+              <Ionicons
+                name="radio-outline"
+                size={14}
+                color={playback.isPlaying ? tacticalTokens.colors.white : tacticalTokens.colors.textMuted}
+              />
+              <MonoText
+                style={[
+                  styles.hostStatusText,
+                  !playback.isPlaying && styles.hostStatusTextPaused,
+                ]}
+              >
+                {hostStatus.label}
+              </MonoText>
+            </View>
+          ) : null}
+
+          {controls.showPlayPause ? (
             <Pressable
-              onPress={onPlayPause}
+              onPress={handlePlayPause}
               accessibilityRole="button"
-              accessibilityLabel={playback.isPlaying ? 'Pause playback' : 'Play track'}
+              accessibilityLabel={displayedPlaying ? 'Pause playback' : 'Play track'}
               style={({ pressed }) => [styles.playButton, pressed && styles.pressed]}
             >
               <Ionicons
-                name={playback.isPlaying ? 'pause' : 'play'}
+                name={displayedPlaying ? 'pause' : 'play'}
                 size={18}
                 color={tacticalTokens.colors.void}
               />
             </Pressable>
           ) : null}
 
-          {canSkip ? (
+          {controls.showSkip ? (
             <Pressable
               onPress={onSkip}
               accessibilityRole="button"
@@ -246,6 +295,27 @@ const styles = StyleSheet.create({
     backgroundColor: tacticalTokens.colors.matte,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Guest-side stand-in for the controls: same height as the buttons, no touch target.
+  hostStatus: {
+    minWidth: 84,
+    height: 38,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: tacticalTokens.colors.border,
+    backgroundColor: tacticalTokens.colors.matte,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  hostStatusText: {
+    fontFamily: tacticalTokens.fonts.monoBold,
+    fontSize: tacticalTokens.fontSize.sys,
+    color: tacticalTokens.colors.white,
+    letterSpacing: 1.2,
+  },
+  hostStatusTextPaused: {
+    color: tacticalTokens.colors.textMuted,
   },
 });
 

@@ -14,7 +14,8 @@ import { ResonanceEvent } from '../ResonanceEvent';
 import { TransientEnter } from '../TransientEnter';
 import { ReverbTail } from '../ReverbTail';
 import { MasterBounce } from '../MasterBounce';
-import type { QueueTrack, Track, RoomMode, RoomBehaviors } from '../../types';
+import type { QueueTrack, Track } from '../../types';
+import type { SessionReceipt } from '../../utils/sessionReceipt';
 
 // ─── Duel State ─────────────────────────────────────────
 export interface DuelState {
@@ -83,17 +84,11 @@ interface GameLayerOverlaysProps {
   reverbTails: ReverbTailEntry[];
   onReverbDecayed: (userId: string) => void;
 
-  // Master Bounce (session end receipt)
-  bounceVisible: boolean;
-  sessionName: string;
-  roomMode: RoomMode;
-  behaviors: RoomBehaviors;
-  hostUsername: string;
-  durationSeconds: number;
-  tracksPlayed: QueueTrack[];
-  participantCount: number;
-  cvEarned: number;
-  endedAt: string;
+  // Master Bounce (session end receipt). One frozen snapshot of the session
+  // that ended, or null when there is nothing to show for this room. Every
+  // field on the card comes from it, so the card can never mix one room's
+  // title with another room's numbers.
+  receipt: SessionReceipt | null;
   onBounceDismiss: () => void;
 }
 
@@ -110,16 +105,7 @@ export function GameLayerOverlays({
   onTransientComplete,
   reverbTails,
   onReverbDecayed,
-  bounceVisible,
-  sessionName,
-  roomMode,
-  behaviors,
-  hostUsername,
-  durationSeconds,
-  tracksPlayed,
-  participantCount,
-  cvEarned,
-  endedAt,
+  receipt,
   onBounceDismiss,
 }: GameLayerOverlaysProps) {
   // Determine if any game overlay is actively showing something.
@@ -132,7 +118,7 @@ export function GameLayerOverlays({
     resonanceState.active ||
     transientUser.active ||
     reverbTails.length > 0 ||
-    bounceVisible;
+    receipt !== null;
 
   if (!anyActive) {
     return null;
@@ -203,17 +189,18 @@ export function GameLayerOverlays({
       ))}
 
       {/* ─── Master Bounce Receipt (session end) ──────── */}
-      {bounceVisible && (
+      {receipt && (
         <MasterBounce
-          sessionName={sessionName}
-          roomMode={roomMode}
-          behaviors={behaviors}
-          hostUsername={hostUsername}
-          durationSeconds={durationSeconds}
-          tracksPlayed={tracksPlayed}
-          participantCount={participantCount}
-          cvEarned={cvEarned}
-          endedAt={endedAt}
+          key={receipt.sessionId}
+          sessionName={receipt.sessionName}
+          roomMode={receipt.roomMode}
+          behaviors={receipt.behaviors}
+          hostUsername={receipt.hostUsername}
+          durationSeconds={receipt.durationSeconds}
+          tracksPlayed={receipt.tracksPlayed}
+          participantCount={receipt.participantCount}
+          cvEarned={receipt.cvEarned}
+          endedAt={receipt.endedAt}
           visible
           onDismiss={onBounceDismiss}
         />

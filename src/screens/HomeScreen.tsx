@@ -23,6 +23,7 @@ import { useCV } from '../hooks/useCV';
 import { useManualMode } from '../hooks/useManualMode';
 import { notificationApi, sessionApi } from '../services/api';
 import { VoidSurface } from '../design/components';
+import { parseServerTimestamp } from '../utils/serverTime';
 import type { Session } from '../types';
 import PowerRoutingSheet from '../features/power-routing/PowerRoutingSheet';
 import TacticalGridBackground from '../features/session-v2/components/TacticalGridBackground';
@@ -486,8 +487,10 @@ export function HomeScreen({
 }
 
 function formatRelativeStamp(dateStr?: string): string {
-  if (!dateStr) return 'NO STAMP';
-  const diff = Date.now() - new Date(dateStr).getTime();
+  // Backend timestamps are zone-less UTC; parse them as such (see utils/serverTime).
+  const stamp = parseServerTimestamp(dateStr);
+  if (!stamp) return 'NO STAMP';
+  const diff = Date.now() - stamp.getTime();
   const hours = Math.floor(diff / (1000 * 60 * 60));
   if (hours < 1) return 'JUST NOW';
   if (hours < 24) return `${hours}H AGO`;

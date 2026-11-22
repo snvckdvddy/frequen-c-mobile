@@ -9,9 +9,10 @@
  * Pure side-effect hook — returns nothing.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { listenHeartbeat, onSessionEvent } from '../services/socket';
 import { notifyParticipantJoined } from '../services/notifications';
+import { JoinAnnouncer } from '../services/joinAnnouncer';
 import { USE_MOCKS } from '../services/config';
 import type { Listener, Session } from '../types';
 import type { ToastMessage } from '../components/ListenerPresence';
@@ -52,17 +53,19 @@ export function usePresenceListeners({
   userIdRef.current = userId;
   const sessionNameRef = useRef(session?.name);
   sessionNameRef.current = session?.name;
-  // Reconnects and app-foregrounds re-emit join-session; without a
-  // dedupe window every phone unlock at a party broadcast a fresh
-  // "X joined" toast + push to the whole room.
-  const recentJoinToastRef = useRef<Map<string, number>>(new Map());
+  // A reconnect is not an arrival. Locking a phone drops its socket, so the
+  // server sends participant-left and then participant-joined on unlock. The
+  // old 60 s per-user toast timer let every unlock after the first minute
+  // through. The announcer stays quiet for anyone we saw join or leave within
+  // REJOIN_QUIET_MS, so only a genuinely new (or long-gone) guest is news.
+  const [joinAnnouncer] = useState(() => new JoinAnnouncer());
 
   useEffect(() => {
+    // Keyed by room too, so a guest seen in one room never mutes another.
+    const presenceKey = (id: string) => `${sessionId}:${id}`;
     const unsubs = [
       onSessionEvent('participant-joined', (participant: Listener) => {
-        const last = recentJoinToastRef.current.get(participant.userId) || 0;
-        if (Date.now() - last < 60_000) return;
-        recentJoinToastRef.current.set(participant.userId, Date.now());
+        if (!joinAnnouncer.onJoined(presenceKey(participant.userId), Date.now())) return;
 
         const toast: ToastMessage = {
           id: `join_${participant.userId}_${Date.now()}`,
@@ -81,6 +84,7 @@ export function usePresenceListeners({
         // Our own departure only reaches us from a stale socket timing out
         // after a reconnect; we are still here, so no "left" toast.
         if (data.userId === userIdRef.current) return;
+        joinAnnouncer.onLeft(presenceKey(data.userId), Date.now());
         setListeners((prev) => {
           const leaving = prev.find((l) => l.userId === data.userId);
           if (leaving) {
@@ -100,7 +104,7 @@ export function usePresenceListeners({
       }),
     ];
     return () => unsubs.forEach((fn) => fn());
-  }, [sessionId, setListeners, setToasts]);
+  }, [sessionId, setListeners, setToasts, joinAnnouncer]);
 
   // ─── Mock: simulate someone joining after 5s (mock mode only) ──
   useEffect(() => {

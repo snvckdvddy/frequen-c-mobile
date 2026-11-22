@@ -31,6 +31,7 @@ import { Button } from './ui/Button';
 import { palette } from '../design/tokens/materials';
 import { spacing } from '../theme/spacing';
 import { notifySuccess, tapLight } from '../utils/haptics';
+import { trackVoteCount } from '../utils/sessionReceipt';
 import type { QueueTrack, RoomMode, RoomBehaviors } from '../types';
 
 interface MasterBounceProps {
@@ -109,7 +110,7 @@ function generateSessionFingerprint(
   const segmentWidth = width / Math.max(tracks.length, 1);
 
   tracks.forEach((track, i) => {
-    const votes = track.votedBy?.length ?? 0;
+    const votes = trackVoteCount(track);
     const amplitude = Math.min(midY * 0.8, (votes + 1) * 4);
     const x1 = i * segmentWidth;
     const x2 = (i + 0.5) * segmentWidth;
@@ -168,7 +169,7 @@ function TopTrackRow({
   track: QueueTrack;
   rank: number;
 }) {
-  const votes = track.votedBy?.length ?? 0;
+  const votes = trackVoteCount(track);
   return (
     <View style={topTrackStyles.row}>
       <Text variant="labelSmall" color={palette.slate} style={topTrackStyles.rank}>
@@ -262,9 +263,11 @@ export function MasterBounce({
     });
   };
 
-  // Sort tracks by votes for top 3
+  // Sort tracks by votes for top 3. Votes come from the track's net total:
+  // `votedBy` is a userId -> vote map, so its `.length` was always
+  // undefined and every track read "0 votes" in play order.
   const topTracks = [...tracksPlayed]
-    .sort((a, b) => (b.votedBy?.length ?? 0) - (a.votedBy?.length ?? 0))
+    .sort((a, b) => trackVoteCount(b) - trackVoteCount(a))
     .slice(0, 3);
 
   const totalListenMinutes = Math.round(durationSeconds / 60);

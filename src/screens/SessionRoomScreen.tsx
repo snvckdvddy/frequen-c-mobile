@@ -64,7 +64,6 @@ import { VoidSurface, ModuleFaceplate, LEDReadout, ChromeButton, StatusLight } f
 import { palette } from '../design/tokens/materials';
 import { colors } from '../design/tokens/colors';
 import { fontFamily, fontSize, fontWeight, letterSpacing as ls } from '../design/tokens/typography';
-import { notifyParticipantJoined, notifyTrackChanged } from '../services/notifications';
 import { GameLayerOverlays } from '../components/room';
 import type { Session, QueueTrack, Track, RoomMode, Listener, RoomBehaviors } from '../types';
 import { DEFAULT_BEHAVIORS, BEHAVIOR_PRESETS } from '../types';
@@ -77,6 +76,7 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useAppState } from '../hooks/useAppState';
 import { getGlobalLimiter } from '../utils/rateLimiter';
 import { logger } from '../utils/logger';
+import { providerHoldsOtherRoom } from '../utils/sessionRoomEvents';
 import { TrackContextMenu } from '../components/ui';
 import { QUEUE_ACTIONS, type ContextMenuAction } from '../components/ui/TrackContextMenu';
 import { Skeleton, TrackCardSkeleton } from '../components/ui/Skeleton';
@@ -85,6 +85,7 @@ import { useCV } from '../hooks/useCV';
 import { useGameLayer } from '../hooks/useGameLayer';
 import { usePresenceListeners } from '../hooks/usePresenceListeners';
 import { useVoltageSag } from '../hooks/useVoltageSag';
+import { useChatUnread } from '../hooks/useChatUnread';
 import { useGlobalSessionRoom } from '../contexts/GlobalSessionRoomContext';
 import PowerRoutingSheet, { type PowerMove, type PowerMoveId } from '../features/power-routing/PowerRoutingSheet';
 import { buildTacticalReadout } from '../features/session-v2/adapters/buildTacticalReadout';
@@ -139,11 +140,15 @@ export function SessionRoomScreen() {
   const { isVoltageSag, accent, accentGlow } = useVoltageSag();
 
   const [chatOpen, setChatOpen] = useState(false);
-  // Unread chat = messages captured by the hook beyond what the user
-  // had seen when they last opened the panel.
+  // Unread chat = messages from other users that were not seen in the chat
+  // panel. Tracked by message id (utils/chatUnread.ts), not by log length.
   const { chatLog } = useGlobalSessionRoom();
-  const [chatReadCount, setChatReadCount] = useState(0);
-  const chatUnreadCount = Math.max(0, chatLog.length - chatReadCount);
+  const chatUnreadCount = useChatUnread({
+    sessionId,
+    selfUserId: user?.id,
+    chatLog,
+    chatOpen,
+  });
   const [showQR, setShowQR] = useState(false);
   const [listenerDrawerOpen, setListenerDrawerOpen] = useState(false);
   const [sharePromptOpen, setSharePromptOpen] = useState(false);
@@ -157,7 +162,7 @@ export function SessionRoomScreen() {
     listeners, setListeners,
     toasts, setToasts,
     playback, setPlayback,
-    bounceVisible, setBounceVisible,
+    bounceVisible, receipt, dismissReceipt,
     skipVoteState, phaseCancelShield, advanceQueue,
     connectionId, setConnectionId
   } = useGlobalSessionRoom();
@@ -259,9 +264,6 @@ export function SessionRoomScreen() {
 
   // Phase 6: Lyrics
   const [lyricsVisible, setLyricsVisible] = useState(false);
-
-  const [sessionStartTime] = useState(Date.now());
-
 
   const { query, setQuery, sources, setSources, results, fallbackUsed, providerStates, diagnostics, isSearching, clearSearch } = useSearch();
   const { searches: recentSearches, addSearch: saveRecentSearch, removeSearch: removeRecentSearch } = useRecentSearches();
@@ -426,7 +428,9 @@ export function SessionRoomScreen() {
     }
     tapHeavy();
     stopPlayback();
-    advanceQueue();
+    // 'skip' so the local advance does not toast "Preview ended"; the
+    // server's track-skipped echo announces who skipped, to everyone.
+    advanceQueue('skip');
     skipTrack(sessionId, user.id);
   }, [user, session, sessionId, queue, advanceQueue]);
 
@@ -651,7 +655,19 @@ export function SessionRoomScreen() {
   };
 
   // ─── Loading state ────────────────────────────────────
-  if (loading) {
+  // The provider keeps the previous room's state until the connection
+  // switches: connectionId is set from an effect after this screen's first
+  // render, and the per-session reset lands a render after that. A room
+  // opened right after another (or after an ended room whose receipt was
+  // never dismissed) would paint the old room, receipt included, before
+  // the new one loads. Wait until the provider actually holds this room.
+  const holdsOtherRoom = providerHoldsOtherRoom({
+    routeSessionId: sessionId,
+    connectionId,
+    loadedSessionId: session?.id,
+  });
+
+  if (loading || holdsOtherRoom) {
     return (
       <SafeScreen>
         <VoidSurface style={{ flex: 1 }}>
@@ -833,7 +849,6 @@ export function SessionRoomScreen() {
               }}
               onChatOpen={() => {
                 closeTransientPanels();
-                setChatReadCount(chatLog.length);
                 setChatOpen(true);
               }}
               onPlayPause={handlePlayPause}
@@ -1011,10 +1026,7 @@ export function SessionRoomScreen() {
               username={user?.username || ''}
               visible
               history={chatLog}
-              onClose={() => {
-                setChatReadCount(chatLog.length);
-                setChatOpen(false);
-              }}
+              onClose={() => setChatOpen(false)}
             />
           )}
 
@@ -1104,18 +1116,9 @@ export function SessionRoomScreen() {
             onTransientComplete={() => gameLayer.overlays.setTransientUser({ active: false, username: '' })}
             reverbTails={gameLayer.overlays.reverbTails}
             onReverbDecayed={(userId) => gameLayer.overlays.setReverbTails((prev) => prev.filter((t) => t.userId !== userId))}
-            bounceVisible={bounceVisible}
-            sessionName={session.name}
-            roomMode={session.roomMode}
-            behaviors={sessionBehaviors}
-            hostUsername={listeners.find((l) => l.userId === session.hostId)?.username || 'Host'}
-            durationSeconds={Math.round((Date.now() - sessionStartTime) / 1000)}
-            tracksPlayed={[...playedHistory, ...(currentTrack ? [currentTrack] : [])]}
-            participantCount={listeners.length}
-            cvEarned={cv.balance}
-            endedAt={new Date().toISOString()}
+            receipt={bounceVisible ? receipt : null}
             onBounceDismiss={() => {
-              setBounceVisible(false);
+              dismissReceipt();
               // Fully detach from the dead room — otherwise session
               // state (and a phantom MiniPlayer) follows the user out.
               setConnectionId(null);

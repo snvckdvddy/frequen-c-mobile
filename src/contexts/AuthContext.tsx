@@ -25,6 +25,7 @@ import { getAuthDiagnostics, consumeAppleWebAuthState } from '../services/authDi
 import { showToast } from '../components/ui';
 import { useBiometric } from '../hooks/useBiometric';
 import type { BiometricState, EnableBiometricResult } from '../hooks/useBiometric';
+import { clearStoredFavorites } from '../hooks/useFavorites';
 import { handshakeBus } from '../services/handshake/handshakeBus';
 import {
   BACKGROUND_RETRY_DELAYS_MS,
@@ -882,14 +883,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [bio.isEnabled, bio.disableBiometric, cancelSessionRetries]);
 
   const deleteAccount = useCallback(async () => {
-    if (bio.isEnabled) {
-      await bio.disableBiometric();
-    }
+    // The request goes first. If it fails the account still exists, so the user
+    // keeps biometric unlock, the saved favorites and the signed-in session, and
+    // can try again. Nothing local is wiped until the server has confirmed.
     await authApi.deleteAccount();
     cancelSessionRetries();
+    // The account is gone. Erase what this phone held for it. None of these steps
+    // throws, so the sign-out below always runs. bioRef, not the render's `bio`:
+    // the request can outlast the render this callback was created in.
+    if (bioRef.current.isEnabled) {
+      await bioRef.current.disableBiometric();
+    }
+    await clearStoredFavorites();
     await clearCachedUser();
     dispatch({ type: 'LOGOUT' });
-  }, [bio.isEnabled, bio.disableBiometric, cancelSessionRetries]);
+  }, [cancelSessionRetries]);
 
   // ─── Auto Token Refresh ────────────────────────────────────
   // Decode JWT exp, schedule refresh 1 hour before expiry.

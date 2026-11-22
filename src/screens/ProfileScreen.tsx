@@ -29,6 +29,7 @@ import { tacticalTokens } from '../features/session-v2/theme/tacticalTokens';
 import { authApi, getStoredToken, type DisconnectableProvider, type ProviderStatusMap } from '../services/api';
 import { PatchCablesProviderRow } from './profile/PatchCablesProviderRow';
 import { formatFullDiagnosticsText, getAuthDiagnostics } from '../services/authDiagnostics';
+import { formatUpdateRowText, getRunningUpdate } from '../services/updateInfo';
 import { getAccessForSource, isServiceExpired } from '../services/adapters/musicServiceAdapter';
 import { config } from '../config';
 import type { User, TrackSource } from '../types';
@@ -392,6 +393,8 @@ export function ProfileScreen() {
   }, [disconnectService, refreshProfile]);
 
   const appVersion = Constants.expoConfig?.version || 'DEV';
+  // Fixed for the life of the JS bundle, so read it once.
+  const runningUpdate = useMemo(() => getRunningUpdate(), []);
   const initials = useMemo(() => getInitials(profileUser), [profileUser]);
 
   if (loading && !profileUser) {
@@ -767,12 +770,13 @@ export function ProfileScreen() {
               <Pressable
                 onPress={handleBuildRowTap}
                 accessibilityRole="button"
-                accessibilityLabel="App version. Tap repeatedly to toggle dev mode."
+                accessibilityLabel={`App version ${appVersion}, ${formatUpdateRowText(runningUpdate)}. Tap repeatedly to toggle dev mode.`}
                 style={styles.infoRow}
               >
                 <View>
                   <MonoText style={[textStyles.display, styles.infoTitle]}>BUILD</MonoText>
                   <MonoText style={[textStyles.mono, styles.infoDetail]}>FREQUEN-C // {String(appVersion).toUpperCase()}</MonoText>
+                  <MonoText style={[textStyles.mono, styles.infoDetail]}>{formatUpdateRowText(runningUpdate)}</MonoText>
                   {devMode ? (
                     <MonoText style={[textStyles.mono, styles.devModeIndicator]}>
                       DEV MODE ACTIVE — see floating tile

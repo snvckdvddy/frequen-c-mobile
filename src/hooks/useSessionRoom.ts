@@ -28,8 +28,21 @@ import {
   stop as stopPlayback,
   type PlaybackState,
 } from "../services/playbackEngine";
-import { notifyTrackChanged } from "../services/notifications";
 import { USE_MOCKS } from "../services/config";
+import {
+  SessionReceiptLedger,
+  hasPlayedLongEnough,
+  receiptBelongsTo,
+  type SessionReceipt,
+} from "../utils/sessionReceipt";
+import {
+  describeTrackSkipped,
+  resetPlaybackForTrackChange,
+  resolveSyncedElapsed,
+  shouldAnnounceTrackEnd,
+  shouldResetGuestClock,
+  type AdvanceReason,
+} from "../utils/sessionRoomEvents";
 
 const DEFAULT_PLAYBACK_STATE: PlaybackState = {
   isPlaying: false,
@@ -118,6 +131,11 @@ export function useSessionRoom(sessionId: string) {
   // locally between them so the playhead sweeps instead of stalling
   // whenever wifi hiccups. Host devices get engine-driven progress.
   const isHostDevice = !!user?.id && session?.hostId === user.id;
+  // Mirror for socket handlers and advanceQueue, whose closures outlive a
+  // render (only the host's device has an engine to end a track or to
+  // drive the clock).
+  const isHostDeviceRef = useRef(isHostDevice);
+  isHostDeviceRef.current = isHostDevice;
   useEffect(() => {
     if (USE_MOCKS || !sessionId || isHostDevice) return;
     const tick = setInterval(() => {
@@ -129,8 +147,27 @@ export function useSessionRoom(sessionId: string) {
   }, [sessionId, isHostDevice]);
   const [reloadNonce, setReloadNonce] = useState(0);
 
-  // Master Bounce (session receipt)
-  const [bounceVisible, setBounceVisible] = useState(false);
+  // Master Bounce (session receipt). A frozen snapshot stamped with the id
+  // of the session it belongs to, built when that session ends. This used
+  // to be a bare boolean that survived into the next room the user joined,
+  // so the old receipt flashed up over the new room. Visibility is derived:
+  // a receipt only shows while the hook is on the session it belongs to.
+  const [receipt, setReceipt] = useState<SessionReceipt | null>(null);
+  const bounceVisible = receiptBelongsTo(receipt, sessionId);
+
+  // Latest session for socket handlers whose effect deps would otherwise
+  // capture a stale copy (the receipt is built from it when the room ends).
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
+
+  // Running record of this session for the receipt. One ledger per session
+  // id: a room switch starts a clean one, a retry of the same room keeps it.
+  const ledgerRef = useRef<SessionReceiptLedger | null>(null);
+  if (!sessionId) {
+    ledgerRef.current = null;
+  } else if (ledgerRef.current?.sessionId !== sessionId) {
+    ledgerRef.current = new SessionReceiptLedger(sessionId);
+  }
 
   // Skip-vote state (voteRequired rooms)
   const [skipVoteState, setSkipVoteState] = useState<{
@@ -160,7 +197,11 @@ export function useSessionRoom(sessionId: string) {
   queueRef.current = queue;
   const MAX_PLAYED_HISTORY = 50;
 
-  const advanceQueue = useCallback(() => {
+  // `reason` says why the queue is moving. Natural ends come from the host's
+  // engine (the no-argument default); a skip passes 'skip' so the skipper is
+  // announced by name (see the track-skipped handler) instead of a "preview
+  // ended" toast that was never true.
+  const advanceQueue = useCallback((reason: AdvanceReason = 'ended') => {
     if (isAdvancingRef.current) return;
     isAdvancingRef.current = true;
 
@@ -194,11 +235,6 @@ export function useSessionRoom(sessionId: string) {
         }
       }
       const next = prev.slice(1);
-      if (next.length > 0) {
-        notifyTrackChanged(next[0].title, next[0].artist, sessionId).catch(
-          () => {},
-        );
-      }
       setTimeout(() => {
         isAdvancingRef.current = false;
       }, 300);
@@ -208,7 +244,9 @@ export function useSessionRoom(sessionId: string) {
     // Show in-app toast so users know a preview ended and the queue advanced.
     // This explains why "new adds" seem to displace older queued tracks —
     // the 30-second iTunes preview already played and consumed the prior track.
-    if (finishedTitle) {
+    // Host only, and never for a skip: a guest has no engine to end anything,
+    // and a skip is announced by who skipped.
+    if (finishedTitle && shouldAnnounceTrackEnd(reason, isHostDeviceRef.current)) {
       const toastText = nextTrack
         ? `⏭ Preview ended · Next: ${nextTrack.title}`
         : `⏭ Preview ended · Queue is empty`;
@@ -222,7 +260,7 @@ export function useSessionRoom(sessionId: string) {
         3500,
       );
     }
-  }, [sessionId, user]);
+  }, [user]);
 
 
   // In mock/testing mode, persist local queue state
@@ -240,23 +278,29 @@ export function useSessionRoom(sessionId: string) {
   // ─── Load session & connect socket ──────────────────────
   const socketUnsubsRef = useRef<Array<() => void>>([]);
 
+  // This hook lives in a provider that outlives every screen, and the
+  // header back button never clears connectionId, so the room can change
+  // from A straight to B with no empty id in between. Reset the per-session
+  // state on EVERY session change, not only when the id goes empty;
+  // otherwise room A's roster, history, chat and receipt leak into room B
+  // (a guest's second join opened on the previous room's receipt). The
+  // retry path re-runs the load effect below without changing sessionId,
+  // so a retry keeps what it has.
   useEffect(() => {
-    if (!sessionId) {
-      setSession(null);
-      setQueue([]);
-      setSuggestedQueue([]);
-      setPlayedHistory([]);
-      setListeners([]);
-      setChatLog([]);
-      setToasts([]);
-      setError(null);
-      setBounceVisible(false);
-      setSkipVoteState(null);
-      setPhaseCancelShield(null);
-      setPlayback(DEFAULT_PLAYBACK_STATE);
-      setLoading(false);
-      return;
-    }
+    setSession(null);
+    setQueue([]);
+    setSuggestedQueue([]);
+    setPlayedHistory([]);
+    setListeners([]);
+    setChatLog([]);
+    setToasts([]);
+    setError(null);
+    setReceipt(null);
+    setSkipVoteState(null);
+    setPhaseCancelShield(null);
+    setPlayback(DEFAULT_PLAYBACK_STATE);
+    // A real id means a load is about to start; an empty one means idle.
+    setLoading(!!sessionId);
   }, [sessionId]);
 
   useEffect(() => {
@@ -332,12 +376,29 @@ export function useSessionRoom(sessionId: string) {
             if (!mounted) return;
             setSkipVoteState(null);
             setPhaseCancelShield(null);
+            const previousTrackId = lastCurrentTrack?.id ?? null;
             lastCurrentTrack = normalizeCurrentTrack(
               currentTrack,
               sessionCreatedAt,
               sessionHostId,
             );
             setQueue(buildLiveQueue(lastCurrentTrack, lastQueue));
+            // A guest's clock only learns the new track's position from the
+            // host's next report, which can be seconds away while the host
+            // loads it; until then the old song's elapsed time kept ticking
+            // under the new title. Start the new track at zero. The host's
+            // clock is engine-driven and replaced wholesale, so leave it.
+            const nextTrackId = lastCurrentTrack?.id ?? null;
+            if (
+              shouldResetGuestClock({
+                isHostDevice: isHostDeviceRef.current,
+                previousTrackId,
+                nextTrackId,
+              })
+            ) {
+              const hasTrack = nextTrackId !== null;
+              setPlayback((prev) => resetPlaybackForTrackChange(prev, hasTrack));
+            }
           }),
           onSessionEvent("session:playback_state_updated", (data) => {
             if (!mounted) return;
@@ -349,7 +410,7 @@ export function useSessionRoom(sessionId: string) {
           }),
           onSessionEvent("room-state", (state) => {
             if (!mounted) return;
-            if (state.roomMode || state.hostId || state.behaviors) {
+            if (state.roomMode || state.hostId || state.behaviors || state.hostUsername) {
               setSession((prev) =>
                 prev
                   ? {
@@ -361,6 +422,9 @@ export function useSessionRoom(sessionId: string) {
                         ? { behaviors: state.behaviors }
                         : {}),
                       ...(state.hostId ? { hostId: state.hostId } : {}),
+                      ...(state.hostUsername
+                        ? { hostUsername: state.hostUsername }
+                        : {}),
                     }
                   : prev,
               );
@@ -415,7 +479,10 @@ export function useSessionRoom(sessionId: string) {
             setPlayback((prev) => ({
               ...prev,
               isPlaying,
-              elapsed: data.position || prev.elapsed,
+              // Not `data.position || prev.elapsed`: a report of 0 (the
+              // host just started a track) is a real position, and the
+              // falsy check kept the previous song's elapsed time.
+              elapsed: resolveSyncedElapsed(data.position, prev.elapsed),
             }));
           }),
           onSessionEvent("playback:seeked", (data) => {
@@ -563,17 +630,21 @@ export function useSessionRoom(sessionId: string) {
       onSessionEvent("track-skipped", (data) => {
         setSkipVoteState(null);
         if (USE_MOCKS) {
-          if (data?.userId !== user?.id) advanceQueue();
+          if (data?.userId !== user?.id) advanceQueue('skip');
           return;
         }
-        // Attribution: the server has always sent who skipped; nothing
-        // surfaced it, so tracks just vanished without explanation.
-        if (data?.voteSkip) {
-          showToast(`Track skipped by vote${data.votes ? ` (${data.votes} votes)` : ''}.`, "info", "!");
-        } else if (data?.userId && data.userId !== user?.id) {
-          const skipper = listenersRef.current.find((l) => l.userId === data.userId)?.username;
-          showToast(skipper ? `Track skipped by @${skipper}.` : "Track skipped.", "info", "!");
-        }
+        // Attribution: the server sends the skipper's user id (never a
+        // username), so the name comes from the roster, falling back to
+        // everyone the room has shown us. Shown to the skipper too: their
+        // own device used to say "Preview ended" for a skip.
+        const line = describeTrackSkipped(data, {
+          selfId: user?.id,
+          selfUsername: user?.username,
+          lookupUsername: (userId) =>
+            listenersRef.current.find((l) => l.userId === userId)?.username ||
+            ledgerRef.current?.usernameFor(userId),
+        });
+        if (line) showToast(line, "info", "!");
       }),
       onSessionEvent("track-removed", (data) => {
         if (!USE_MOCKS) return;
@@ -648,23 +719,37 @@ export function useSessionRoom(sessionId: string) {
       onSessionEvent("pending-updated", (pendingQueue) => {
         setSuggestedQueue(pendingQueue);
       }),
-      onSessionEvent("session-ended", () => {
+      onSessionEvent("session-ended", (data) => {
+        // Never build a receipt for a room other than the one this hook is on.
+        if (data?.sessionId && data.sessionId !== sessionId) return;
         stopPlayback();
         clearActiveSession();
         clearActiveJoin();
+        // Freeze the receipt NOW, from what the ledger saw during the
+        // session. Building it later, from live state, is what produced
+        // "Host", a shrunken head count and a render-time end stamp: the
+        // host leaves the roster right after this event.
+        const ledger = ledgerRef.current;
+        if (ledger) {
+          if (user) ledger.noteParticipant(user.id, user.username);
+          ledger.noteParticipants(listenersRef.current);
+          setReceipt(ledger.close(sessionRef.current, Date.now()));
+        }
         // Flag the session dead so every surface reacts: the room
         // screen shows its receipt (or terminal state), the global
         // MiniPlayer hides, and reconnects stop rejoining. The toast
         // is the only signal a guest browsing another screen gets.
         setSession((prev) => (prev ? { ...prev, isLive: false } : prev));
-        setBounceVisible(true);
         showToast("The room has ended.", "info", "!");
       }),
       onSessionEvent("cv:balance", (data) => {
         if (data.userId === user?.id) cv.syncBalance(data.balance);
       }),
       onSessionEvent("cv:earn", (data) => {
-        if (data.userId === user?.id) cv.earn(data.amount, data.reason);
+        if (data.userId !== user?.id) return;
+        cv.earn(data.amount, data.reason);
+        // The receipt reports what this session earned, not the balance.
+        ledgerRef.current?.noteCvEarned(data.amount);
       }),
       onSessionEvent("phantom-power-activated", (data) => {
         const toast: ToastMessage = {
@@ -718,6 +803,51 @@ export function useSessionRoom(sessionId: string) {
     // to prevent full listener teardown/rebuild on every approval-queue change.
   ]); // Needs cv for earn/sync updates
 
+  // ─── Receipt ledger feeds ───────────────────────────────
+  // Both feeds are gated on the loaded session being THIS sessionId: on a
+  // room switch the old room's roster and queue are still in state for a
+  // render, and must never be credited to the new room's ledger.
+  const loadedSessionId = session?.id ?? null;
+
+  // Everyone who was ever on the roster counts as a participant. The live
+  // roster shrinks as people leave (the host drops off it the moment they
+  // end the room), so the head count has to be accumulated, not read at
+  // the end.
+  useEffect(() => {
+    if (!sessionId || loadedSessionId !== sessionId) return;
+    ledgerRef.current?.noteParticipants(listeners);
+  }, [listeners, sessionId, loadedSessionId]);
+
+  // A track counts as played once playback reached MIN_PLAYED_SECONDS on
+  // it. Guests never ran the engine, so playedHistory (filled by
+  // advanceQueue) stayed empty for them and the receipt could only ever
+  // show the current track. On the host, the engine's clock lags queue[0]
+  // for a moment after an advance; its currentTrackId says which track the
+  // clock belongs to, so a stale elapsed time cannot credit the next track.
+  const nowPlaying = queue[0] ?? null;
+  useEffect(() => {
+    if (!nowPlaying || !sessionId || loadedSessionId !== sessionId) return;
+    if (
+      hasPlayedLongEnough({
+        isHostDevice,
+        nowPlayingId: nowPlaying.id,
+        clockTrackId: playback.currentTrackId,
+        elapsedSeconds: playback.elapsed,
+      })
+    ) {
+      ledgerRef.current?.noteTrackPlayed(nowPlaying);
+    }
+  }, [
+    nowPlaying,
+    playback.elapsed,
+    playback.currentTrackId,
+    isHostDevice,
+    sessionId,
+    loadedSessionId,
+  ]);
+
+  const dismissReceipt = useCallback(() => setReceipt(null), []);
+
   // Guests receive isPlaying + elapsed over the socket at ~1Hz, but no
   // duration — only the host's engine knows it. Derive duration from
   // the now-playing track (buildLiveQueue pins it at queue[0]) and
@@ -755,7 +885,9 @@ export function useSessionRoom(sessionId: string) {
     setPlayback,
     chatLog,
     bounceVisible,
-    setBounceVisible,
+    // The frozen receipt for the session this hook is on; null otherwise.
+    receipt: bounceVisible ? receipt : null,
+    dismissReceipt,
     skipVoteState,
     setSkipVoteState,
     phaseCancelShield,

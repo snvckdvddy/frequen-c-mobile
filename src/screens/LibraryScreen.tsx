@@ -26,9 +26,10 @@ import { useLibraryBrowse } from '../hooks/useLibraryBrowse';
 import { sessionApi } from '../services/api';
 import { addToQueue } from '../services/socket';
 import {
-  importLocalTracks, listLocalTracks, removeLocalTrack, localRecordToTrack,
+  backfillLocalTags, importLocalTracks, listLocalTracks, removeLocalTrack, localRecordToTrack,
   type LocalTrackRecord,
 } from '../services/localLibrary';
+import { parseServerTimestamp } from '../utils/serverTime';
 import { VoidSurface } from '../design/components';
 import { palette } from '../design/tokens/materials';
 import { colors } from '../design/tokens/colors';
@@ -119,9 +120,11 @@ interface PastSession {
 }
 
 function formatTimeAgo(dateStr?: string): string {
-  if (!dateStr) return '';
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
+  // Backend timestamps are zone-less UTC; parse them as such (see utils/serverTime).
+  const stamp = parseServerTimestamp(dateStr);
+  if (!stamp) return '';
+  const diff = Date.now() - stamp.getTime();
+  const mins = Math.max(0, Math.floor(diff / 60000));
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
@@ -282,7 +285,20 @@ export function LibraryScreen({ onOpenRoom, initialSegment, route }: LibraryScre
   const [importing, setImporting] = useState(false);
 
   useEffect(() => {
-    void listLocalTracks().then(setLocalTracks);
+    let active = true;
+    // Show the saved list right away, then fill in ID3 titles and artists for
+    // files imported before tags were read (each file is checked only once).
+    void listLocalTracks()
+      .then((list) => {
+        if (active) setLocalTracks(list);
+        return backfillLocalTags();
+      })
+      .then((list) => {
+        if (active) setLocalTracks(list);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Local files exist on THIS device, so queueing is host-only: the
@@ -447,8 +463,8 @@ export function LibraryScreen({ onOpenRoom, initialSegment, route }: LibraryScre
                             <Text variant="body" color={palette.frost} numberOfLines={1}>
                               {rec.title}
                             </Text>
-                            <Text variant="bodySmall" color={palette.slate}>
-                              {formatDuration(rec.durationSec)} · LOCAL
+                            <Text variant="bodySmall" color={palette.slate} numberOfLines={1}>
+                              {rec.artist ? `${rec.artist} · ` : ''}{formatDuration(rec.durationSec)} · LOCAL
                             </Text>
                           </View>
                           {canQueueLocal && (
